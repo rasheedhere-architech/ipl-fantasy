@@ -1,0 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-ipl-navy text-gray-100 font-body antialiased selection:bg-ipl-gold selection:text-ipl-navy min-h-screen flex flex-col;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-wide uppercase;
+  }
+}
+
+@layer utilities {
+  .neon-border {
+    @apply border border-white/10 transition-all duration-300;
+  }
+  
+  .neon-border:hover {
+    @apply border-ipl-gold shadow-[0_0_15px_rgba(244,196,48,0.5)];
+  }
+  
+  .glass-panel {
+    @apply bg-ipl-surface/80 backdrop-blur-md border border-white/5;
+  }
+}

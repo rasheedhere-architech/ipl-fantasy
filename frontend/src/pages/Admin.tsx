@@ -288,11 +288,18 @@ function UserScoreManager() {
   const { data: users, isLoading } = useAllUsers();
   const { mutate: updateBasePoints, isPending } = useUpdateBasePoints();
   const [localPoints, setLocalPoints] = useState<Record<string, number>>({});
+  const [localPowerups, setLocalPowerups] = useState<Record<string, number>>({});
 
   const handleUpdate = (userId: string) => {
     const basePoints = localPoints[userId];
-    if (basePoints === undefined) return;
-    updateBasePoints({ userId, basePoints });
+    const basePowerups = localPowerups[userId];
+    if (basePoints === undefined && basePowerups === undefined) return;
+    const user = users?.find(u => u.id === userId);
+    updateBasePoints({ 
+      userId, 
+      basePoints: basePoints ?? user?.base_points ?? 0, 
+      basePowerups: basePowerups ?? user?.base_powerups ?? 10 
+    });
   };
 
   if (isLoading) return <div className="text-white font-display text-xs p-4 animate-pulse uppercase tracking-widest opacity-30">Loading database users...</div>;
@@ -314,8 +321,9 @@ function UserScoreManager() {
           <thead>
             <tr className="bg-white/5 border-b border-white/10 uppercase font-display text-[10px] tracking-widest text-gray-500">
               <th className="p-4 font-normal">Active Player</th>
-              <th className="p-4 font-normal text-center">Base Factor</th>
-              <th className="p-4 font-normal text-right">Adjust Standing</th>
+              <th className="p-4 font-normal text-center">Base Score</th>
+              <th className="p-4 font-normal text-center">Base Powerups</th>
+              <th className="p-4 font-normal text-right">Adjust Settings</th>
             </tr>
           </thead>
           <tbody className="font-display">
@@ -339,24 +347,41 @@ function UserScoreManager() {
                       {user.base_points}
                    </div>
                 </td>
+                <td className="p-4 text-center">
+                   <div className="inline-block px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded font-mono text-blue-400 text-lg">
+                      {user.base_powerups !== undefined ? user.base_powerups : 10}
+                   </div>
+                </td>
                 <td className="p-4 text-right">
                   <div className="flex justify-end items-center gap-3">
-                    <div className="relative group/input">
-                      <input 
-                        type="number"
-                        placeholder={user.base_points.toString()}
-                        className="w-20 bg-ipl-navy border-2 border-white/10 p-2 text-center text-white focus:border-ipl-gold focus:outline-none transition-all font-mono"
-                        value={localPoints[user.id] ?? user.base_points}
-                        onChange={(e) => setLocalPoints({...localPoints, [user.id]: parseInt(e.target.value) || 0})}
-                      />
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 opacity-0 group-hover/input:opacity-100 transition-opacity whitespace-nowrap bg-black text-[8px] px-2 py-0.5 rounded border border-white/10">NEW SCORE</div>
+                    <div className="flex gap-2">
+                      <div className="relative group/input">
+                        <input 
+                          type="number"
+                          placeholder={user.base_points.toString()}
+                          className="w-16 bg-ipl-navy border-2 border-white/10 p-2 text-center text-white focus:border-ipl-gold focus:outline-none transition-all font-mono text-xs"
+                          value={localPoints[user.id] ?? user.base_points}
+                          onChange={(e) => setLocalPoints({...localPoints, [user.id]: parseInt(e.target.value) || 0})}
+                        />
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 opacity-0 group-hover/input:opacity-100 transition-opacity whitespace-nowrap bg-black text-[8px] px-2 py-0.5 rounded border border-white/10">SCORE</div>
+                      </div>
+                      <div className="relative group/input">
+                        <input 
+                          type="number"
+                          placeholder={(user.base_powerups !== undefined ? user.base_powerups : 10).toString()}
+                          className="w-16 bg-ipl-navy border-2 border-white/10 p-2 text-center text-white focus:border-blue-400 focus:outline-none transition-all font-mono text-xs"
+                          value={localPowerups[user.id] ?? (user.base_powerups !== undefined ? user.base_powerups : 10)}
+                          onChange={(e) => setLocalPowerups({...localPowerups, [user.id]: parseInt(e.target.value) || 0})}
+                        />
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 opacity-0 group-hover/input:opacity-100 transition-opacity whitespace-nowrap bg-black text-[8px] px-2 py-0.5 rounded border border-white/10">POWERUPS</div>
+                      </div>
                     </div>
                     <button 
                       onClick={() => handleUpdate(user.id)}
                       disabled={isPending}
-                      className="h-10 px-6 bg-white text-ipl-navy text-[11px] font-bold uppercase tracking-widest hover:bg-ipl-gold hover:scale-105 transition-all disabled:opacity-30 flex items-center justify-center gap-2"
+                      className="h-10 px-4 bg-white text-ipl-navy text-[10px] font-bold uppercase tracking-widest hover:bg-ipl-gold hover:scale-105 transition-all disabled:opacity-30 flex items-center justify-center gap-2"
                     >
-                      {isPending ? 'Syncing...' : 'Save'}
+                      {isPending ? 'Sync...' : 'Save'}
                     </button>
                   </div>
                 </td>

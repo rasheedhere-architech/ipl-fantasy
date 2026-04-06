@@ -24,13 +24,6 @@ export default function Dashboard() {
           ))
         )}
       </div>
-      
-      <section className="pt-8">
-        <h2 className="text-2xl font-display text-white border-b-2 border-white/10 pb-4 mb-8">MY RECENT PREDICTIONS</h2>
-        <div className="glass-panel p-8 text-center text-gray-500 border border-white/5 border-dashed">
-          No recent predictions found.
-        </div>
-      </section>
     </div>
   );
 }

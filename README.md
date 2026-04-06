@@ -342,8 +342,6 @@ RR=#E91E8C · PBKS=#AA0000 · SRH=#FF6600 · GT=#1B6CA8 · LSG=#00ADEF
 #### /dashboard
 - Nav: logo, user avatar + name, logout
 - Upcoming matches: `MatchCard` list — team1 vs team2, venue, countdown, "Predict" CTA, live pulse
-- My recent predictions: last 3 matches with score badge
-- My rank summary card: rank, points, accuracy %
 
 #### /match/:id — two distinct states
 

@@ -69,8 +69,8 @@ export function useAllUsers() {
 export function useUpdateBasePoints() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ userId, basePoints }: { userId: string; basePoints: number }) => {
-      const response = await apiClient.put(`/admin/users/${userId}/base-points`, { base_points: basePoints });
+    mutationFn: async ({ userId, basePoints, basePowerups }: { userId: string; basePoints: number; basePowerups: number }) => {
+      const response = await apiClient.put(`/admin/users/${userId}/base-points`, { base_points: basePoints, base_powerups: basePowerups });
       return response.data;
     },
     onSuccess: () => {

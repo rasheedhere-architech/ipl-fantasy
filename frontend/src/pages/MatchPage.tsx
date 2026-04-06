@@ -36,7 +36,8 @@ export default function MatchPage() {
   const match = data.match;
   const questions = data.questions || [];
   const powerupsUsed = data.powerups_used || 0;
-  const powerupsLeft = 10 - powerupsUsed;
+  const totalPowerups = data.total_powerups ?? 10;
+  const powerupsLeft = totalPowerups - powerupsUsed;
   const hasPredicted = myPredictions && Object.keys(myPredictions).length > 0;
 
   // Find specific labels from the questions array
@@ -49,7 +50,7 @@ export default function MatchPage() {
     submitPrediction(formData, {
       onError: (err: any) => {
         if (err.response?.data?.detail === 'powerup_limit_reached') {
-          alert('Error: You have already used all 10 powerups for the season!');
+          alert(`Error: You have already used all ${totalPowerups} powerups for the season!`);
         } else {
           alert('Error submitting prediction. Please try again.');
         }
@@ -76,7 +77,7 @@ export default function MatchPage() {
           {isLocked ? 'PREDICTIONS CLOSED' : 'PREDICTIONS OPEN'}
         </div>
         <div className="absolute top-0 left-0 bg-white/10 text-white font-display text-[10px] tracking-widest px-3 py-1 uppercase">
-          Powerups Remaining: {powerupsLeft}/10
+          Powerups Remaining: {powerupsLeft}/{totalPowerups}
         </div>
         <h1 className="text-5xl text-white font-display mt-4">
           <span className="text-[#004BA0]">{match.team1}</span>
@@ -211,7 +212,7 @@ export default function MatchPage() {
               <label className={`block font-display tracking-wide uppercase text-sm ${errors.use_powerup ? 'text-red-500' : 'text-gray-300'}`}>
                 Use 2x Powerup for this match? {errors.use_powerup && <span className="ml-2 text-[10px] animate-pulse">(! Selection Required)</span>}
               </label>
-              <span className="text-[10px] text-gray-500 font-display uppercase">Season Limit: 10</span>
+              <span className="text-[10px] text-gray-500 font-display uppercase">Season Limit: {totalPowerups}</span>
             </div>
             <div className={`flex gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
               <label className={`flex-1 cursor-pointer ${(powerupsLeft <= 0 && myPredictions?.use_powerup !== 'Yes') ? 'opacity-30 grayscale pointer-events-none' : ''}`}>
@@ -269,7 +270,7 @@ export default function MatchPage() {
                   <th className="py-4 font-normal text-center">Winner</th>
                   <th className="py-4 font-normal text-center">PP Scores</th>
                   <th className="py-4 font-normal">Player of Match</th>
-                  <th className="py-4 font-normal text-right">Boost</th>
+                  <th className="py-4 font-normal text-right">Power up</th>
                 </tr>
               </thead>
               <tbody className="text-white font-display">

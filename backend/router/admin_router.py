@@ -121,6 +121,10 @@ async def update_user_base_points(user_id: str, payload: dict, db: AsyncSession 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
-    user.base_points = int(payload.get("base_points", 0))
+    if "base_points" in payload:
+        user.base_points = int(payload["base_points"])
+    if "base_powerups" in payload:
+        user.base_powerups = int(payload["base_powerups"])
+        
     await db.commit()
-    return {"message": "User base points updated", "user_id": user_id, "base_points": user.base_points}
+    return {"message": "User base stats updated", "user_id": user_id, "base_points": user.base_points, "base_powerups": user.base_powerups}

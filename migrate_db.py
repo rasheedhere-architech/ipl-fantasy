@@ -30,6 +30,15 @@ async def run_migration():
             else:
                 print(f"❌ Error during migration: {e}")
                 
+        try:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN base_powerups INTEGER DEFAULT 10"))
+            print("✅ Successfully added 'base_powerups' column.")
+        except Exception as e:
+            if "already exists" in str(e).lower() or "duplicate column name" in str(e).lower():
+                print("ℹ️ Column 'base_powerups' already exists. Skipping.")
+            else:
+                print(f"❌ Error during migration: {e}")
+                
     print("✨ Migration complete!")
     await engine.dispose()
 

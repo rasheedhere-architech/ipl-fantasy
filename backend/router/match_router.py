@@ -89,7 +89,7 @@ async def get_match(match_id: str, db: AsyncSession = Depends(get_db), current_u
     )
     powerups_used = len(p_result.scalars().all())
 
-    return {"match": match_dict, "questions": questions, "powerups_used": powerups_used}
+    return {"match": match_dict, "questions": questions, "powerups_used": powerups_used, "total_powerups": current_user.base_powerups}
 
 @router.post("/{match_id}/predictions")
 async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -106,7 +106,7 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
     pred_result = await db.execute(pred_stmt)
     existing_pred = pred_result.scalars().first()
     
-    # Check Powerup Limit (10 per season)
+    # Check Powerup Limit (allotted base_powerups per season)
     if payload.use_powerup == "Yes":
         is_already_using = existing_pred and existing_pred.use_powerup == "Yes"
         
@@ -118,7 +118,7 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
             )
             total_used = len(total_up_result.scalars().all())
             
-            if total_used >= 10:
+            if total_used >= current_user.base_powerups:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST, 
                     detail="powerup_limit_reached"

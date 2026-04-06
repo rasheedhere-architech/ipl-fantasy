@@ -24,7 +24,7 @@ export default function Leaderboard() {
                 <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase">Rank</th>
                 <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase">Player</th>
                 <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase text-center hidden md:table-cell">History (Match Progression)</th>
-                <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase text-center">Powerups remaining</th>
+                <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase text-center">Powerups</th>
                 <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase text-right">Points</th>
               </tr>
             </thead>

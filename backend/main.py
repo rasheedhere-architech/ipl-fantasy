@@ -4,21 +4,26 @@ from starlette.middleware.sessions import SessionMiddleware
 import os
 from dotenv import load_dotenv
 
+load_dotenv()
+
 from contextlib import asynccontextmanager
 app = FastAPI(title="IPL Fantasy API")
 
-app.add_middleware(SessionMiddleware, secret_key=os.environ.get("JWT_SECRET", "session_secret"))
-
-# Allow CORS for local dev and frontend URL
-frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+# Allow CORS for local dev and frontend URL(s)
+# FRONTEND_URL can be a single URL or comma-separated list of URLs
+frontend_url_raw = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+allowed_origins = [url.strip() for url in frontend_url_raw.split(",") if url.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[frontend_url],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(SessionMiddleware, secret_key=os.environ.get("JWT_SECRET", "session_secret"))
+
 
 from backend.router import auth_router, admin_router, match_router, leaderboard_router
 

@@ -26,7 +26,7 @@ async def send_prediction_confirmation(user_email, user_name, match_title, match
             <p style="margin: 0 0 10px 0;"><strong>Match Winner:</strong> {predictions_dict.get('match_winner')}</p>
             <p style="margin: 10px 0;"><strong>Powerplay Scores:</strong> {team1_name} - {predictions_dict.get('team1_powerplay')} vs {team2_name} - {predictions_dict.get('team2_powerplay')}</p>
             <p style="margin: 10px 0;"><strong>Player of the Match:</strong> {predictions_dict.get('player_of_the_match')}</p>
-            <p style="margin: 10px 0;"><strong>Boost Used:</strong> {predictions_dict.get('use_powerup', 'No') == 'Yes' and '⚡ 2X POWERUP' or 'No'}</p>
+            <p style="margin: 10px 0;"><strong>Using Power up:</strong> {predictions_dict.get('use_powerup', 'No') == 'Yes' and '⚡ 2X POWERUP' or 'No'}</p>
         </div>
 
         <p style="font-size: 12px; color: #64748b;">Submitted at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}</p>

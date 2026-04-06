@@ -9,6 +9,8 @@ from sqlalchemy.future import select
 from backend.database import get_db
 from backend.dependencies import get_current_user
 from backend.models import User, Match, Prediction, MatchStatus
+from backend.utils.email import send_prediction_confirmation
+import asyncio
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 
@@ -144,6 +146,17 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
         db.add(new_pred)
             
     await db.commit()
+    
+    # Trigger confirmation email in the background 
+    # to avoid slowing down the user's response time
+    match_title = f"{match.team1} vs {match.team2}"
+    asyncio.create_task(send_prediction_confirmation(
+        current_user.email, 
+        current_user.name, 
+        match_title, 
+        payload.model_dump()
+    ))
+            
     return {"message": "Predictions submitted successfully"}
 
 @router.get("/{match_id}/predictions/mine")

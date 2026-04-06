@@ -147,7 +147,7 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
             
     await db.commit()
 
-    match_number = match.external_id.split("-")[1]
+    match_number = match.external_id.split("-")[2]
     
     # Trigger confirmation email in the background 
     # to avoid slowing down the user's response time

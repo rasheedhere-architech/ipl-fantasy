@@ -48,6 +48,9 @@ export default function MatchPage() {
   const onSubmit = (formData: any) => {
     if (isLocked) return;
     submitPrediction(formData, {
+      onSuccess: () => {
+        alert('Prediction saved successfully! 🏏 Confirmation email sent.');
+      },
       onError: (err: any) => {
         if (err.response?.data?.detail === 'powerup_limit_reached') {
           alert(`Error: You have already used all ${totalPowerups} powerups for the season!`);

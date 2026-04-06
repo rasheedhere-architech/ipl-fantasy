@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Settings, Users, AlertTriangle, ShieldCheck, Mail, Trash2, CheckCircle, AlertCircle, Archive, ShieldAlert } from 'lucide-react';
+import { Settings, Users, AlertTriangle, ShieldCheck, Mail, Trash2, CheckCircle, AlertCircle, ShieldAlert } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { Navigate } from 'react-router-dom';
 import { useAllowlist, useAddAllowlist, useDeleteAllowlist, useUpdateMatchResults, useAllUsers, useUpdateBasePoints } from '../api/hooks/useAdmin';
 import { useMatches } from '../api/hooks/useMatches';
-import { apiClient } from '../api/client';
+
 
 export default function Admin() {
   const { user } = useAuthStore();

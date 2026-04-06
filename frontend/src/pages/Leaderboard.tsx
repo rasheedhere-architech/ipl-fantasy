@@ -1,4 +1,3 @@
-import { Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useLeaderboard } from '../api/hooks/useMatches';
 import { useAuthStore } from '../store/auth';
 

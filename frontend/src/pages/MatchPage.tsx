@@ -17,9 +17,8 @@ export default function MatchPage() {
   const { mutate: submitPrediction, isPending } = useSubmitPrediction(id || '');
   const { data: myPredictions } = useMyPredictions(id || '');
 
-  // Calculate if match is locked (Toss time - 30 minutes)
-  // We calculate this early (safely) so it can be passed to useAllMatchPredictions hook
-  const tossTime = data?.match ? (data.match.tossTime ? new Date(data.match.tossTime) : new Date(data.match.toss_time)) : null;
+  // Predictions are currently always open (toss-lock disabled)
+  // const tossTime = data?.match ? (data.match.tossTime ? new Date(data.match.tossTime) : new Date(data.match.toss_time)) : null;
   // const isLocked = tossTime ? (new Date() > new Date(tossTime.getTime() - 30 * 60000)) : false;
   const isLocked = false;
 

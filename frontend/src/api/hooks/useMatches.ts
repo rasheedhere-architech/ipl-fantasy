@@ -7,7 +7,12 @@ export interface Match {
   team2: string;
   venue: string;
   tossTime: string;
+  toss_time: string;
   status: 'upcoming' | 'live' | 'completed';
+  winner?: string;
+  team1_powerplay_score?: number;
+  team2_powerplay_score?: number;
+  player_of_the_match?: string;
 }
 
 export function useMatches() {

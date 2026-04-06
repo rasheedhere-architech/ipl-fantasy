@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Settings, Users, AlertTriangle, ShieldCheck, Mail, Trash2, CheckCircle, AlertCircle, ShieldAlert } from 'lucide-react';
+import { Settings, Users, AlertTriangle, ShieldCheck, Mail, Trash2, ShieldAlert } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { Navigate } from 'react-router-dom';
 import { useAllowlist, useAddAllowlist, useDeleteAllowlist, useUpdateMatchResults, useAllUsers, useUpdateBasePoints } from '../api/hooks/useAdmin';

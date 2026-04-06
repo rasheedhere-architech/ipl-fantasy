@@ -146,15 +146,16 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
         db.add(new_pred)
             
     await db.commit()
+
+    match_number = match.external_id.split("-")[1]
     
     # Trigger confirmation email in the background 
     # to avoid slowing down the user's response time
-    match_title = f"{match.team1} vs {match.team2}"
+    match_title = f"Match {match_number}: {match.team1} vs {match.team2}"
     asyncio.create_task(send_prediction_confirmation(
         current_user.email, 
         current_user.name, 
         match_title,
-        match_id,
         match.team1,
         match.team2,
         payload.model_dump()

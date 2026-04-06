@@ -6,7 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-async def send_prediction_confirmation(user_email, user_name, match_title, match_id, team1_name, team2_name, predictions_dict):
+async def send_prediction_confirmation(user_email, user_name, match_title, team1_name, team2_name, predictions_dict):
     api_key = os.getenv("RESEND_API_KEY")
     if not api_key:
         logger.warning("RESEND_API_KEY not found in environment, skipping email.")
@@ -20,7 +20,7 @@ async def send_prediction_confirmation(user_email, user_name, match_title, match
     <div style="background-color: #0B0E1A; color: white; padding: 40px; font-family: sans-serif; border-radius: 8px;">
         <h1 style="color: {brand_color}; margin-bottom: 24px; border-bottom: 2px solid #1B2132; padding-bottom: 12px;">PREDICTION LOCKED 🔒</h1>
         <p>Hi {user_name},</p>
-        <p>Your prediction for the match <strong>{match_id} {match_title}</strong> has been successfully recorded and locked for scoring.</p>
+        <p>Your prediction for the match <strong>{match_title}</strong> has been successfully recorded and locked for scoring.</p>
         
         <div style="background-color: #1B2132; padding: 20px; border-radius: 4px; margin: 24px 0;">
             <p style="margin: 0 0 10px 0;"><strong>Match Winner:</strong> {predictions_dict.get('match_winner')}</p>

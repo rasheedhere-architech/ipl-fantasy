@@ -153,7 +153,10 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
     asyncio.create_task(send_prediction_confirmation(
         current_user.email, 
         current_user.name, 
-        match_title, 
+        match_title,
+        match_id,
+        match.team1,
+        match.team2,
         payload.model_dump()
     ))
             

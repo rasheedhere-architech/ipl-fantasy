@@ -5,6 +5,7 @@ import { useMatch, useSubmitPrediction, useMyPredictions, useAllMatchPredictions
 import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { apiClient } from '../api/client';
+import toast from 'react-hot-toast';
 
 export default function MatchPage() {
   const { id } = useParams();
@@ -52,13 +53,13 @@ export default function MatchPage() {
     if (isLocked) return;
     submitPrediction(formData, {
       onSuccess: () => {
-        alert('Prediction saved successfully! 🏏 Confirmation email sent.');
+        toast.success('Prediction Locked! Confirmation email sent.');
       },
       onError: (err: any) => {
         if (err.response?.data?.detail === 'powerup_limit_reached') {
-          alert(`Error: You have already used all ${totalPowerups} powerups for the season!`);
+          toast.error(`Boost Limit Reached! Max ${totalPowerups} allowed.`);
         } else {
-          alert('Error submitting prediction. Please try again.');
+          toast.error('Submission failed. Try again.');
         }
       }
     });
@@ -70,9 +71,10 @@ export default function MatchPage() {
         { player_of_the_match: editValue }
       );
       setEditingId(null);
+      toast.success('Prediction updated successfully');
       window.location.reload(); // Refresh to show new data
     } catch (err) {
-      alert('Failed to update prediction');
+      toast.error('Failed to update prediction');
     }
   };
 

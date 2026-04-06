@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/auth';
 import { Navigate } from 'react-router-dom';
 import { useAllowlist, useAddAllowlist, useDeleteAllowlist, useUpdateMatchResults, useAllUsers, useUpdateBasePoints } from '../api/hooks/useAdmin';
 import { useMatches } from '../api/hooks/useMatches';
+import toast from 'react-hot-toast';
 
 
 export default function Admin() {
@@ -18,7 +19,6 @@ export default function Admin() {
     team2_powerplay_score: 0,
     player_of_the_match: ''
   });
-  const [status, setStatus] = useState<{ message: string; type: 'success' | 'error' | null }>({ message: '', type: null });
 
   const { data: allowlist, isLoading: isAllowlistLoading } = useAllowlist();
   const { mutate: addEmail, isPending: isAdding } = useAddAllowlist();
@@ -46,17 +46,16 @@ export default function Admin() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const showStatus = (message: string, type: 'success' | 'error') => {
-    setStatus({ message, type });
-    setTimeout(() => setStatus({ message: '', type: null }), 5000);
-  };
-
   const handleAddEmail = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEmail.trim()) return;
     const emails = newEmail.split(',').map(e => e.trim()).filter(Boolean);
     addEmail(emails, {
-      onSuccess: () => setNewEmail('')
+      onSuccess: () => {
+        setNewEmail('');
+        toast.success(`${emails.length} emails added to access list`);
+      },
+      onError: () => toast.error('Failed to update access list')
     });
   };
 
@@ -71,7 +70,7 @@ export default function Admin() {
       answers: matchResults
     }, {
       onSuccess: () => {
-        showStatus('Match results submitted and scoring triggered!', 'success');
+        toast.success('Match results submitted and scoring triggered!');
         setSelectedMatchId('');
         setMatchResults({
           winner: '',
@@ -81,32 +80,13 @@ export default function Admin() {
         });
       },
       onError: () => {
-        showStatus('Failed to update match results. Please try again.', 'error');
+        toast.error('Failed to update match results. Please try again.');
       }
     });
   };
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto pb-20 relative">
-      {status.type && (
-        <div className={`fixed top-6 right-6 z-50 animate-in fade-in slide-in-from-right-10 duration-500 max-w-md w-full glass-panel border-l-4 ${status.type === 'success' ? 'border-l-ipl-gold shadow-[0_0_30px_rgba(244,196,48,0.2)]' : 'border-l-red-500 shadow-[0_0_30px_rgba(239,68,68,0.2)]'} p-4 flex items-center gap-4`}>
-          {status.type === 'success' ? (
-            <div className="p-2 bg-ipl-gold/20 rounded-full">
-              <CheckCircle className="w-5 h-5 text-ipl-gold" />
-            </div>
-          ) : (
-            <div className="p-2 bg-red-500/20 rounded-full">
-              <AlertCircle className="w-5 h-5 text-red-500" />
-            </div>
-          )}
-          <div className="flex-1">
-            <h4 className={`text-xs font-display uppercase tracking-widest ${status.type === 'success' ? 'text-ipl-gold' : 'text-red-500'}`}>
-              {status.type === 'success' ? 'Operation Success' : 'System Error'}
-            </h4>
-            <p className="text-gray-300 text-sm mt-1 font-display tracking-tight">{status.message}</p>
-          </div>
-        </div>
-      )}
 
       <header className="flex justify-between items-end border-b-2 border-white/10 pb-4">
         <div>
@@ -277,7 +257,7 @@ export default function Admin() {
 
         {/* User Management Section */}
         <section className="mt-12 mb-20 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
-           <UserScoreManager />
+          <UserScoreManager />
         </section>
       </div>
     </div>
@@ -295,10 +275,10 @@ function UserScoreManager() {
     const basePowerups = localPowerups[userId];
     if (basePoints === undefined && basePowerups === undefined) return;
     const user = users?.find(u => u.id === userId);
-    updateBasePoints({ 
-      userId, 
-      basePoints: basePoints ?? user?.base_points ?? 0, 
-      basePowerups: basePowerups ?? user?.base_powerups ?? 10 
+    updateBasePoints({
+      userId,
+      basePoints: basePoints ?? user?.base_points ?? 0,
+      basePowerups: basePowerups ?? user?.base_powerups ?? 10
     });
   };
 
@@ -331,8 +311,8 @@ function UserScoreManager() {
               <tr key={user.id} className="border-b border-white/5 hover:bg-white/5 transition-all group">
                 <td className="p-4">
                   <div className="flex items-center gap-4">
-                    <img 
-                      src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`} 
+                    <img
+                      src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`}
                       className="w-10 h-10 rounded-image border border-white/10 group-hover:border-ipl-gold transition-colors"
                       alt=""
                     />
@@ -343,40 +323,40 @@ function UserScoreManager() {
                   </div>
                 </td>
                 <td className="p-4 text-center">
-                   <div className="inline-block px-3 py-1 bg-ipl-gold/10 border border-ipl-gold/20 rounded font-mono text-ipl-gold text-lg">
-                      {user.base_points}
-                   </div>
+                  <div className="inline-block px-3 py-1 bg-ipl-gold/10 border border-ipl-gold/20 rounded font-mono text-ipl-gold text-lg">
+                    {user.base_points}
+                  </div>
                 </td>
                 <td className="p-4 text-center">
-                   <div className="inline-block px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded font-mono text-blue-400 text-lg">
-                      {user.base_powerups !== undefined ? user.base_powerups : 10}
-                   </div>
+                  <div className="inline-block px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded font-mono text-blue-400 text-lg">
+                    {user.base_powerups !== undefined ? user.base_powerups : 10}
+                  </div>
                 </td>
                 <td className="p-4 text-right">
                   <div className="flex justify-end items-center gap-3">
                     <div className="flex gap-2">
                       <div className="relative group/input">
-                        <input 
+                        <input
                           type="number"
                           placeholder={user.base_points.toString()}
                           className="w-16 bg-ipl-navy border-2 border-white/10 p-2 text-center text-white focus:border-ipl-gold focus:outline-none transition-all font-mono text-xs"
                           value={localPoints[user.id] ?? user.base_points}
-                          onChange={(e) => setLocalPoints({...localPoints, [user.id]: parseInt(e.target.value) || 0})}
+                          onChange={(e) => setLocalPoints({ ...localPoints, [user.id]: parseInt(e.target.value) || 0 })}
                         />
                         <div className="absolute -top-3 left-1/2 -translate-x-1/2 opacity-0 group-hover/input:opacity-100 transition-opacity whitespace-nowrap bg-black text-[8px] px-2 py-0.5 rounded border border-white/10">SCORE</div>
                       </div>
                       <div className="relative group/input">
-                        <input 
+                        <input
                           type="number"
                           placeholder={(user.base_powerups !== undefined ? user.base_powerups : 10).toString()}
                           className="w-16 bg-ipl-navy border-2 border-white/10 p-2 text-center text-white focus:border-blue-400 focus:outline-none transition-all font-mono text-xs"
                           value={localPowerups[user.id] ?? (user.base_powerups !== undefined ? user.base_powerups : 10)}
-                          onChange={(e) => setLocalPowerups({...localPowerups, [user.id]: parseInt(e.target.value) || 0})}
+                          onChange={(e) => setLocalPowerups({ ...localPowerups, [user.id]: parseInt(e.target.value) || 0 })}
                         />
                         <div className="absolute -top-3 left-1/2 -translate-x-1/2 opacity-0 group-hover/input:opacity-100 transition-opacity whitespace-nowrap bg-black text-[8px] px-2 py-0.5 rounded border border-white/10">POWERUPS</div>
                       </div>
                     </div>
-                    <button 
+                    <button
                       onClick={() => handleUpdate(user.id)}
                       disabled={isPending}
                       className="h-10 px-4 bg-white text-ipl-navy text-[10px] font-bold uppercase tracking-widest hover:bg-ipl-gold hover:scale-105 transition-all disabled:opacity-30 flex items-center justify-center gap-2"

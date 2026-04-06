@@ -40,6 +40,9 @@ export default function MatchPage() {
   const powerupsLeft = totalPowerups - powerupsUsed;
   const hasPredicted = myPredictions && Object.keys(myPredictions).length > 0;
 
+  const matchNoMatch = match.id.match(/ipl-\d{4}-(\d+)/);
+  const matchNumber = matchNoMatch ? matchNoMatch[1] : null;
+
   // Find specific labels from the questions array
   const team1PPLabel = questions.find((q: any) => q.key === 'team1_powerplay')?.question_text || `${match.team1} Power Play Score`;
   const team2PPLabel = questions.find((q: any) => q.key === 'team2_powerplay')?.question_text || `${match.team2} Power Play Score`;
@@ -82,6 +85,9 @@ export default function MatchPage() {
         <div className="absolute top-0 left-0 bg-white/10 text-white font-display text-[10px] tracking-widest px-3 py-1 uppercase">
           Powerups Remaining: {powerupsLeft}/{totalPowerups}
         </div>
+        <p className="text-gray-400 mt-6 font-display uppercase tracking-[0.3em] font-bold text-xs ring-offset-2">
+          Match {matchNumber}
+        </p>
         <h1 className="text-5xl text-white font-display mt-4">
           <span className="text-[#004BA0]">{match.team1}</span>
           <span className="text-gray-600 mx-4 text-3xl">VS</span>

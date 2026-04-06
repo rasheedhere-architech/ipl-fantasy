@@ -18,18 +18,27 @@ async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
             User.avatar_url,
             (func.coalesce(func.sum(LeaderboardEntry.points), 0) + User.base_points).label("total_points"),
             func.count(LeaderboardEntry.match_id).label("matches_played"),
-            User.base_points
+            User.base_points,
+            User.base_powerups
         )
         .join(AllowlistedEmail, User.email == AllowlistedEmail.email)
         .outerjoin(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
-        .group_by(User.id, User.base_points)
+        .group_by(User.id, User.base_points, User.base_powerups)
         .order_by((func.coalesce(func.sum(LeaderboardEntry.points), 0) + User.base_points).desc())
     )
     
     users_data = result.all()
     
+    from backend.models import Prediction
+    p_res = await db.execute(
+        select(Prediction.user_id, func.count(Prediction.id))
+        .where(Prediction.use_powerup == "Yes")
+        .group_by(Prediction.user_id)
+    )
+    powerups_used_map = {row[0]: row[1] for row in p_res.all()}
+    
     entries = []
-    for rank, (uid, name, avatar, points, played, bp) in enumerate(users_data, start=1):
+    for rank, (uid, name, avatar, points, played, bp, total_powerups) in enumerate(users_data, start=1):
         # Fetch per-match progression for this user
         prog_res = await db.execute(
             select(LeaderboardEntry.points)
@@ -38,6 +47,9 @@ async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
         )
         progression = prog_res.scalars().all()
         
+        used = powerups_used_map.get(uid, 0)
+        remaining_powerups = max(0, (total_powerups or 10) - used)
+        
         entries.append({
             "rank": rank,
             "username": name,
@@ -45,6 +57,7 @@ async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
             "total_points": points,
             "matches_played": played,
             "base_points": bp,
+            "remaining_powerups": remaining_powerups,
             "progression": progression, # Array of [25, 10, -20...]
             "accuracy_pct": 0
         })

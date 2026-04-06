@@ -24,6 +24,7 @@ export default function Leaderboard() {
                 <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase">Rank</th>
                 <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase">Player</th>
                 <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase text-center hidden md:table-cell">History (Match Progression)</th>
+                <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase text-center">Powerups remaining</th>
                 <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase text-right">Points</th>
               </tr>
             </thead>
@@ -33,10 +34,9 @@ export default function Leaderboard() {
                   <td className="p-4">
                     <div className="flex items-center gap-2 font-display text-lg">
                       {entry.rank <= 3 ? (
-                        <span className={`w-8 h-8 flex items-center justify-center rounded-sm ${
-                          entry.rank === 1 ? 'bg-ipl-gold text-black' : 
+                        <span className={`w-8 h-8 flex items-center justify-center rounded-sm ${entry.rank === 1 ? 'bg-ipl-gold text-black' :
                           entry.rank === 2 ? 'bg-gray-300 text-black' : 'bg-[#CD7F32] text-black'
-                        }`}>
+                          }`}>
                           {entry.rank}
                         </span>
                       ) : (
@@ -62,14 +62,13 @@ export default function Leaderboard() {
                   <td className="p-4 hidden md:table-cell">
                     <div className="flex items-center justify-center gap-1.5 overflow-x-auto custom-scrollbar pb-1">
                       {entry.progression?.slice(-7).map((points: number, idx: number) => (
-                        <div 
+                        <div
                           key={idx}
-                          className={`w-7 h-7 flex-shrink-0 flex items-center justify-center text-[10px] font-mono rounded-sm border ${
-                            points >= 25 ? 'bg-green-500/20 border-green-500/30 text-green-400' :
+                          className={`w-7 h-7 flex-shrink-0 flex items-center justify-center text-[10px] font-mono rounded-sm border ${points >= 25 ? 'bg-green-500/20 border-green-500/30 text-green-400' :
                             points > 0 ? 'bg-blue-500/20 border-blue-500/30 text-blue-400' :
-                            points < 0 ? 'bg-red-500/20 border-red-500/30 text-red-400' :
-                            'bg-white/5 border-white/10 text-gray-500'
-                          }`}
+                              points < 0 ? 'bg-red-500/20 border-red-500/30 text-red-400' :
+                                'bg-white/5 border-white/10 text-gray-500'
+                            }`}
                           title={`Earned ${points} points`}
                         >
                           {points > 0 ? '+' : ''}{points}
@@ -80,16 +79,22 @@ export default function Leaderboard() {
                       )}
                     </div>
                   </td>
+                  <td className="p-4 text-center">
+                    <div className="flex flex-col items-center">
+                      <span className="text-lg font-display text-ipl-live">{entry.remaining_powerups !== undefined ? entry.remaining_powerups : 10}</span>
+                      <span className="text-[8px] text-gray-500 uppercase tracking-widest">Left</span>
+                    </div>
+                  </td>
                   <td className="p-4 text-right">
                     <div className="flex flex-col items-end">
                       <span className="text-2xl font-display text-ipl-gold leading-none">{entry.total_points}</span>
                       <div className="flex items-center gap-1 mt-1">
-                         {entry.base_points > 0 && (
-                            <span className="text-[8px] px-1 bg-ipl-gold/10 border border-ipl-gold/30 text-ipl-gold rounded uppercase font-bold tracking-tighter">
-                               Base: +{entry.base_points}
-                            </span>
-                         )}
-                         <span className="text-[10px] text-gray-500 font-display uppercase tracking-widest leading-none">PTS</span>
+                        {entry.base_points > 0 && (
+                          <span className="text-[8px] px-1 bg-ipl-gold/10 border border-ipl-gold/30 text-ipl-gold rounded uppercase font-bold tracking-tighter">
+                            Base: +{entry.base_points}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-gray-500 font-display uppercase tracking-widest leading-none">PTS</span>
                       </div>
                     </div>
                   </td>
@@ -97,7 +102,7 @@ export default function Leaderboard() {
               ))}
               {leaderboard?.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="p-8 text-center text-gray-500 font-display uppercase tracking-widest opacity-30 italic">NO RANKINGS AVAILABLE YET</td>
+                  <td colSpan={5} className="p-8 text-center text-gray-500 font-display uppercase tracking-widest opacity-30 italic">NO RANKINGS AVAILABLE YET</td>
                 </tr>
               )}
             </tbody>

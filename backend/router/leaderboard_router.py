@@ -4,7 +4,7 @@ from sqlalchemy.future import select
 from sqlalchemy import func
 
 from backend.database import get_db
-from backend.models import User, LeaderboardEntry
+from backend.models import User, LeaderboardEntry, AllowlistedEmail
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 
@@ -20,6 +20,7 @@ async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
             func.count(LeaderboardEntry.match_id).label("matches_played"),
             User.base_points
         )
+        .join(AllowlistedEmail, User.email == AllowlistedEmail.email)
         .outerjoin(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
         .group_by(User.id, User.base_points)
         .order_by((func.coalesce(func.sum(LeaderboardEntry.points), 0) + User.base_points).desc())
@@ -53,6 +54,7 @@ async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
 async def get_match_leaderboard(match_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(User.id, User.name, User.avatar_url, LeaderboardEntry.points)
+        .join(AllowlistedEmail, User.email == AllowlistedEmail.email)
         .join(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
         .where(LeaderboardEntry.match_id == match_id)
         .order_by(LeaderboardEntry.points.desc())

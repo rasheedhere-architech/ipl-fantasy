@@ -28,9 +28,8 @@ async def list_matches(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Match)
         .where(
-            ((Match.toss_time >= today_start) & (Match.toss_time <= cutoff)) | 
-            (Match.status == MatchStatus.live) |
-            (Match.status == MatchStatus.completed)
+            ((Match.toss_time >= today_start) & (Match.toss_time <= cutoff)) & 
+            ((Match.status == MatchStatus.upcoming) | (Match.status == MatchStatus.completed))
         )
         .order_by(Match.toss_time.asc())
     )
@@ -99,8 +98,8 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
         
-    # if datetime.now(UTC) > (match.toss_time - timedelta(minutes=30)):
-    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Predictions are locked for this match")
+    if datetime.now(UTC) > (match.toss_time - timedelta(minutes=30)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Predictions are locked for this match")
         
     # Check what user already predicted for this match
     pred_stmt = select(Prediction).where(Prediction.user_id == current_user.id).where(Prediction.match_id == match_id)

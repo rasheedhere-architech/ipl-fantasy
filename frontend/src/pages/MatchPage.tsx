@@ -18,9 +18,8 @@ export default function MatchPage() {
   const { data: myPredictions } = useMyPredictions(id || '');
 
   // Predictions are currently always open (toss-lock disabled)
-  // const tossTime = data?.match ? (data.match.tossTime ? new Date(data.match.tossTime) : new Date(data.match.toss_time)) : null;
-  // const isLocked = tossTime ? (new Date() > new Date(tossTime.getTime() - 30 * 60000)) : false;
-  const isLocked = false;
+  const tossTime = data?.match ? (data.match.tossTime ? new Date(data.match.tossTime) : new Date(data.match.toss_time)) : null;
+  const isLocked = tossTime ? (new Date() > new Date(tossTime.getTime() - 30 * 60000)) : false;
 
   const { data: allPredictions } = useAllMatchPredictions(id || '');
 
@@ -60,7 +59,7 @@ export default function MatchPage() {
 
   const handleAdminUpdate = async (predId: string) => {
     try {
-      await apiClient.put(`/admin/predictions/${predId}`, 
+      await apiClient.put(`/admin/predictions/${predId}`,
         { player_of_the_match: editValue }
       );
       setEditingId(null);

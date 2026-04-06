@@ -262,8 +262,8 @@ export default function MatchPage() {
             NO PREDICTIONS FOUND FOR THIS MATCH
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto w-full custom-scrollbar pb-2">
+            <table className="w-full text-left border-collapse min-w-[600px] whitespace-nowrap">
               <thead>
                 <tr className="text-ipl-gold font-display text-[11px] uppercase tracking-widest border-b border-white/10">
                   <th className="py-4 font-normal">Expert</th>

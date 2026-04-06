@@ -316,8 +316,8 @@ function UserScoreManager() {
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
+      <div className="overflow-x-auto w-full custom-scrollbar pb-2">
+        <table className="w-full text-left min-w-[650px] whitespace-nowrap">
           <thead>
             <tr className="bg-white/5 border-b border-white/10 uppercase font-display text-[10px] tracking-widest text-gray-500">
               <th className="p-4 font-normal">Active Player</th>

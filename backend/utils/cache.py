@@ -34,4 +34,4 @@ class SimpleCache:
         self._cache = {}
 
 # Global instance for app-wide caching
-backend_cache = SimpleCache(ttl=86400) # 24 hours
+backend_cache = SimpleCache(default_ttl=86400) # 24 hours

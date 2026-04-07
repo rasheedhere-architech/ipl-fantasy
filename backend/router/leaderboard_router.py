@@ -5,11 +5,17 @@ from sqlalchemy import func
 
 from backend.database import get_db
 from backend.models import User, LeaderboardEntry, AllowlistedEmail
+from backend.utils.cache import backend_cache
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 
 @router.get("")
 async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
+    cache_key = "global_leaderboard"
+    cached = backend_cache.get(cache_key)
+    if cached:
+        return cached
+
     # Group by user summing all points
     result = await db.execute(
         select(
@@ -61,10 +67,17 @@ async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
             "progression": progression, # Array of [25, 10, -20...]
             "accuracy_pct": 0
         })
+    
+    backend_cache.set(cache_key, entries)
     return entries
 
 @router.get("/match/{match_id}")
 async def get_match_leaderboard(match_id: str, db: AsyncSession = Depends(get_db)):
+    cache_key = f"match_leaderboard_{match_id}"
+    cached = backend_cache.get(cache_key)
+    if cached:
+        return cached
+
     result = await db.execute(
         select(User.id, User.name, User.avatar_url, LeaderboardEntry.points)
         .join(AllowlistedEmail, User.email == AllowlistedEmail.email)
@@ -81,4 +94,6 @@ async def get_match_leaderboard(match_id: str, db: AsyncSession = Depends(get_db
             "avatar_url": avatar,
             "match_points": points
         })
+    
+    backend_cache.set(cache_key, entries)
     return entries

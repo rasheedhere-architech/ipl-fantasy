@@ -9,6 +9,7 @@ from backend.database import get_db
 from backend.models import User, AllowlistedEmail
 from backend.auth import oauth, create_access_token
 from backend.dependencies import get_current_user
+from backend.utils.cache import backend_cache
 
 router = APIRouter()
 
@@ -38,8 +39,16 @@ async def auth_callback(request: Request, db: AsyncSession = Depends(get_db)):
         email = user_info.get("email")
         
         # 1. Check Allowlist
-        result = await db.execute(select(AllowlistedEmail).where(AllowlistedEmail.email == email))
-        if not result.scalars().first():
+        is_allowed = False
+        cached_allowlist = backend_cache.get("allowlist")
+        if cached_allowlist:
+            is_allowed = any(entry.email == email for entry in cached_allowlist)
+        else:
+            result = await db.execute(select(AllowlistedEmail).where(AllowlistedEmail.email == email))
+            entry = result.scalars().first()
+            is_allowed = entry is not None
+            
+        if not is_allowed:
             # If email is not on allowlist
             return RedirectResponse(url=f"{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}/login?error=not_invited")
             

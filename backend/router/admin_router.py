@@ -8,6 +8,7 @@ from backend.database import get_db
 from backend.models import User, AllowlistedEmail, ScoringRule, Match
 from backend.dependencies import get_current_admin
 from backend.scoring import calculate_match_scores
+from backend.utils.cache import backend_cache
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -19,8 +20,15 @@ class AllowlistEmailsRequest(BaseModel):
 
 @router.get("/allowlist")
 async def get_allowlist(db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)):
+    cache_key = "allowlist"
+    cached = backend_cache.get(cache_key)
+    if cached:
+        return cached
+
     result = await db.execute(select(AllowlistedEmail).order_by(AllowlistedEmail.added_at.desc()))
-    return result.scalars().all()
+    entries = result.scalars().all()
+    backend_cache.set(cache_key, entries)
+    return entries
 
 @router.post("/allowlist")
 async def add_to_allowlist(data: AllowlistEmailsRequest, db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)):
@@ -38,6 +46,7 @@ async def add_to_allowlist(data: AllowlistEmailsRequest, db: AsyncSession = Depe
             added.append(clean_email)
             
     await db.commit()
+    backend_cache.invalidate("allowlist")
     return {"message": f"Added {len(added)} emails", "added": added}
 
 @router.delete("/allowlist/{email}")
@@ -50,6 +59,7 @@ async def remove_from_allowlist(email: str, db: AsyncSession = Depends(get_db), 
         
     await db.delete(entry)
     await db.commit()
+    backend_cache.invalidate("allowlist")
     return {"message": f"Removed {email} from allowlist"}
 
 @router.get("/users")
@@ -99,6 +109,11 @@ async def trigger_match_scoring(match_id: str, payload: MatchResultUpdate, db: A
     
     # Trigger scoring engine
     await calculate_match_scores(match_id, db)
+    
+    # Invalidate Leaderboards after scoring update
+    backend_cache.invalidate("global_leaderboard")
+    backend_cache.invalidate(f"match_leaderboard_{match_id}")
+    
     return {"message": "Results saved and scoring triggered successfully"}
 @router.put("/predictions/{prediction_id}")
 async def admin_update_prediction(prediction_id: str, updates: dict, db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)):
@@ -127,4 +142,8 @@ async def update_user_base_points(user_id: str, payload: dict, db: AsyncSession 
         user.base_powerups = int(payload["base_powerups"])
         
     await db.commit()
+    
+    # Invalidate Leaderboards after user stat adjustment
+    backend_cache.invalidate("global_leaderboard")
+    
     return {"message": "User base stats updated", "user_id": user_id, "base_points": user.base_points, "base_powerups": user.base_powerups}

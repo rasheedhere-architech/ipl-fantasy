@@ -1,20 +1,34 @@
 import { useLeaderboard } from '../api/hooks/useMatches';
 import { useAuthStore } from '../store/auth';
+import { useState } from 'react';
+import { Trophy, History, X } from 'lucide-react';
 
 export default function Leaderboard() {
   const { user: currentUser } = useAuthStore();
   const { data: leaderboard, isLoading } = useLeaderboard();
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+
+  const handleRowClick = (entry: any) => {
+    setSelectedUser(entry);
+    // Scroll to the detail section if on mobile
+    if (window.innerWidth < 768) {
+      setTimeout(() => {
+        document.getElementById('progression-details')?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  };
 
   return (
     <div className="space-y-8">
       <header className="flex justify-between items-end border-b-2 border-white/10 pb-4">
         <div>
           <h1 className="text-3xl font-display text-white">Global Leaderboard</h1>
-          <p className="text-gray-400 mt-1">Top players of the season</p>
+          <p className="text-gray-400 mt-1 italic tracking-widest text-xs uppercase opacity-60">Top players of the season</p>
         </div>
       </header>
 
-      <div className="glass-panel overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+        <div className="lg:col-span-3 glass-panel overflow-hidden">
         {isLoading ? (
           <div className="p-8 text-center animate-pulse text-white font-display text-xl tracking-widest">LOADING STANDINGS...</div>
         ) : (
@@ -31,7 +45,14 @@ export default function Leaderboard() {
               </thead>
               <tbody>
                 {leaderboard?.map((entry: any) => (
-                  <tr key={entry.username} className={`border-b border-white/5 transition-all group ${entry.username === currentUser?.name ? 'bg-ipl-gold/10' : 'hover:bg-white/5'}`}>
+                  <tr 
+                    key={entry.username} 
+                    onClick={() => handleRowClick(entry)}
+                    className={`border-b border-white/5 transition-all group cursor-pointer ${
+                      selectedUser?.username === entry.username ? 'bg-ipl-gold/20' : 
+                      entry.username === currentUser?.name ? 'bg-white/5' : 'hover:bg-white/5'
+                    }`}
+                  >
                     <td className="p-4">
                       <div className="flex items-center gap-2 font-display text-lg">
                         {entry.rank <= 3 ? (
@@ -62,17 +83,17 @@ export default function Leaderboard() {
                     </td>
                     <td className="p-4 hidden md:table-cell">
                       <div className="flex items-center justify-center gap-1.5 overflow-x-auto custom-scrollbar pb-1">
-                        {entry.progression?.slice(-7).map((points: number, idx: number) => (
+                        {entry.progression?.slice(-7).map((prog: any, idx: number) => (
                           <div
                             key={idx}
-                            className={`w-7 h-7 flex-shrink-0 flex items-center justify-center text-[10px] font-mono rounded-sm border ${points >= 25 ? 'bg-green-500/20 border-green-500/30 text-green-400' :
-                              points > 0 ? 'bg-blue-500/20 border-blue-500/30 text-blue-400' :
-                                points < 0 ? 'bg-red-500/20 border-red-500/30 text-red-400' :
+                            className={`w-7 h-7 flex-shrink-0 flex items-center justify-center text-[10px] font-mono rounded-sm border ${prog.points >= 25 ? 'bg-green-500/20 border-green-500/30 text-green-400' :
+                              prog.points > 0 ? 'bg-blue-500/20 border-blue-500/30 text-blue-400' :
+                                prog.points < 0 ? 'bg-red-500/20 border-red-500/30 text-red-400' :
                                   'bg-white/5 border-white/10 text-gray-500'
                               }`}
-                            title={`Earned ${points} points`}
+                            title={`Earned ${prog.points} points in ${prog.teams}`}
                           >
-                            {points > 0 ? '+' : ''}{points}
+                            {prog.points > 0 ? '+' : ''}{prog.points}
                           </div>
                         ))}
                         {(!entry.progression || entry.progression.length === 0) && (
@@ -110,6 +131,65 @@ export default function Leaderboard() {
             </table>
           </div>
         )}
+        </div>
+
+        {/* Selected User Details Sidebar */}
+        <div id="progression-details" className="lg:col-span-1 space-y-4">
+          {!selectedUser ? (
+            <div className="glass-panel p-8 text-center border-dashed border-2 border-white/10 opacity-40">
+              <History className="w-10 h-10 text-white/20 mx-auto mb-4" />
+              <p className="text-[10px] font-display uppercase tracking-widest leading-loose">
+                Select a player to view<br/>match-by-match<br/>progression
+              </p>
+            </div>
+          ) : (
+            <div className="glass-panel p-6 animate-in fade-in slide-in-from-right-4 duration-500 border-t-2 border-ipl-gold">
+              <div className="flex justify-between items-start mb-6">
+                <div className="flex items-center gap-3">
+                  <img 
+                    src={selectedUser.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedUser.username}`} 
+                    className="w-10 h-10 rounded-full border border-ipl-gold/30" 
+                    alt="" 
+                  />
+                  <div>
+                    <h3 className="text-white font-display uppercase text-sm tracking-tight">{selectedUser.username}</h3>
+                    <p className="text-ipl-gold text-[10px] font-display uppercase tracking-widest">Rank #{selectedUser.rank}</p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedUser(null)} className="text-gray-500 hover:text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-2">
+                   <Trophy className="w-4 h-4 text-ipl-gold opacity-50" />
+                   <h4 className="text-[10px] font-display text-gray-400 uppercase tracking-widest">Match History</h4>
+                </div>
+                
+                <div className="max-h-[500px] overflow-y-auto custom-scrollbar space-y-2 pr-2">
+                  {selectedUser.progression?.length === 0 ? (
+                    <p className="text-center py-10 text-gray-600 font-display text-[10px] uppercase italic">No matches played yet</p>
+                  ) : (
+                    selectedUser.progression?.map((prog: any, idx: number) => (
+                      <div key={idx} className="bg-white/5 p-3 border border-white/10 group/row hover:border-white/20 transition-all">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-[9px] font-mono text-gray-500">MATCH {prog.match_number}</span>
+                          <span className={`text-xs font-display font-bold ${prog.points > 0 ? 'text-green-400' : prog.points < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                            {prog.points > 0 ? '+' : ''}{prog.points}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-gray-300 font-display uppercase tracking-tight truncate group-hover/row:text-white transition-colors">
+                          {prog.teams}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

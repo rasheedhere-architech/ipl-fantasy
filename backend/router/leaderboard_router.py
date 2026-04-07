@@ -45,13 +45,23 @@ async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
     
     entries = []
     for rank, (uid, name, avatar, points, played, bp, total_powerups) in enumerate(users_data, start=1):
-        # Fetch per-match progression for this user
+        # Fetch detailed per-match progression for this user
+        from backend.models import Match
         prog_res = await db.execute(
-            select(LeaderboardEntry.points)
+            select(LeaderboardEntry.points, Match.team1, Match.team2, Match.id)
+            .join(Match, LeaderboardEntry.match_id == Match.id)
             .where(LeaderboardEntry.user_id == uid)
-            .order_by(LeaderboardEntry.match_id.asc()) # Assuming chronological match IDs
+            .order_by(Match.toss_time.asc())
         )
-        progression = prog_res.scalars().all()
+        detailed_progression = []
+        for p, t1, t2, mid in prog_res.all():
+            m_no = mid.split("-")[2] if "-" in mid else mid
+            detailed_progression.append({
+                "match_number": m_no,
+                "teams": f"{t1} vs {t2}",
+                "points": p
+            })
+        progression = detailed_progression # Now an array of objects!
         
         used = powerups_used_map.get(uid, 0)
         remaining_powerups = max(0, (total_powerups or 10) - used)

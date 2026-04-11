@@ -26,7 +26,7 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
     for user in all_users:
         if user.id not in predictions_map:
             # RULE: Non-participation penalty
-            user_points[user.id] = -20
+            user_points[user.id] = -5
             continue
             
         p = predictions_map[user.id]

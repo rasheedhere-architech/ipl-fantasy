@@ -53,7 +53,7 @@ export default function MatchPage() {
     if (isLocked) return;
     submitPrediction(formData, {
       onSuccess: () => {
-        toast.success('Prediction Locked! Confirmation email sent.');
+        toast.success('Prediction Locked!');
       },
       onError: (err: any) => {
         if (err.response?.data?.detail === 'powerup_limit_reached') {

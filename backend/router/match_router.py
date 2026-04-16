@@ -81,11 +81,6 @@ async def post_autopredict(match_id: str, db: AsyncSession = Depends(get_db), cu
     winner = match_obj.team1 if random.random() > 0.5 else match_obj.team2
 
     async def get_team_stats(team_name: str) -> dict:
-        cache_key = f"team_stats_{team_name}"
-        cached_stats = backend_cache.get(cache_key)
-        if cached_stats:
-            return cached_stats
-
         stmt = select(Match.team1, Match.team2, Match.team1_powerplay_score, Match.team2_powerplay_score, Match.player_of_the_match, Match.winner).where(
             or_(Match.team1 == team_name, Match.team2 == team_name)
         )
@@ -108,14 +103,13 @@ async def post_autopredict(match_id: str, db: AsyncSession = Depends(get_db), cu
         potm_list = [p for p in potm_players if p and p.strip()]
 
         stats = {"avg_pp": avg_pp, "potm": potm_list}
-        backend_cache.set(cache_key, stats, ttl=86400)
         return stats
 
     team1_stats = await get_team_stats(match_obj.team1)
     team2_stats = await get_team_stats(match_obj.team2)
 
-    team1_pp = team1_stats["avg_pp"] + random.randint(-5, 10)
-    team2_pp = team2_stats["avg_pp"] + random.randint(-5, 10)
+    team1_pp = team1_stats["avg_pp"] + random.randint(-5, 5)
+    team2_pp = team2_stats["avg_pp"] + random.randint(-5, 5)
 
     winner_stats = team1_stats if winner == match_obj.team1 else team2_stats
     players = winner_stats["potm"]

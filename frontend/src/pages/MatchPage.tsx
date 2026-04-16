@@ -12,7 +12,8 @@ export default function MatchPage() {
   const { user: currentUser } = useAuthStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
-  const { register, handleSubmit, reset, formState: { errors } } = useForm();
+  const [hasAutoPredicted, setHasAutoPredicted] = useState(false);
+  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
 
   const { data, isLoading, error } = useMatch(id || '');
   const { mutate: submitPrediction, isPending } = useSubmitPrediction(id || '');
@@ -77,6 +78,27 @@ export default function MatchPage() {
       toast.error('Failed to update prediction');
     }
   };
+
+  const handleAutoPredict = async () => {
+    if (isLocked || hasPredicted || hasAutoPredicted) return;
+    
+    setHasAutoPredicted(true);
+
+    try {
+      const { data: predictedData } = await apiClient.get(`/matches/${id || match.id}/autopredict`);
+      
+      setValue('match_winner', predictedData.match_winner, { shouldValidate: true, shouldDirty: true });
+      setValue('team1_powerplay', predictedData.team1_powerplay, { shouldValidate: true, shouldDirty: true });
+      setValue('team2_powerplay', predictedData.team2_powerplay, { shouldValidate: true, shouldDirty: true });
+      setValue('player_of_the_match', predictedData.player_of_the_match, { shouldValidate: true, shouldDirty: true });
+      
+      toast.success('Auto-predicted values based on history. You can still modify them.');
+    } catch (err) {
+      toast.error('Failed to auto predict.');
+      setHasAutoPredicted(false);
+    }
+  };
+
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto pb-20">
@@ -156,8 +178,22 @@ export default function MatchPage() {
               </div>
             )}
           </div>
-          <div className="text-xs font-display text-ipl-gold uppercase tracking-widest bg-ipl-gold/10 px-3 py-1 rounded-full border border-ipl-gold/20">
-            {powerupsLeft} POWERUPS LEFT
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={handleAutoPredict}
+              disabled={isLocked || hasPredicted || hasAutoPredicted}
+              className={`text-[10px] sm:text-xs font-display uppercase tracking-widest px-3 sm:px-4 py-1 sm:py-2 rounded-full font-bold transition-all ${
+                isLocked || hasPredicted || hasAutoPredicted 
+                ? 'bg-gray-500 text-gray-300 opacity-50 cursor-not-allowed hidden' 
+                : 'bg-gradient-to-r from-[#004BA0] to-[#F4C430] text-white hover:shadow-[0_0_15px_rgba(244,196,48,0.5)]'
+              }`}
+            >
+              Auto Predict
+            </button>
+            <div className="text-xs font-display text-ipl-gold uppercase tracking-widest bg-ipl-gold/10 px-3 py-1 rounded-full border border-ipl-gold/20 whitespace-nowrap">
+              {powerupsLeft} POWERUPS LEFT
+            </div>
           </div>
         </div>
 

@@ -5,11 +5,13 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import or_
 
 from backend.database import get_db
 from backend.dependencies import get_current_user
 from backend.models import User, Match, Prediction, MatchStatus
 from backend.utils.email import send_prediction_confirmation
+from backend.utils.cache import backend_cache
 import asyncio
 
 router = APIRouter(prefix="/matches", tags=["matches"])
@@ -53,6 +55,64 @@ async def list_matches(db: AsyncSession = Depends(get_db)):
             "player_of_the_match": m.player_of_the_match
         })
     return matches
+
+@router.get("/{match_id}/autopredict")
+async def get_autopredict(match_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    import random
+    result = await db.execute(select(Match).where(Match.id == match_id))
+    match_obj = result.scalars().first()
+    if not match_obj:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    winner = match_obj.team1 if random.random() > 0.5 else match_obj.team2
+    
+    async def get_team_stats(team_name: str) -> dict:
+        cache_key = f"team_stats_{team_name}"
+        cached_stats = backend_cache.get(cache_key)
+        if cached_stats:
+            return cached_stats
+            
+        stmt = select(Match.team1, Match.team2, Match.team1_powerplay_score, Match.team2_powerplay_score, Match.player_of_the_match, Match.winner).where(
+            or_(Match.team1 == team_name, Match.team2 == team_name)
+        )
+        res = await db.execute(stmt)
+        matches = res.all()
+        
+        scores = []
+        potm_players = []
+        
+        for m in matches:
+            if m.team1 == team_name and m.team1_powerplay_score is not None:
+                scores.append(m.team1_powerplay_score)
+            elif m.team2 == team_name and m.team2_powerplay_score is not None:
+                scores.append(m.team2_powerplay_score)
+                
+            if m.winner == team_name and m.player_of_the_match:
+                potm_players.append(m.player_of_the_match)
+                
+        avg_pp = int(sum(scores) / len(scores)) if scores else random.randint(50, 70)
+        potm_list = [p for p in potm_players if p and p.strip()]
+        
+        stats = {"avg_pp": avg_pp, "potm": potm_list}
+        backend_cache.set(cache_key, stats, ttl=86400)
+        return stats
+
+    team1_stats = await get_team_stats(match_obj.team1)
+    team2_stats = await get_team_stats(match_obj.team2)
+    
+    team1_pp = team1_stats["avg_pp"] + random.randint(-5, 10)
+    team2_pp = team2_stats["avg_pp"] + random.randint(-5, 10)
+
+    winner_stats = team1_stats if winner == match_obj.team1 else team2_stats
+    players = winner_stats["potm"]
+    potm = random.choice(players) if players else f"Star Player ({winner})"
+
+    return {
+        "match_winner": winner,
+        "team1_powerplay": team1_pp,
+        "team2_powerplay": team2_pp,
+        "player_of_the_match": potm
+    }
 
 @router.get("/{match_id}")
 async def get_match(match_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):

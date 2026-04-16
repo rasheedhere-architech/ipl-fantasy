@@ -56,50 +56,64 @@ async def list_matches(db: AsyncSession = Depends(get_db)):
         })
     return matches
 
-@router.get("/{match_id}/autopredict")
-async def get_autopredict(match_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+@router.post("/{match_id}/autopredict")
+async def post_autopredict(match_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     import random
+
     result = await db.execute(select(Match).where(Match.id == match_id))
     match_obj = result.scalars().first()
     if not match_obj:
         raise HTTPException(status_code=404, detail="Match not found")
 
+    # Respect toss lock
+    from datetime import timedelta
+    if datetime.now(UTC) > (match_obj.toss_time - timedelta(minutes=30)):
+        raise HTTPException(status_code=403, detail="Predictions are locked for this match")
+
+    # Guard: only allow once per user per match
+    existing = await db.execute(
+        select(Prediction).where(Prediction.user_id == current_user.id, Prediction.match_id == match_id)
+    )
+    existing_pred = existing.scalars().first()
+    if existing_pred:
+        raise HTTPException(status_code=400, detail="Prediction already exists for this match")
+
     winner = match_obj.team1 if random.random() > 0.5 else match_obj.team2
-    
+
     async def get_team_stats(team_name: str) -> dict:
         cache_key = f"team_stats_{team_name}"
         cached_stats = backend_cache.get(cache_key)
         if cached_stats:
             return cached_stats
-            
+
         stmt = select(Match.team1, Match.team2, Match.team1_powerplay_score, Match.team2_powerplay_score, Match.player_of_the_match, Match.winner).where(
             or_(Match.team1 == team_name, Match.team2 == team_name)
         )
         res = await db.execute(stmt)
         matches = res.all()
-        
+
         scores = []
         potm_players = []
-        
+
         for m in matches:
             if m.team1 == team_name and m.team1_powerplay_score is not None:
                 scores.append(m.team1_powerplay_score)
             elif m.team2 == team_name and m.team2_powerplay_score is not None:
                 scores.append(m.team2_powerplay_score)
-                
+
             if m.winner == team_name and m.player_of_the_match:
                 potm_players.append(m.player_of_the_match)
-                
+
         avg_pp = int(sum(scores) / len(scores)) if scores else random.randint(50, 70)
         potm_list = [p for p in potm_players if p and p.strip()]
-        
+
         stats = {"avg_pp": avg_pp, "potm": potm_list}
         backend_cache.set(cache_key, stats, ttl=86400)
         return stats
 
     team1_stats = await get_team_stats(match_obj.team1)
     team2_stats = await get_team_stats(match_obj.team2)
-    
+
     team1_pp = team1_stats["avg_pp"] + random.randint(-5, 10)
     team2_pp = team2_stats["avg_pp"] + random.randint(-5, 10)
 
@@ -107,11 +121,27 @@ async def get_autopredict(match_id: str, db: AsyncSession = Depends(get_db), cur
     players = winner_stats["potm"]
     potm = random.choice(players) if players else f"Star Player ({winner})"
 
+    # Persist auto-prediction to DB
+    new_pred = Prediction(
+        id=str(uuid.uuid4()),
+        user_id=current_user.id,
+        match_id=match_id,
+        match_winner=winner,
+        team1_powerplay=team1_pp,
+        team2_powerplay=team2_pp,
+        player_of_the_match=potm,
+        use_powerup="No",
+        is_auto_predicted=True,
+    )
+    db.add(new_pred)
+    await db.commit()
+
     return {
         "match_winner": winner,
         "team1_powerplay": team1_pp,
         "team2_powerplay": team2_pp,
-        "player_of_the_match": potm
+        "player_of_the_match": potm,
+        "is_auto_predicted": True,
     }
 
 @router.get("/{match_id}")
@@ -236,7 +266,8 @@ async def get_my_predictions(match_id: str, db: AsyncSession = Depends(get_db), 
         "team1_powerplay": pred.team1_powerplay or "",
         "team2_powerplay": pred.team2_powerplay or "",
         "player_of_the_match": pred.player_of_the_match or "",
-        "use_powerup": pred.use_powerup or "No"
+        "use_powerup": pred.use_powerup or "No",
+        "is_auto_predicted": pred.is_auto_predicted
     }
 
 @router.get("/{match_id}/predictions/all")
@@ -279,7 +310,8 @@ async def get_all_community_predictions(match_id: str, db: AsyncSession = Depend
         results.append({
             "prediction_id": pred.id,
             "user": {"id": user.id, "name": user.name, "avatar_url": user.avatar_url},
-            "answers": answers
+            "answers": answers,
+            "is_auto_predicted": pred.is_auto_predicted
         })
         
     return results

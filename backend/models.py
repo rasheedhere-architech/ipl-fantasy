@@ -61,6 +61,7 @@ class Prediction(Base):
     team2_powerplay: Mapped[int] = mapped_column(Integer, nullable=True)
     player_of_the_match: Mapped[str] = mapped_column(String, nullable=True)
     use_powerup: Mapped[str] = mapped_column(String, default="No") # "Yes" or "No"
+    is_auto_predicted: Mapped[bool] = mapped_column(Boolean, default=False)
     
     points_awarded: Mapped[int] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))

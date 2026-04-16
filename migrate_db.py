@@ -39,6 +39,15 @@ async def run_migration():
             else:
                 print(f"❌ Error during migration: {e}")
                 
+        try:
+            await conn.execute(text("ALTER TABLE predictions ADD COLUMN is_auto_predicted BOOLEAN DEFAULT FALSE"))
+            print("✅ Successfully added 'is_auto_predicted' column to 'predictions' table.")
+        except Exception as e:
+            if "already exists" in str(e).lower() or "duplicate column name" in str(e).lower():
+                print("ℹ️ Column 'is_auto_predicted' already exists in 'predictions'. Skipping.")
+            else:
+                print(f"❌ Error during migration: {e}")
+                
     print("✨ Migration complete!")
     await engine.dispose()
 

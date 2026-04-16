@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMatch, useSubmitPrediction, useMyPredictions, useAllMatchPredictions } from '../api/hooks/useMatches';
 import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X, Sparkles } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
@@ -9,6 +10,7 @@ import toast from 'react-hot-toast';
 
 export default function MatchPage() {
   const { id } = useParams();
+  const queryClient = useQueryClient();
   const { user: currentUser } = useAuthStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -30,6 +32,7 @@ export default function MatchPage() {
   useEffect(() => {
     if (myPredictions && Object.keys(myPredictions).length > 0) {
       reset(myPredictions);
+      setHasAutoPredicted(!!myPredictions.is_auto_predicted);
     }
   }, [myPredictions, reset]);
 
@@ -86,16 +89,23 @@ export default function MatchPage() {
     setHasAutoPredicted(true);
 
     try {
-      const { data: predictedData } = await apiClient.get(`/matches/${id || match.id}/autopredict`);
+      const { data: predictedData } = await apiClient.post(`/matches/${id || match.id}/autopredict`);
 
       setValue('match_winner', predictedData.match_winner, { shouldValidate: true, shouldDirty: true });
       setValue('team1_powerplay', predictedData.team1_powerplay, { shouldValidate: true, shouldDirty: true });
       setValue('team2_powerplay', predictedData.team2_powerplay, { shouldValidate: true, shouldDirty: true });
       setValue('player_of_the_match', predictedData.player_of_the_match, { shouldValidate: true, shouldDirty: true });
 
+      // Invalidate so hasPredicted flips to true from server
+      queryClient.invalidateQueries({ queryKey: ['predictions', 'mine', id || match.id] });
+
       toast.success('AI has locked in your prediction!');
-    } catch (err) {
-      toast.error('Failed to auto predict.');
+    } catch (err: any) {
+      if (err.response?.data?.detail === 'Prediction already exists for this match') {
+        toast.error('You already have a prediction for this match.');
+      } else {
+        toast.error('Failed to auto predict.');
+      }
       setHasAutoPredicted(false);
     }
   };
@@ -326,7 +336,14 @@ export default function MatchPage() {
                   <tr key={idx} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
                     <td className="py-4 flex items-center gap-3">
                       <img src={pred.user.avatar_url || 'https://via.placeholder.com/32'} className="w-8 h-8 rounded-full border border-white/10 group-hover:border-ipl-gold transition-colors" alt={pred.user.name} />
-                      <span className="text-sm font-bold tracking-tight">{pred.user.name}</span>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold tracking-tight">{pred.user.name}</span>
+                        {pred.is_auto_predicted && (
+                          <span className="text-[9px] flex items-center gap-1 text-[#7B2FF7] uppercase tracking-tighter font-bold">
+                            <Sparkles className="w-2 h-2" /> AI Auto-Predict
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-4 text-center">
                       <span className={`px-2 py-1 text-[10px] uppercase font-bold ${pred.answers.match_winner === match.team1 ? 'bg-[#004BA0]/20 text-[#004BA0]' : (pred.answers.match_winner === '🔒' ? 'bg-white/5 text-gray-500' : 'bg-ipl-gold/20 text-ipl-gold')}`}>

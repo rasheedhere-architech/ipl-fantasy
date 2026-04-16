@@ -147,3 +147,14 @@ async def update_user_base_points(user_id: str, payload: dict, db: AsyncSession 
     backend_cache.invalidate("global_leaderboard")
     
     return {"message": "User base stats updated", "user_id": user_id, "base_points": user.base_points, "base_powerups": user.base_powerups}
+
+
+
+@router.post("/trigger-ai-predictions")
+async def trigger_ai_predictions(db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)):
+    from backend.scheduler import auto_predict_daily_job
+    import asyncio
+    
+    # Run the background job synchronously for the API response
+    asyncio.create_task(auto_predict_daily_job())
+    return {"message": "AI prediction job triggered in the background"}

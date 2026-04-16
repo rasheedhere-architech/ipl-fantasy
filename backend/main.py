@@ -7,7 +7,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from contextlib import asynccontextmanager
-app = FastAPI(title="IPL Fantasy API")
+from backend.scheduler import start_scheduler, stop_scheduler
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler()
+    yield
+    stop_scheduler()
+
+app = FastAPI(title="IPL Fantasy API", lifespan=lifespan)
 
 # Allow CORS for local dev and frontend URL(s)
 # FRONTEND_URL can be a single URL or comma-separated list of URLs

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Users, ShieldCheck, Mail, Trash2 } from 'lucide-react';
+import { Users, ShieldCheck, Mail, Trash2, Bot, Cpu } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { Navigate } from 'react-router-dom';
-import { useAllowlist, useAddAllowlist, useDeleteAllowlist, useAllUsers, useUpdateBasePoints } from '../api/hooks/useAdmin';
+import { useAllowlist, useAddAllowlist, useDeleteAllowlist, useAllUsers, useUpdateBasePoints, useTriggerAIPredictions } from '../api/hooks/useAdmin';
 import toast from 'react-hot-toast';
 
 
@@ -13,6 +13,8 @@ export default function Admin() {
   const { data: allowlist, isLoading: isAllowlistLoading } = useAllowlist();
   const { mutate: addEmail, isPending: isAdding } = useAddAllowlist();
   const { mutate: deleteEmail } = useDeleteAllowlist();
+  
+  const { mutate: triggerAI, isPending: isTriggerAIPending } = useTriggerAIPredictions();
 
   if (!user?.is_admin) {
     return <Navigate to="/dashboard" replace />;
@@ -94,6 +96,44 @@ export default function Admin() {
                 ))}
               </ul>
             )}
+          </div>
+        </section>
+
+        {/* AI Predictor Management */}
+        <section className="glass-panel p-6 border-t-2 border-t-blue-500 shadow-[0_10px_30px_rgba(59,130,246,0.1)] flex flex-col">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-3 bg-blue-500/10 rounded-lg">
+              <Bot className="w-6 h-6 text-blue-500" />
+            </div>
+            <div>
+              <h2 className="text-xl font-display text-white">AI Predictor Engine</h2>
+              <p className="text-xs text-gray-500 uppercase tracking-widest font-display">Manage Autonomous User</p>
+            </div>
+          </div>
+          
+          <div className="flex-1 flex flex-col justify-center space-y-6">
+             <div className="bg-black/30 p-6 border border-white/10 rounded relative group">
+                <div className="absolute top-0 left-0 w-1 h-full bg-ipl-live group-hover:bg-ipl-gold transition-colors"></div>
+                <h3 className="text-sm font-display text-white mb-2 tracking-widest flex items-center gap-2">
+                  <Cpu className="w-4 h-4 text-ipl-gold" />
+                  RUN PREDICTION ALOGIRTHM
+                </h3>
+                <p className="text-xs text-gray-400 mb-4 font-mono leading-relaxed">
+                  Manually trigger the background prediction job for today's matches. (The scheduler automatically does this at 12 AM UTC daily).
+                </p>
+                <button
+                  onClick={() => {
+                    triggerAI(undefined, {
+                      onSuccess: (data) => toast.success('Prediction algorithm running in background'),
+                      onError: () => toast.error('Failed to trigger predictions')
+                    });
+                  }}
+                  disabled={isTriggerAIPending}
+                  className="w-full py-3 bg-ipl-live text-white font-display text-xs tracking-[0.2em] uppercase transition-all hover:bg-red-600 disabled:opacity-50"
+                >
+                  {isTriggerAIPending ? 'RUNNING...' : 'TRIGGER PREDICTIONS NOW'}
+                </button>
+             </div>
           </div>
         </section>
 

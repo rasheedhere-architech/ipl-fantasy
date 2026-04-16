@@ -79,3 +79,12 @@ export function useUpdateBasePoints() {
     },
   });
 }
+
+export function useTriggerAIPredictions() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.post('/admin/trigger-ai-predictions');
+      return response.data;
+    },
+  });
+}

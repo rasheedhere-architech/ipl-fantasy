@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { Settings, Users, AlertTriangle, ShieldCheck, Mail, Trash2, ShieldAlert } from 'lucide-react';
+import React, { useState } from 'react';
+import { Users, ShieldCheck, Mail, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { Navigate } from 'react-router-dom';
-import { useAllowlist, useAddAllowlist, useDeleteAllowlist, useUpdateMatchResults, useAllUsers, useUpdateBasePoints } from '../api/hooks/useAdmin';
-import { useMatches } from '../api/hooks/useMatches';
+import { useAllowlist, useAddAllowlist, useDeleteAllowlist, useAllUsers, useUpdateBasePoints } from '../api/hooks/useAdmin';
 import toast from 'react-hot-toast';
 
 
@@ -11,36 +10,9 @@ export default function Admin() {
   const { user } = useAuthStore();
   const [newEmail, setNewEmail] = useState('');
 
-  // State for match results form
-  const [selectedMatchId, setSelectedMatchId] = useState('');
-  const [matchResults, setMatchResults] = useState({
-    winner: '',
-    team1_powerplay_score: 0,
-    team2_powerplay_score: 0,
-    player_of_the_match: ''
-  });
-
   const { data: allowlist, isLoading: isAllowlistLoading } = useAllowlist();
   const { mutate: addEmail, isPending: isAdding } = useAddAllowlist();
   const { mutate: deleteEmail } = useDeleteAllowlist();
-
-  const { data: matches } = useMatches();
-  const { mutate: updateResults, isPending: isUpdating } = useUpdateMatchResults();
-
-  // Populate form with existing Ground Truth if available
-  useEffect(() => {
-    if (selectedMatchId && matches) {
-      const selected = matches.find(m => m.id === selectedMatchId);
-      if (selected) {
-        setMatchResults({
-          winner: selected.winner || '',
-          team1_powerplay_score: selected.team1_powerplay_score || 0,
-          team2_powerplay_score: selected.team2_powerplay_score || 0,
-          player_of_the_match: selected.player_of_the_match || ''
-        });
-      }
-    }
-  }, [selectedMatchId, matches]);
 
   if (!user?.is_admin) {
     return <Navigate to="/dashboard" replace />;
@@ -59,31 +31,7 @@ export default function Admin() {
     });
   };
 
-  const selectedMatch = matches?.find(m => m.id === selectedMatchId);
 
-  const handleResultSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedMatchId) return;
-
-    updateResults({
-      matchId: selectedMatchId,
-      answers: matchResults
-    }, {
-      onSuccess: () => {
-        toast.success('Match results submitted and scoring triggered!');
-        setSelectedMatchId('');
-        setMatchResults({
-          winner: '',
-          team1_powerplay_score: 0,
-          team2_powerplay_score: 0,
-          player_of_the_match: ''
-        });
-      },
-      onError: () => {
-        toast.error('Failed to update match results. Please try again.');
-      }
-    });
-  };
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto pb-20 relative">
@@ -149,117 +97,12 @@ export default function Admin() {
           </div>
         </section>
 
-        {/* Scoring Processor */}
-        <section className="glass-panel p-6 border-t-2 border-t-ipl-gold shadow-[0_10px_30px_rgba(244,196,48,0.05)]">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-ipl-gold/10 rounded-lg">
-              <Settings className="w-6 h-6 text-ipl-gold" />
-            </div>
-            <h2 className="text-xl font-display text-white">Match Result Processor</h2>
-          </div>
-
-          <div className="bg-ipl-gold/5 border border-ipl-gold/20 p-4 mb-8">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-ipl-gold shrink-0 mt-0.5" />
-              <p className="text-[10px] text-gray-400 font-display uppercase tracking-wider leading-relaxed">
-                Caution: Triggering the scoring engine calculates points for ALL users immediately. Ensure facts are correct against official BCCI match data.
-              </p>
-            </div>
-          </div>
-
-          <form onSubmit={handleResultSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em]">Select Match</label>
-              <select
-                value={selectedMatchId}
-                onChange={(e) => setSelectedMatchId(e.target.value)}
-                className="w-full bg-black/40 border-2 border-white/10 p-3 text-white focus:outline-none focus:border-ipl-gold transition-all text-sm font-display uppercase tracking-widest appearance-none"
-              >
-                <option value="">— Choose Any Match —</option>
-                {matches?.map(m => (
-                  <option key={m.id} value={m.id}>
-                    {m.status === 'completed' ? '🏁 ' : (m.status === 'live' ? '🔴 ' : '⏳ ')}
-                    {m.team1} v {m.team2} ({m.id})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {selectedMatch && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
-                {selectedMatch.status === 'completed' && (
-                  <div className="bg-red-500/10 border border-red-500/20 p-3 flex gap-3 items-center mb-6">
-                    <ShieldAlert className="w-5 h-5 text-red-500 shrink-0" />
-                    <p className="text-[10px] text-red-500 font-display uppercase tracking-widest leading-relaxed">
-                      Override Mode: Updating facts for a completed match will RE-CALCULATE scores for all users immediately. Proceed with caution.
-                    </p>
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em]">Match Winner</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[selectedMatch.team1, selectedMatch.team2].map(team => (
-                      <button
-                        key={team}
-                        type="button"
-                        onClick={() => setMatchResults({ ...matchResults, winner: team })}
-                        className={`p-3 border-2 font-display text-xs tracking-widest transition-all ${matchResults.winner === team ? 'border-ipl-gold bg-ipl-gold text-black' : 'border-white/10 text-gray-500 hover:border-white/20'}`}
-                      >
-                        {team}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] truncate">{selectedMatch.team1} Score</label>
-                    <input
-                      type="number"
-                      value={matchResults.team1_powerplay_score}
-                      onChange={(e) => setMatchResults({ ...matchResults, team1_powerplay_score: parseInt(e.target.value) || 0 })}
-                      className="w-full bg-black/40 border-2 border-white/10 p-3 text-white focus:outline-none focus:border-ipl-gold transition-all font-mono"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] truncate">{selectedMatch.team2} Score</label>
-                    <input
-                      type="number"
-                      value={matchResults.team2_powerplay_score}
-                      onChange={(e) => setMatchResults({ ...matchResults, team2_powerplay_score: parseInt(e.target.value) || 0 })}
-                      className="w-full bg-black/40 border-2 border-white/10 p-3 text-white focus:outline-none focus:border-ipl-gold transition-all font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em]">Player of the Match</label>
-                  <input
-                    type="text"
-                    value={matchResults.player_of_the_match}
-                    onChange={(e) => setMatchResults({ ...matchResults, player_of_the_match: e.target.value })}
-                    placeholder="ENTER PLAYER NAME"
-                    className="w-full bg-black/40 border-2 border-white/10 p-3 text-white focus:outline-none focus:border-ipl-gold transition-all font-display text-sm tracking-widest uppercase placeholder:text-gray-700"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isUpdating || !matchResults.winner}
-                  className="w-full bg-ipl-gold text-black font-display py-4 uppercase tracking-[0.3em] font-black hover:bg-white hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-20 disabled:grayscale"
-                >
-                  {isUpdating ? 'Executing Logic...' : 'Trigger Scoring Engine'}
-                </button>
-              </div>
-            )}
-          </form>
-        </section>
-
-        {/* User Management Section */}
-        <section className="mt-12 mb-20 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
-          <UserScoreManager />
-        </section>
       </div>
+
+      {/* User Management Section */}
+      <section className="mt-12 mb-20 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
+        <UserScoreManager />
+      </section>
     </div>
   );
 }

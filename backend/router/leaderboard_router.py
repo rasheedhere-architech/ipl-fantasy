@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from backend.database import get_db
 from backend.models import User, LeaderboardEntry, AllowlistedEmail
@@ -27,7 +27,8 @@ async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
             User.base_points,
             User.base_powerups
         )
-        .join(AllowlistedEmail, User.email == AllowlistedEmail.email)
+        .outerjoin(AllowlistedEmail, User.email == AllowlistedEmail.email)
+        .where(or_(AllowlistedEmail.email != None, User.is_ai == True))
         .outerjoin(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
         .group_by(User.id, User.base_points, User.base_powerups)
         .order_by((func.coalesce(func.sum(LeaderboardEntry.points), 0) + User.base_points).desc())
@@ -90,9 +91,10 @@ async def get_match_leaderboard(match_id: str, db: AsyncSession = Depends(get_db
 
     result = await db.execute(
         select(User.id, User.name, User.avatar_url, LeaderboardEntry.points)
-        .join(AllowlistedEmail, User.email == AllowlistedEmail.email)
+        .outerjoin(AllowlistedEmail, User.email == AllowlistedEmail.email)
         .join(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
         .where(LeaderboardEntry.match_id == match_id)
+        .where(or_(AllowlistedEmail.email != None, User.is_ai == True))
         .order_by(LeaderboardEntry.points.desc())
     )
     

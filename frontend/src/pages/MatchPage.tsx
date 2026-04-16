@@ -13,6 +13,7 @@ export default function MatchPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [hasAutoPredicted, setHasAutoPredicted] = useState(false);
+  const [showAutoPredictConfirm, setShowAutoPredictConfirm] = useState(false);
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
 
   const { data, isLoading, error } = useMatch(id || '');
@@ -92,7 +93,7 @@ export default function MatchPage() {
       setValue('team2_powerplay', predictedData.team2_powerplay, { shouldValidate: true, shouldDirty: true });
       setValue('player_of_the_match', predictedData.player_of_the_match, { shouldValidate: true, shouldDirty: true });
 
-      toast.success('Auto-predicted values based on history. You can still modify them.');
+      toast.success('AI has locked in your prediction!');
     } catch (err) {
       toast.error('Failed to auto predict.');
       setHasAutoPredicted(false);
@@ -181,10 +182,10 @@ export default function MatchPage() {
           <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={handleAutoPredict}
+              onClick={() => setShowAutoPredictConfirm(true)}
               disabled={isLocked || hasPredicted || hasAutoPredicted}
               className={`group flex items-center gap-1.5 text-[10px] sm:text-xs font-display uppercase tracking-widest px-3 sm:px-4 py-1.5 sm:py-2 rounded-full font-bold transition-all ${isLocked || hasPredicted || hasAutoPredicted
-                  ? 'bg-gray-500 text-gray-300 opacity-50 cursor-not-allowed hidden'
+                  ? 'bg-gray-500 text-gray-300 opacity-40 cursor-not-allowed'
                   : 'bg-gradient-to-r from-[#004BA0] to-[#7B2FF7] text-white hover:shadow-[0_0_18px_rgba(123,47,247,0.6)] hover:scale-105'
                 }`}
             >
@@ -200,15 +201,15 @@ export default function MatchPage() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-4">
             <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Match Winner</label>
-            <div className={`grid grid-cols-2 gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
+            <div className={`grid grid-cols-2 gap-4 ${(isLocked || hasAutoPredicted) ? 'pointer-events-none opacity-80' : ''}`}>
               <label className="cursor-pointer">
-                <input type="radio" value={match.team1} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
+                <input type="radio" value={match.team1} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked || hasAutoPredicted} />
                 <div className={`p-4 border-2 text-center font-display text-xl transition-all peer-checked:bg-[#004BA0] peer-checked:border-[#004BA0] peer-checked:shadow-[0_0_15px_#004BA0] ${errors.match_winner ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'} peer-checked:text-white`}>
                   {match.team1}
                 </div>
               </label>
               <label className="cursor-pointer">
-                <input type="radio" value={match.team2} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
+                <input type="radio" value={match.team2} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked || hasAutoPredicted} />
                 <div className={`p-4 border-2 text-center font-display text-xl transition-all peer-checked:bg-[#F4C430] peer-checked:border-[#F4C430] peer-checked:shadow-[0_0_15px_#F4C430] ${errors.match_winner ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'} peer-checked:text-[#0B0E1A]`}>
                   {match.team2}
                 </div>
@@ -225,7 +226,7 @@ export default function MatchPage() {
                 {...register('team1_powerplay', { required: true, valueAsNumber: true })}
                 type="number"
                 placeholder="0"
-                disabled={isLocked}
+                disabled={isLocked || hasAutoPredicted}
                 className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team1_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
               />
             </div>
@@ -237,7 +238,7 @@ export default function MatchPage() {
                 {...register('team2_powerplay', { required: true, valueAsNumber: true })}
                 type="number"
                 placeholder="0"
-                disabled={isLocked}
+                disabled={isLocked || hasAutoPredicted}
                 className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team2_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
               />
             </div>
@@ -249,7 +250,7 @@ export default function MatchPage() {
               {...register('player_of_the_match', { required: true })}
               type="text"
               placeholder="Player Name"
-              disabled={isLocked}
+              disabled={isLocked || hasAutoPredicted}
               className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.player_of_the_match ? 'border-red-500/50' : 'border-white/20'}`}
             />
           </div>
@@ -398,6 +399,58 @@ export default function MatchPage() {
           </div>
         )}
       </div>
+
+      {/* AI Auto Predict Confirmation Modal */}
+      {showAutoPredictConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowAutoPredictConfirm(false)}
+          />
+          {/* Dialog */}
+          <div className="relative glass-panel border border-[#7B2FF7]/40 shadow-[0_0_40px_rgba(123,47,247,0.3)] p-8 max-w-sm w-full animate-in fade-in zoom-in-95 duration-200">
+            {/* Top accent */}
+            <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-[#004BA0] to-[#7B2FF7]" />
+
+            {/* Icon */}
+            <div className="flex justify-center mb-5">
+              <div className="p-3 rounded-full bg-[#7B2FF7]/15 border border-[#7B2FF7]/30">
+                <Sparkles className="w-6 h-6 text-[#7B2FF7]" />
+              </div>
+            </div>
+
+            {/* Text */}
+            <h3 className="text-white font-display text-lg tracking-tight text-center mb-2">
+              Use AI Auto Predict?
+            </h3>
+            <p className="text-gray-400 text-xs font-display text-center leading-relaxed">
+              Are you sure you want to continue?<br />
+              <span className="text-[#F4C430] font-semibold">Once used, you won't be able to change the prediction manually.</span>
+            </p>
+
+            {/* Buttons */}
+            <div className="flex gap-3 mt-7">
+              <button
+                onClick={() => setShowAutoPredictConfirm(false)}
+                className="flex-1 py-2.5 border border-white/20 text-gray-300 font-display text-xs uppercase tracking-widest hover:bg-white/5 transition-all"
+              >
+                No
+              </button>
+              <button
+                onClick={() => {
+                  setShowAutoPredictConfirm(false);
+                  handleAutoPredict();
+                }}
+                className="flex-1 py-2.5 bg-gradient-to-r from-[#004BA0] to-[#7B2FF7] text-white font-display text-xs uppercase tracking-widest hover:shadow-[0_0_15px_rgba(123,47,247,0.5)] transition-all flex items-center justify-center gap-1.5"
+              >
+                <Sparkles className="w-3 h-3" />
+                Yes, Proceed
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

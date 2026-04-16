@@ -217,92 +217,7 @@ export default function MatchPage() {
         </div>
       )}
 
-      {/* Admin Match Result Processor Section */}
-      {currentUser?.is_admin && (
-        <section className="glass-panel p-8 border-t-4 border-t-ipl-gold shadow-[0_20px_50px_rgba(244,196,48,0.1)]">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-ipl-gold/10 rounded-lg">
-              <Settings className="w-6 h-6 text-ipl-gold" />
-            </div>
-            <h2 className="text-xl font-display text-white italic tracking-tighter">MATCH RESULT PROCESSOR (ADMIN)</h2>
-          </div>
 
-          <div className="bg-ipl-gold/5 border border-ipl-gold/20 p-4 mb-8">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-ipl-gold shrink-0 mt-0.5" />
-              <p className="text-[10px] text-gray-400 font-display uppercase tracking-wider leading-relaxed">
-                Caution: Triggering the scoring engine calculates points for ALL users immediately. Ensure facts are correct against official BCCI match data.
-              </p>
-            </div>
-          </div>
-
-          <form onSubmit={handleAdminResultSubmit} className="space-y-6">
-            {match.status === 'completed' && (
-              <div className="bg-red-500/10 border border-red-500/20 p-3 flex gap-3 items-center mb-6">
-                <ShieldAlert className="w-5 h-5 text-red-500 shrink-0" />
-                <p className="text-[10px] text-red-500 font-display uppercase tracking-widest leading-relaxed">
-                  Override Mode: Updating facts for a completed match will RE-CALCULATE scores for all users immediately. Proceed with caution.
-                </p>
-              </div>
-            )}
-            <div className="space-y-4">
-              <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em]">Match Winner</label>
-              <div className="grid grid-cols-2 gap-4">
-                {[match.team1, match.team2].map(team => (
-                  <button
-                    key={team}
-                    type="button"
-                    onClick={() => setAdminResults({ ...adminResults, winner: team })}
-                    className={`p-4 border-2 font-display text-sm tracking-widest transition-all ${adminResults.winner === team ? 'border-ipl-gold bg-ipl-gold text-black' : 'border-white/10 text-gray-500 hover:border-white/20'}`}
-                  >
-                    {team}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] truncate">{match.team1} PP Score</label>
-                <input
-                  type="number"
-                  value={adminResults.team1_powerplay_score}
-                  onChange={(e) => setAdminResults({ ...adminResults, team1_powerplay_score: parseInt(e.target.value) || 0 })}
-                  className="w-full bg-black/40 border-2 border-white/10 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all font-mono"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] truncate">{match.team2} PP Score</label>
-                <input
-                  type="number"
-                  value={adminResults.team2_powerplay_score}
-                  onChange={(e) => setAdminResults({ ...adminResults, team2_powerplay_score: parseInt(e.target.value) || 0 })}
-                  className="w-full bg-black/40 border-2 border-white/10 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em]">Player of the Match</label>
-              <input
-                type="text"
-                value={adminResults.player_of_the_match}
-                onChange={(e) => setAdminResults({ ...adminResults, player_of_the_match: e.target.value })}
-                placeholder="ENTER PLAYER NAME"
-                className="w-full bg-black/40 border-2 border-white/10 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all font-display text-sm tracking-widest uppercase placeholder:text-gray-700"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isUpdatingResults || !adminResults.winner}
-              className="w-full bg-ipl-gold text-black font-display py-4 uppercase tracking-[0.3em] font-black hover:bg-white hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-20 disabled:grayscale"
-            >
-              {isUpdatingResults ? 'EXECUTING LOGIC...' : 'TRIGGER SCORING ENGINE'}
-            </button>
-          </form>
-        </section>
-      )}
 
       <div className="glass-panel p-8">
         <div className="flex justify-between items-center mb-8 border-b-2 border-white/5 pb-4">
@@ -542,6 +457,93 @@ export default function MatchPage() {
           </div>
         )}
       </div>
+
+      {/* Admin Match Result Processor Section */}
+      {currentUser?.is_admin && (
+        <section className="glass-panel p-8 border-t-4 border-t-ipl-gold shadow-[0_20px_50px_rgba(244,196,48,0.1)] mt-12">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-3 bg-ipl-gold/10 rounded-lg">
+              <Settings className="w-6 h-6 text-ipl-gold" />
+            </div>
+            <h2 className="text-xl font-display text-white italic tracking-tighter">MATCH RESULT PROCESSOR (ADMIN)</h2>
+          </div>
+
+          <div className="bg-ipl-gold/5 border border-ipl-gold/20 p-4 mb-8">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-ipl-gold shrink-0 mt-0.5" />
+              <p className="text-[10px] text-gray-400 font-display uppercase tracking-wider leading-relaxed">
+                Caution: Triggering the scoring engine calculates points for ALL users immediately. Ensure facts are correct against official BCCI match data.
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleAdminResultSubmit} className="space-y-6">
+            {match.status === 'completed' && (
+              <div className="bg-red-500/10 border border-red-500/20 p-3 flex gap-3 items-center mb-6">
+                <ShieldAlert className="w-5 h-5 text-red-500 shrink-0" />
+                <p className="text-[10px] text-red-500 font-display uppercase tracking-widest leading-relaxed">
+                  Override Mode: Updating facts for a completed match will RE-CALCULATE scores for all users immediately. Proceed with caution.
+                </p>
+              </div>
+            )}
+            <div className="space-y-4">
+              <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em]">Match Winner</label>
+              <div className="grid grid-cols-2 gap-4">
+                {[match.team1, match.team2].map(team => (
+                  <button
+                    key={team}
+                    type="button"
+                    onClick={() => setAdminResults({ ...adminResults, winner: team })}
+                    className={`p-4 border-2 font-display text-sm tracking-widest transition-all ${adminResults.winner === team ? 'border-ipl-gold bg-ipl-gold text-black' : 'border-white/10 text-gray-500 hover:border-white/20'}`}
+                  >
+                    {team}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] truncate">{match.team1} PP Score</label>
+                <input
+                  type="number"
+                  value={adminResults.team1_powerplay_score}
+                  onChange={(e) => setAdminResults({ ...adminResults, team1_powerplay_score: parseInt(e.target.value) || 0 })}
+                  className="w-full bg-black/40 border-2 border-white/10 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all font-mono"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] truncate">{match.team2} PP Score</label>
+                <input
+                  type="number"
+                  value={adminResults.team2_powerplay_score}
+                  onChange={(e) => setAdminResults({ ...adminResults, team2_powerplay_score: parseInt(e.target.value) || 0 })}
+                  className="w-full bg-black/40 border-2 border-white/10 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em]">Player of the Match</label>
+              <input
+                type="text"
+                value={adminResults.player_of_the_match}
+                onChange={(e) => setAdminResults({ ...adminResults, player_of_the_match: e.target.value })}
+                placeholder="ENTER PLAYER NAME"
+                className="w-full bg-black/40 border-2 border-white/10 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all font-display text-sm tracking-widest uppercase placeholder:text-gray-700"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isUpdatingResults || !adminResults.winner}
+              className="w-full bg-ipl-gold text-black font-display py-4 uppercase tracking-[0.3em] font-black hover:bg-white hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-20 disabled:grayscale"
+            >
+              {isUpdatingResults ? 'EXECUTING LOGIC...' : 'TRIGGER SCORING ENGINE'}
+            </button>
+          </form>
+        </section>
+      )}
 
       {/* AI Auto Predict Confirmation Modal */}
       {showAutoPredictConfirm && (

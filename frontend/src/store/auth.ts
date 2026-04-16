@@ -28,7 +28,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'ipl-fantasy-auth',
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(() => localStorage),
     }
   )
 );

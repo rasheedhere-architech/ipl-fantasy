@@ -19,6 +19,7 @@ class User(Base):
     avatar_url: Mapped[str] = mapped_column(String, nullable=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     is_ai: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_guest: Mapped[bool] = mapped_column(Boolean, server_default='false', default=False)
     base_points: Mapped[int] = mapped_column(Integer, default=0)
     base_powerups: Mapped[int] = mapped_column(Integer, default=10)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
@@ -28,6 +29,7 @@ class AllowlistedEmail(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String, unique=True, index=True)
+    is_guest: Mapped[bool] = mapped_column(Boolean, server_default='false', default=False)
     added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 class Match(Base):

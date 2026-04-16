@@ -45,7 +45,14 @@ export default function Layout() {
             <div className="flex items-center gap-4">
               {user && (
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium hidden sm:block">{user.name}</span>
+                  <div className="flex flex-col items-end">
+                    <span className="text-sm font-medium hidden sm:block leading-none">{user.name}</span>
+                    {user.is_guest && (
+                      <span className="text-[8px] bg-ipl-gold/20 text-ipl-gold border border-ipl-gold/30 px-1.5 py-0.5 mt-1 rounded font-bold uppercase tracking-tighter hidden sm:block">
+                        Guest Access
+                      </span>
+                    )}
+                  </div>
                   <img src={user.avatar || `https://ui-avatars.com/api/?name=${user.name}&background=0B0E1A&color=F4C430`} alt="avatar" className="w-8 h-8 rounded-full border border-ipl-gold/50" />
                   <button onClick={logout} className="hidden md:block text-gray-400 hover:text-white transition-colors ml-2" title="Logout">
                     <LogOut className="w-5 h-5" />

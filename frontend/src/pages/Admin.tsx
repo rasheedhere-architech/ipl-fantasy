@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 export default function Admin() {
   const { user } = useAuthStore();
   const [newEmail, setNewEmail] = useState('');
+  const [isGuest, setIsGuest] = useState(false);
 
   const { data: allowlist, isLoading: isAllowlistLoading } = useAllowlist();
   const { mutate: addEmail, isPending: isAdding } = useAddAllowlist();
@@ -24,10 +25,11 @@ export default function Admin() {
     e.preventDefault();
     if (!newEmail.trim()) return;
     const emails = newEmail.split(',').map(e => e.trim()).filter(Boolean);
-    addEmail(emails, {
+    addEmail({ emails, isGuest }, {
       onSuccess: () => {
         setNewEmail('');
-        toast.success(`${emails.length} emails added to access list`);
+        setIsGuest(false);
+        toast.success(`${emails.length} emails added as ${isGuest ? 'guests' : 'experts'}`);
       },
       onError: () => toast.error('Failed to update access list')
     });
@@ -70,6 +72,14 @@ export default function Admin() {
               />
             </div>
             <button
+              type="button"
+              onClick={() => setIsGuest(!isGuest)}
+              className={`px-4 font-display text-[10px] uppercase tracking-tighter transition-all border-2 flex items-center gap-2 ${isGuest ? 'bg-ipl-gold border-ipl-gold text-black' : 'border-white/10 text-gray-500 hover:border-white/20'}`}
+            >
+              <Users className="w-3 h-3" />
+              {isGuest ? 'Guest Role' : 'Expert Role'}
+            </button>
+            <button
               type="submit"
               disabled={isAdding || !newEmail}
               className="bg-ipl-live text-white font-display px-6 rounded-none uppercase tracking-widest hover:bg-red-500 transition-all disabled:opacity-30 disabled:grayscale"
@@ -85,7 +95,12 @@ export default function Admin() {
               <ul className="divide-y divide-white/5">
                 {allowlist?.map((entry) => (
                   <li key={entry.email} className="px-5 py-4 flex justify-between items-center group hover:bg-white/5 transition-colors">
-                    <span className="text-gray-300 font-mono text-sm tracking-tight">{entry.email}</span>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-gray-300 font-mono text-sm tracking-tight">{entry.email}</span>
+                      <span className={`text-[9px] font-display uppercase tracking-widest font-bold ${entry.is_guest ? 'text-ipl-gold' : 'text-ipl-live'}`}>
+                        {entry.is_guest ? 'Guest' : 'Expert'} Access
+                      </span>
+                    </div>
                     <button
                       onClick={() => deleteEmail(entry.email)}
                       className="text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1"

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import CountdownTimer from './CountdownTimer';
 import { MapPin } from 'lucide-react';
+import { useAuthStore } from '../store/auth';
 
 interface MatchCardProps {
   id: string;
@@ -25,6 +26,7 @@ const teamColors: Record<string, string> = {
 };
 
 export default function MatchCard({ id, team1, team2, venue, tossTime, status }: MatchCardProps) {
+  const { user } = useAuthStore();
   const t1Color = teamColors[team1] || '#ffffff';
   const t2Color = teamColors[team2] || '#ffffff';
 
@@ -74,7 +76,7 @@ export default function MatchCard({ id, team1, team2, venue, tossTime, status }:
         to={`/match/${id}`}
         className="w-full text-center bg-white/5 hover:bg-white hover:text-black text-white font-display uppercase tracking-widest py-3 border border-white/20 transition-all z-10 relative"
       >
-        {status === 'upcoming' ? 'Predict Now' : 'View Match'}
+        {status === 'upcoming' ? (user?.is_guest ? 'View Match' : 'Predict Now') : 'View Match'}
       </Link>
     </div>
   );

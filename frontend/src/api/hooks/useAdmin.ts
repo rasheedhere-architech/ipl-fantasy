@@ -3,6 +3,7 @@ import { apiClient } from '../client';
 
 export interface AllowlistEntry {
   email: string;
+  is_guest: boolean;
   added_at: string;
   id?: number;
 }
@@ -20,8 +21,8 @@ export function useAllowlist() {
 export function useAddAllowlist() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (emails: string[]) => {
-      const response = await apiClient.post('/admin/allowlist', { emails });
+    mutationFn: async ({ emails, isGuest }: { emails: string[]; isGuest: boolean }) => {
+      const response = await apiClient.post('/admin/allowlist', { emails, is_guest: isGuest });
       return response.data;
     },
     onSuccess: () => {

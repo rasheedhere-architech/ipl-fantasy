@@ -1,7 +1,7 @@
 import { useLeaderboard } from '../api/hooks/useMatches';
 import { useAuthStore } from '../store/auth';
 import { useState } from 'react';
-import { Trophy, History, X } from 'lucide-react';
+import { Trophy, History, X, Info } from 'lucide-react';
 
 export default function Leaderboard() {
   const { user: currentUser } = useAuthStore();
@@ -187,6 +187,18 @@ export default function Leaderboard() {
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {currentUser?.is_guest && (
+            <div className="glass-panel p-6 border-l-4 border-l-ipl-gold bg-white/[0.02] mt-8">
+              <div className="flex items-center gap-2 mb-3">
+                <Info className="w-4 h-4 text-ipl-gold" />
+                <h4 className="text-[10px] font-display text-white uppercase tracking-widest">Guest Standing</h4>
+              </div>
+              <p className="text-[10px] text-gray-500 font-display leading-relaxed">
+                As a Guest, your points are not tracked in the global standings. Contact an admin to become a full expert and join the race for the top!
+              </p>
             </div>
           )}
         </div>

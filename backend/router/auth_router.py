@@ -39,18 +39,23 @@ async def auth_callback(request: Request, db: AsyncSession = Depends(get_db)):
         email = user_info.get("email")
         
         # 1. Check Allowlist
-        is_allowed = False
+        allowlisted_entry = None
         cached_allowlist = backend_cache.get("allowlist")
         if cached_allowlist:
-            is_allowed = any(entry.email == email for entry in cached_allowlist)
+            # find entry in cache
+            for entry in cached_allowlist:
+                if entry.email == email:
+                    allowlisted_entry = entry
+                    break
         else:
             result = await db.execute(select(AllowlistedEmail).where(AllowlistedEmail.email == email))
-            entry = result.scalars().first()
-            is_allowed = entry is not None
+            allowlisted_entry = result.scalars().first()
             
-        if not is_allowed:
+        if not allowlisted_entry:
             # If email is not on allowlist
             return RedirectResponse(url=f"{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}/login?error=not_invited")
+            
+        is_guest_allowed = allowlisted_entry.is_guest
             
         # 2. Upsert User using google_id
         google_id = user_info.get("sub")
@@ -67,11 +72,17 @@ async def auth_callback(request: Request, db: AsyncSession = Depends(get_db)):
                 google_id=google_id,
                 email=email,
                 name=name,
-                avatar_url=avatar_url
+                avatar_url=avatar_url,
+                is_guest=is_guest_allowed
             )
             db.add(user)
             await db.commit()
             await db.refresh(user)
+        else:
+            if user.is_guest != is_guest_allowed:
+                user.is_guest = is_guest_allowed
+                await db.commit()
+                await db.refresh(user)
             
         # 3. Issue JWT Session Token
         jwt_token = create_access_token(data={"sub": user.id})
@@ -91,5 +102,6 @@ async def get_me(user: User = Depends(get_current_user)):
         "email": user.email,
         "name": user.name,
         "avatar": user.avatar_url,
-        "is_admin": user.is_admin
+        "is_admin": user.is_admin,
+        "is_guest": user.is_guest
     }

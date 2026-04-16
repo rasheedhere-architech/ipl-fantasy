@@ -58,6 +58,9 @@ async def list_matches(db: AsyncSession = Depends(get_db)):
 
 @router.post("/{match_id}/autopredict")
 async def post_autopredict(match_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.is_guest:
+        raise HTTPException(status_code=403, detail="Guests cannot submit predictions")
+    
     import random
 
     result = await db.execute(select(Match).where(Match.id == match_id))
@@ -179,6 +182,9 @@ async def get_match(match_id: str, db: AsyncSession = Depends(get_db), current_u
 
 @router.post("/{match_id}/predictions")
 async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.is_guest:
+        raise HTTPException(status_code=403, detail="Guests cannot submit predictions")
+        
     result = await db.execute(select(Match).where(Match.id == match_id))
     match = result.scalars().first()
     if not match:
@@ -277,10 +283,13 @@ async def get_all_community_predictions(match_id: str, db: AsyncSession = Depend
     # Reveal WHOM but hide WHAT until 30 minutes before toss
     is_locked = datetime.now(UTC) >= (match.toss_time - timedelta(minutes=30))
         
+    from backend.models import AllowlistedEmail
     pred_result = await db.execute(
         select(Prediction, User)
         .join(User, Prediction.user_id == User.id)
+        .outerjoin(AllowlistedEmail, User.email == AllowlistedEmail.email)
         .where(Prediction.match_id == match_id)
+        .where(or_(AllowlistedEmail.email != None, User.is_ai == True))
     )
     
     results = []

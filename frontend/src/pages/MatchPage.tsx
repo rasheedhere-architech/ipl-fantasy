@@ -231,26 +231,44 @@ export default function MatchPage() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => setShowAutoPredictConfirm(true)}
-              disabled={isLocked || hasPredicted || hasAutoPredicted}
-              className={`group flex items-center gap-1.5 text-[10px] sm:text-xs font-display uppercase tracking-widest px-3 sm:px-4 py-1.5 sm:py-2 rounded-full font-bold transition-all ${isLocked || hasPredicted || hasAutoPredicted
-                  ? 'bg-gray-500 text-gray-300 opacity-40 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-[#004BA0] to-[#7B2FF7] text-white hover:shadow-[0_0_18px_rgba(123,47,247,0.6)] hover:scale-105'
-                }`}
-            >
-              <Sparkles className="w-3 h-3 opacity-90 group-hover:animate-spin" />
-              AI Auto Predict
-            </button>
-            <div className="text-xs font-display text-ipl-gold uppercase tracking-widest bg-ipl-gold/10 px-3 py-1 rounded-full border border-ipl-gold/20 whitespace-nowrap">
-              {powerupsLeft} POWERUPS LEFT
+          {!currentUser?.is_guest && (
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => setShowAutoPredictConfirm(true)}
+                disabled={isLocked || hasPredicted || hasAutoPredicted}
+                className={`group flex items-center gap-1.5 text-[10px] sm:text-xs font-display uppercase tracking-widest px-3 sm:px-4 py-1.5 sm:py-2 rounded-full font-bold transition-all ${isLocked || hasPredicted || hasAutoPredicted
+                    ? 'bg-gray-500 text-gray-300 opacity-40 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-[#004BA0] to-[#7B2FF7] text-white hover:shadow-[0_0_18px_rgba(123,47,247,0.6)] hover:scale-105'
+                  }`}
+              >
+                <Sparkles className="w-3 h-3 opacity-90 group-hover:animate-spin" />
+                AI Auto Predict
+              </button>
+              <div className="text-xs font-display text-ipl-gold uppercase tracking-widest bg-ipl-gold/10 px-3 py-1 rounded-full border border-ipl-gold/20 whitespace-nowrap">
+                {powerupsLeft} POWERUPS LEFT
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {currentUser?.is_guest ? (
+          <div className="py-12 px-6 text-center bg-white/[0.02] border border-white/5 rounded-xl">
+            <div className="inline-flex items-center justify-center p-4 bg-ipl-gold/10 rounded-full mb-6">
+              <Sparkles className="w-8 h-8 text-ipl-gold animate-pulse" />
+            </div>
+            <h3 className="text-2xl font-display text-white mb-3">GUEST ACCESS</h3>
+            <p className="text-gray-400 font-display text-sm tracking-wide max-w-md mx-auto leading-relaxed">
+              You are currently viewing the system as a <span className="text-ipl-gold font-bold">GUEST</span>. 
+              You can see match details, community trends, and the leaderboard, but you cannot submit predictions.
+            </p>
+            <div className="mt-8 flex flex-col items-center gap-4">
+              <p className="text-[10px] text-gray-500 font-display uppercase tracking-[0.2em]">Contact an admin to join the league</p>
+              <div className="h-[1px] w-20 bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-4">
             <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Match Winner</label>
             <div className={`grid grid-cols-2 gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
@@ -346,6 +364,7 @@ export default function MatchPage() {
             )}
           </div>
         </form>
+        )}
       </div>
       <div className="glass-panel p-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
         <div className="flex items-center gap-3 mb-8 border-b-2 border-white/5 pb-4">

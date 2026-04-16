@@ -17,6 +17,7 @@ class MatchResultUpdate(BaseModel):
 
 class AllowlistEmailsRequest(BaseModel):
     emails: List[str]
+    is_guest: bool = False
 
 @router.get("/allowlist")
 async def get_allowlist(db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)):
@@ -41,7 +42,7 @@ async def add_to_allowlist(data: AllowlistEmailsRequest, db: AsyncSession = Depe
         # Check if exists
         result = await db.execute(select(AllowlistedEmail).where(AllowlistedEmail.email == clean_email))
         if not result.scalars().first():
-            new_entry = AllowlistedEmail(email=clean_email)
+            new_entry = AllowlistedEmail(email=clean_email, is_guest=data.is_guest)
             db.add(new_entry)
             added.append(clean_email)
             

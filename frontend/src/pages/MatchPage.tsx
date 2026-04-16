@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useMatch, useSubmitPrediction, useMyPredictions, useAllMatchPredictions } from '../api/hooks/useMatches';
-import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X } from 'lucide-react';
+import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X, Sparkles } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { apiClient } from '../api/client';
 import toast from 'react-hot-toast';
@@ -81,17 +81,17 @@ export default function MatchPage() {
 
   const handleAutoPredict = async () => {
     if (isLocked || hasPredicted || hasAutoPredicted) return;
-    
+
     setHasAutoPredicted(true);
 
     try {
       const { data: predictedData } = await apiClient.get(`/matches/${id || match.id}/autopredict`);
-      
+
       setValue('match_winner', predictedData.match_winner, { shouldValidate: true, shouldDirty: true });
       setValue('team1_powerplay', predictedData.team1_powerplay, { shouldValidate: true, shouldDirty: true });
       setValue('team2_powerplay', predictedData.team2_powerplay, { shouldValidate: true, shouldDirty: true });
       setValue('player_of_the_match', predictedData.player_of_the_match, { shouldValidate: true, shouldDirty: true });
-      
+
       toast.success('Auto-predicted values based on history. You can still modify them.');
     } catch (err) {
       toast.error('Failed to auto predict.');
@@ -183,13 +183,13 @@ export default function MatchPage() {
               type="button"
               onClick={handleAutoPredict}
               disabled={isLocked || hasPredicted || hasAutoPredicted}
-              className={`text-[10px] sm:text-xs font-display uppercase tracking-widest px-3 sm:px-4 py-1 sm:py-2 rounded-full font-bold transition-all ${
-                isLocked || hasPredicted || hasAutoPredicted 
-                ? 'bg-gray-500 text-gray-300 opacity-50 cursor-not-allowed hidden' 
-                : 'bg-gradient-to-r from-[#004BA0] to-[#F4C430] text-white hover:shadow-[0_0_15px_rgba(244,196,48,0.5)]'
-              }`}
+              className={`group flex items-center gap-1.5 text-[10px] sm:text-xs font-display uppercase tracking-widest px-3 sm:px-4 py-1.5 sm:py-2 rounded-full font-bold transition-all ${isLocked || hasPredicted || hasAutoPredicted
+                  ? 'bg-gray-500 text-gray-300 opacity-50 cursor-not-allowed hidden'
+                  : 'bg-gradient-to-r from-[#004BA0] to-[#7B2FF7] text-white hover:shadow-[0_0_18px_rgba(123,47,247,0.6)] hover:scale-105'
+                }`}
             >
-              Auto Predict
+              <Sparkles className="w-3 h-3 opacity-90 group-hover:animate-spin" />
+              AI Auto Predict
             </button>
             <div className="text-xs font-display text-ipl-gold uppercase tracking-widest bg-ipl-gold/10 px-3 py-1 rounded-full border border-ipl-gold/20 whitespace-nowrap">
               {powerupsLeft} POWERUPS LEFT

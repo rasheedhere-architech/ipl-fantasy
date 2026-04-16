@@ -211,15 +211,15 @@ export default function MatchPage() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-4">
             <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Match Winner</label>
-            <div className={`grid grid-cols-2 gap-4 ${(isLocked || hasAutoPredicted) ? 'pointer-events-none opacity-80' : ''}`}>
+            <div className={`grid grid-cols-2 gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
               <label className="cursor-pointer">
-                <input type="radio" value={match.team1} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked || hasAutoPredicted} />
+                <input type="radio" value={match.team1} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
                 <div className={`p-4 border-2 text-center font-display text-xl transition-all peer-checked:bg-[#004BA0] peer-checked:border-[#004BA0] peer-checked:shadow-[0_0_15px_#004BA0] ${errors.match_winner ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'} peer-checked:text-white`}>
                   {match.team1}
                 </div>
               </label>
               <label className="cursor-pointer">
-                <input type="radio" value={match.team2} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked || hasAutoPredicted} />
+                <input type="radio" value={match.team2} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
                 <div className={`p-4 border-2 text-center font-display text-xl transition-all peer-checked:bg-[#F4C430] peer-checked:border-[#F4C430] peer-checked:shadow-[0_0_15px_#F4C430] ${errors.match_winner ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'} peer-checked:text-[#0B0E1A]`}>
                   {match.team2}
                 </div>
@@ -236,7 +236,7 @@ export default function MatchPage() {
                 {...register('team1_powerplay', { required: true, valueAsNumber: true })}
                 type="number"
                 placeholder="0"
-                disabled={isLocked || hasAutoPredicted}
+                disabled={isLocked}
                 className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team1_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
               />
             </div>
@@ -248,7 +248,7 @@ export default function MatchPage() {
                 {...register('team2_powerplay', { required: true, valueAsNumber: true })}
                 type="number"
                 placeholder="0"
-                disabled={isLocked || hasAutoPredicted}
+                disabled={isLocked}
                 className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team2_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
               />
             </div>
@@ -260,7 +260,7 @@ export default function MatchPage() {
               {...register('player_of_the_match', { required: true })}
               type="text"
               placeholder="Player Name"
-              disabled={isLocked || hasAutoPredicted}
+              disabled={isLocked}
               className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.player_of_the_match ? 'border-red-500/50' : 'border-white/20'}`}
             />
           </div>
@@ -443,7 +443,7 @@ export default function MatchPage() {
             </h3>
             <p className="text-gray-400 text-xs font-display text-center leading-relaxed">
               Are you sure you want to continue?<br />
-              <span className="text-[#F4C430] font-semibold">Once used, you won't be able to change the prediction manually.</span>
+              <span className="text-[#F4C430] font-semibold">AI will populate the values for you. You can still modify them manually.</span>
             </p>
 
             {/* Buttons */}

@@ -222,6 +222,7 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
         existing_pred.team2_powerplay = payload.team2_powerplay
         existing_pred.player_of_the_match = payload.player_of_the_match
         existing_pred.use_powerup = payload.use_powerup
+        existing_pred.is_auto_predicted = False
     else:
         new_pred = Prediction(
             id=str(uuid.uuid4()),
@@ -231,7 +232,8 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
             team1_powerplay=payload.team1_powerplay,
             team2_powerplay=payload.team2_powerplay,
             player_of_the_match=payload.player_of_the_match,
-            use_powerup=payload.use_powerup
+            use_powerup=payload.use_powerup,
+            is_auto_predicted=False
         )
         db.add(new_pred)
             

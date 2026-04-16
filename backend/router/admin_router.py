@@ -4,10 +4,12 @@ from pydantic import BaseModel
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import update
+import uuid
 from backend.database import get_db
-from backend.models import User, AllowlistedEmail, ScoringRule, Match
+from backend.models import User, AllowlistedEmail, ScoringRule, Match, MatchV2, QuestionTemplate
 from backend.dependencies import get_current_admin
-from backend.scoring import calculate_match_scores
+from backend.scoring import calculate_match_scores, calculate_match_scores_v2
 from backend.utils.cache import backend_cache
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -115,6 +117,69 @@ async def trigger_match_scoring(match_id: str, payload: MatchResultUpdate, db: A
     backend_cache.invalidate(f"match_leaderboard_{match_id}")
     
     return {"message": "Results saved and scoring triggered successfully"}
+class TemplateCreateUpdate(BaseModel):
+    name: str
+    is_default: bool = False
+    questions: List[dict]
+
+@router.get("/v2/templates")
+async def get_templates(db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)):
+    result = await db.execute(select(QuestionTemplate))
+    templates = result.scalars().all()
+    return templates
+
+@router.post("/v2/templates")
+async def create_template(payload: TemplateCreateUpdate, db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)):
+    if payload.is_default:
+        await db.execute(update(QuestionTemplate).values(is_default=False))
+    
+    template = QuestionTemplate(
+        id=str(uuid.uuid4()),
+        name=payload.name,
+        is_default=payload.is_default,
+        questions_json=payload.questions
+    )
+    db.add(template)
+    await db.commit()
+    return {"id": template.id, "message": "Template created"}
+
+class MatchV2QuestionsUpdate(BaseModel):
+    questions: List[dict]
+
+@router.put("/v2/matches/{match_id}/questions")
+async def set_match_questions(match_id: str, payload: MatchV2QuestionsUpdate, db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)):
+    result = await db.execute(select(MatchV2).where(MatchV2.id == match_id))
+    match = result.scalars().first()
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+        
+    match.questions_json = payload.questions
+    await db.commit()
+    return {"message": "Match V2 questions updated successfully"}
+
+@router.put("/v2/matches/{match_id}/results")
+async def trigger_match_scoring_v2(match_id: str, payload: MatchResultUpdate, db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)):
+    answers = payload.answers
+    
+    result = await db.execute(select(MatchV2).where(MatchV2.id == match_id))
+    match = result.scalars().first()
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    match.answers_json = answers
+    
+    from backend.models import MatchStatus
+    match.status = MatchStatus.completed
+    
+    await db.commit()
+    
+    await calculate_match_scores_v2(match_id, db)
+    
+    backend_cache.invalidate("global_leaderboard")
+    backend_cache.invalidate(f"match_leaderboard_{match_id}")
+    
+    return {"message": "V2 Results saved and dynamic scoring triggered successfully"}
+
 @router.put("/predictions/{prediction_id}")
 async def admin_update_prediction(prediction_id: str, updates: dict, db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)):
     from backend.models import Prediction

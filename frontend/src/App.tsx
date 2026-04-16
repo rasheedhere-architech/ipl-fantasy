@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import MatchPage from './pages/MatchPage';
 import Leaderboard from './pages/Leaderboard';
 import Admin from './pages/Admin';
+import AdminQuestionManager from './pages/AdminQuestionManager';
 import Layout from './components/Layout';
 
 import AuthCallback from './pages/AuthCallback';
@@ -52,6 +53,7 @@ function App() {
           <Route path="match/:id" element={<MatchPage />} />
           <Route path="leaderboard" element={<Leaderboard />} />
           <Route path="admin" element={<Admin />} />
+          <Route path="admin/questions" element={<AdminQuestionManager />} />
         </Route>
       </Routes>
     </BrowserRouter>

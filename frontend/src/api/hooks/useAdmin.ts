@@ -56,6 +56,59 @@ export function useUpdateMatchResults() {
     },
   });
 }
+
+export function useTemplatesV2() {
+  return useQuery({
+    queryKey: ['templates_v2'],
+    queryFn: async () => {
+      const response = await apiClient.get<any[]>('/admin/v2/templates');
+      return response.data;
+    },
+  });
+}
+
+export function useSaveTemplateV2() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { name: string; is_default: boolean; questions: any[] }) => {
+      const response = await apiClient.post('/admin/v2/templates', payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['templates_v2'] });
+    },
+  });
+}
+
+export function useUpdateMatchQuestionsV2() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ matchId, questions }: { matchId: string; questions: any }) => {
+      const response = await apiClient.put(`/admin/v2/matches/${matchId}/questions`, { questions });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['matches_v2'] });
+      queryClient.invalidateQueries({ queryKey: ['matches'] });
+    },
+  });
+}
+
+export function useUpdateMatchResultsV2() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ matchId, answers }: { matchId: string; answers: any }) => {
+      const response = await apiClient.put(`/admin/v2/matches/${matchId}/results`, { answers });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['matches_v2'] });
+      queryClient.invalidateQueries({ queryKey: ['matches'] });
+      queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+    },
+  });
+}
+
 export function useAllUsers() {
   return useQuery({
     queryKey: ['admin', 'users'],

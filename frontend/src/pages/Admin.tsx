@@ -7,6 +7,7 @@ import { useMatches } from '../api/hooks/useMatches';
 import toast from 'react-hot-toast';
 
 
+
 export default function Admin() {
   const { user } = useAuthStore();
   const [newEmail, setNewEmail] = useState('');
@@ -95,6 +96,11 @@ export default function Admin() {
             Admin Operations
           </h1>
           <p className="text-gray-400 mt-1 uppercase text-xs tracking-[0.2em]">Manage system access and scoring engine</p>
+        </div>
+        <div className="mt-4 flex gap-4">
+          <a href="/admin/questions" className="bg-purple-500/20 text-purple-400 py-2 px-4 uppercase tracking-widest text-xs font-bold hover:bg-purple-500 hover:text-white transition-colors">
+             Open Dynamic Question Builder
+          </a>
         </div>
       </header>
 
@@ -255,6 +261,8 @@ export default function Admin() {
           </form>
         </section>
 
+
+        
         {/* User Management Section */}
         <section className="mt-12 mb-20 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
           <UserScoreManager />

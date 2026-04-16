@@ -48,6 +48,28 @@ class Match(Base):
     
     raw_result_json: Mapped[dict] = mapped_column(JSON, nullable=True)
 
+class MatchV2(Base):
+    __tablename__ = "matches_v2"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    external_id: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=True)
+    team1: Mapped[str] = mapped_column(String)
+    team2: Mapped[str] = mapped_column(String)
+    venue: Mapped[str] = mapped_column(String)
+    toss_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[MatchStatus] = mapped_column(SAEnum(MatchStatus))
+    
+    # V2 Dynamic Questions Data defined by Admin
+    questions_json: Mapped[list] = mapped_column(JSON, nullable=True)
+    
+    # Ground Truth Results (for scoring)
+    winner: Mapped[str] = mapped_column(String, nullable=True)
+    team1_powerplay_score: Mapped[int] = mapped_column(Integer, nullable=True)
+    team2_powerplay_score: Mapped[int] = mapped_column(Integer, nullable=True)
+    player_of_the_match: Mapped[str] = mapped_column(String, nullable=True)
+    
+    raw_result_json: Mapped[dict] = mapped_column(JSON, nullable=True)
+
 class Prediction(Base):
     __tablename__ = "predictions"
 
@@ -56,6 +78,27 @@ class Prediction(Base):
     match_id: Mapped[str] = mapped_column(String, ForeignKey("matches.id"))
     
     # Flattened Prediction Fields
+    match_winner: Mapped[str] = mapped_column(String, nullable=True)
+    team1_powerplay: Mapped[int] = mapped_column(Integer, nullable=True)
+    team2_powerplay: Mapped[int] = mapped_column(Integer, nullable=True)
+    player_of_the_match: Mapped[str] = mapped_column(String, nullable=True)
+    use_powerup: Mapped[str] = mapped_column(String, default="No") # "Yes" or "No"
+    
+
+    points_awarded: Mapped[int] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+class PredictionV2(Base):
+    __tablename__ = "predictions_v2"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"))
+    match_id: Mapped[str] = mapped_column(String, ForeignKey("matches_v2.id"))
+    
+    # V2 Dynamic Answers Data provided by user
+    answers_json: Mapped[dict] = mapped_column(JSON, nullable=True)
+    
+    # Flattened Prediction Fields (kept for backward compatibility)
     match_winner: Mapped[str] = mapped_column(String, nullable=True)
     team1_powerplay: Mapped[int] = mapped_column(Integer, nullable=True)
     team2_powerplay: Mapped[int] = mapped_column(Integer, nullable=True)
@@ -71,6 +114,15 @@ class ScoringRule(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     config_json: Mapped[dict] = mapped_column(JSON)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+
+class QuestionTemplate(Base):
+    __tablename__ = "question_templates"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    questions_json: Mapped[list] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 class LeaderboardEntry(Base):
     __tablename__ = "leaderboard_entries"

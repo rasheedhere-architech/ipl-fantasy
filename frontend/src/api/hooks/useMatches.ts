@@ -13,6 +13,8 @@ export interface Match {
   team1_powerplay_score?: number;
   team2_powerplay_score?: number;
   player_of_the_match?: string;
+  questions_json?: any[];
+  answers_json?: Record<string, any>;
 }
 
 export function useMatches() {
@@ -33,6 +35,34 @@ export function useMatch(id: string) {
     queryKey: ['matches', id],
     queryFn: async () => {
       const response = await apiClient.get(`/matches/${id}`);
+      const data = response.data;
+      if (data.match) {
+        data.match.tossTime = data.match.toss_time;
+      }
+      return data;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useMatchesV2() {
+  return useQuery({
+    queryKey: ['matches_v2'],
+    queryFn: async () => {
+      const response = await apiClient.get<Match[]>('/v2/matches');
+      return response.data.map(match => ({
+        ...match,
+        tossTime: (match as any).toss_time
+      })) as Match[];
+    },
+  });
+}
+
+export function useMatchV2(id: string) {
+  return useQuery({
+    queryKey: ['matches_v2', id],
+    queryFn: async () => {
+      const response = await apiClient.get(`/v2/matches/${id}`);
       const data = response.data;
       if (data.match) {
         data.match.tossTime = data.match.toss_time;

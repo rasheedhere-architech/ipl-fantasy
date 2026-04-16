@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { useMatch, useSubmitPrediction, useMyPredictions, useAllMatchPredictions } from '../api/hooks/useMatches';
+import { useMatchV2, useSubmitPrediction, useMyPredictions, useAllMatchPredictions } from '../api/hooks/useMatches';
 import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { apiClient } from '../api/client';
@@ -14,7 +14,7 @@ export default function MatchPage() {
   const [editValue, setEditValue] = useState('');
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
 
-  const { data, isLoading, error } = useMatch(id || '');
+  const { data, isLoading, error } = useMatchV2(id || '');
   const { mutate: submitPrediction, isPending } = useSubmitPrediction(id || '');
   const { data: myPredictions } = useMyPredictions(id || '');
 
@@ -27,7 +27,9 @@ export default function MatchPage() {
   // Pre-fill existing predictions
   useEffect(() => {
     if (myPredictions && Object.keys(myPredictions).length > 0) {
-      reset(myPredictions);
+      const initialValues: any = { ...myPredictions.answers };
+      initialValues.use_powerup = myPredictions.use_powerup || 'No';
+      reset(initialValues);
     }
   }, [myPredictions, reset]);
 
@@ -44,14 +46,17 @@ export default function MatchPage() {
   const matchNoMatch = match.id.match(/ipl-\d{4}-(\d+)/);
   const matchNumber = matchNoMatch ? matchNoMatch[1] : null;
 
-  // Find specific labels from the questions array
-  const team1PPLabel = questions.find((q: any) => q.key === 'team1_powerplay')?.question_text || `${match.team1} Power Play Score`;
-  const team2PPLabel = questions.find((q: any) => q.key === 'team2_powerplay')?.question_text || `${match.team2} Power Play Score`;
 
 
   const onSubmit = (formData: any) => {
     if (isLocked) return;
-    submitPrediction(formData, {
+    
+    // Bundle all dynamic answers into an `answers` payload as expected by V2 router
+    const use_powerup = formData.use_powerup;
+    const answers = { ...formData };
+    delete answers.use_powerup;
+
+    submitPrediction({ answers, use_powerup }, {
       onSuccess: () => {
         toast.success('Prediction Locked!');
       },
@@ -162,61 +167,59 @@ export default function MatchPage() {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="space-y-4">
-            <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Match Winner</label>
-            <div className={`grid grid-cols-2 gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
-              <label className="cursor-pointer">
-                <input type="radio" value={match.team1} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
-                <div className={`p-4 border-2 text-center font-display text-xl transition-all peer-checked:bg-[#004BA0] peer-checked:border-[#004BA0] peer-checked:shadow-[0_0_15px_#004BA0] ${errors.match_winner ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'} peer-checked:text-white`}>
-                  {match.team1}
-                </div>
-              </label>
-              <label className="cursor-pointer">
-                <input type="radio" value={match.team2} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
-                <div className={`p-4 border-2 text-center font-display text-xl transition-all peer-checked:bg-[#F4C430] peer-checked:border-[#F4C430] peer-checked:shadow-[0_0_15px_#F4C430] ${errors.match_winner ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'} peer-checked:text-[#0B0E1A]`}>
-                  {match.team2}
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6 pt-6">
-            <div className="space-y-2">
+          {questions.map((q: any) => (
+            <div key={q.id} className="space-y-4 pt-4">
               <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
-                {team1PPLabel}
+                {q.question}
               </label>
-              <input
-                {...register('team1_powerplay', { required: true, valueAsNumber: true })}
-                type="number"
-                placeholder="0"
-                disabled={isLocked}
-                className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team1_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
-                {team2PPLabel}
-              </label>
-              <input
-                {...register('team2_powerplay', { required: true, valueAsNumber: true })}
-                type="number"
-                placeholder="0"
-                disabled={isLocked}
-                className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team2_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
-              />
-            </div>
-          </div>
+              
+              {q.type === 'number' && (
+                <input
+                  {...register(q.id, { required: true })}
+                  type="number"
+                  placeholder="0"
+                  disabled={isLocked}
+                  className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all disabled:opacity-50 ${errors[q.id] ? 'border-red-500/50' : 'border-white/20'}`}
+                />
+              )}
 
-          <div className="space-y-2">
-            <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Player of the Match</label>
-            <input
-              {...register('player_of_the_match', { required: true })}
-              type="text"
-              placeholder="Player Name"
-              disabled={isLocked}
-              className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.player_of_the_match ? 'border-red-500/50' : 'border-white/20'}`}
-            />
-          </div>
+              {(q.type === 'single_answer' || q.type === 'text') && (
+                <input
+                  {...register(q.id, { required: true })}
+                  type="text"
+                  placeholder="Enter Answer"
+                  disabled={isLocked}
+                  className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all disabled:opacity-50 ${errors[q.id] ? 'border-red-500/50' : 'border-white/20'}`}
+                />
+              )}
+
+              {(q.type === 'dropdown' || q.type === 'selection') && (
+                <select
+                  {...register(q.id, { required: true })}
+                  disabled={isLocked}
+                  className={`w-full bg-black/40 border-2 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all disabled:opacity-50 appearance-none ${errors[q.id] ? 'border-red-500/50' : 'border-white/20'}`}
+                >
+                  <option value="">-- Select Option --</option>
+                  {q.options?.map((opt: string) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              )}
+              
+              {q.type === 'multi_answers' && (
+                 <div className={`grid grid-cols-2 gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
+                  {q.options?.map((opt: string) => (
+                    <label key={opt} className="cursor-pointer">
+                      <input type="checkbox" value={opt} {...register(q.id)} className="peer sr-only" disabled={isLocked} />
+                      <div className={`p-4 border-2 text-center font-display transition-all peer-checked:bg-ipl-gold peer-checked:border-ipl-gold peer-checked:text-black ${errors[q.id] ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'}`}>
+                        {opt}
+                      </div>
+                    </label>
+                  ))}
+                 </div>
+              )}
+            </div>
+          ))}
 
           <div className="space-y-4 pt-4">
             <div className="flex justify-between items-end">

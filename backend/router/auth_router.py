@@ -84,6 +84,31 @@ async def auth_callback(request: Request, db: AsyncSession = Depends(get_db)):
         print(f"Auth error: {e}")
         return RedirectResponse(url=f"{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}/login?error=auth_failed")
 
+@router.get("/auth/local-bypass")
+async def local_auth_bypass(db: AsyncSession = Depends(get_db)):
+    if os.environ.get("ENVIRONMENT") == "production":
+        raise HTTPException(status_code=403, detail="Bypass not allowed in production")
+        
+    # Just find the first admin, or first user, and log them in
+    result = await db.execute(select(User).where(User.is_admin == True))
+    user = result.scalars().first()
+    
+    if not user:
+        # if no admin, create a mock admin user
+        user = User(
+            id=str(uuid.uuid4()),
+            google_id="local-dev-admin",
+            email="admin@localhost",
+            name="Local Admin",
+            is_admin=True
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        
+    jwt_token = create_access_token(data={"sub": user.id})
+    return RedirectResponse(url=f"{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}/auth/callback?token={jwt_token}")
+
 @router.get("/auth/me")
 async def get_me(user: User = Depends(get_current_user)):
     return {

@@ -10,6 +10,13 @@ export default function Login() {
     window.location.href = `${API_URL}/auth/google`;
   };
 
+  const handleLocalLogin = () => {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    window.location.href = `${API_URL}/auth/local-bypass`;
+  };
+
+  const isDev = import.meta.env.DEV;
+
   return (
     <div className="min-h-screen bg-ipl-navy flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-md">
@@ -43,6 +50,15 @@ export default function Login() {
             <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
             Sign in with Google
           </button>
+
+          {isDev && (
+             <button
+               onClick={handleLocalLogin}
+               className="w-full flex items-center justify-center mt-4 bg-orange-500 hover:bg-orange-600 text-white py-4 px-6 font-display uppercase tracking-widest transition-all"
+             >
+               Skip Auth (Local Dev Admin)
+             </button>
+          )}
         </div>
       </div>
     </div>

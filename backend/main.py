@@ -7,7 +7,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from contextlib import asynccontextmanager
-app = FastAPI(title="IPL Fantasy API")
+from backend.database import engine, Base
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+
+app = FastAPI(title="IPL Fantasy API", lifespan=lifespan)
 
 # Allow CORS for local dev and frontend URL(s)
 # FRONTEND_URL can be a single URL or comma-separated list of URLs
@@ -25,11 +33,12 @@ app.add_middleware(
 app.add_middleware(SessionMiddleware, secret_key=os.environ.get("JWT_SECRET", "session_secret"))
 
 
-from backend.router import auth_router, admin_router, match_router, leaderboard_router
+from backend.router import auth_router, admin_router, match_router, match_router_v2, leaderboard_router
 
 app.include_router(auth_router.router)
 app.include_router(admin_router.router)
 app.include_router(match_router.router)
+app.include_router(match_router_v2.router)
 app.include_router(leaderboard_router.router)
 
 @app.get("/")

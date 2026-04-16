@@ -124,7 +124,7 @@ export default function Admin() {
                 <button
                   onClick={() => {
                     triggerAI(undefined, {
-                      onSuccess: (data) => toast.success('Prediction algorithm running in background'),
+                      onSuccess: () => toast.success('Prediction algorithm running in background'),
                       onError: () => toast.error('Failed to trigger predictions')
                     });
                   }}

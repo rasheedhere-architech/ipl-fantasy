@@ -1,8 +1,12 @@
-import { useAnalysis } from '../api/hooks/useMatches';
-import { Trophy, TrendingUp, Medal, Calendar, BarChart3 } from 'lucide-react';
+import { useAnalysis, useLeaderboard } from '../api/hooks/useMatches';
+import { Trophy, TrendingUp, Medal, Calendar, BarChart3, Star } from 'lucide-react';
 
 export default function Analysis() {
-  const { data, isLoading } = useAnalysis();
+  const { data, isLoading: isAnalysisLoading } = useAnalysis();
+  const { data: leaderboard, isLoading: isLBLoading } = useLeaderboard();
+
+  const isLoading = isAnalysisLoading || isLBLoading;
+
 
   const formatDate = (dateStr: string) => {
     try {
@@ -35,6 +39,80 @@ export default function Analysis() {
           </p>
         </div>
       </header>
+
+      {/* Elite Performance Visual Chart (Reference Image Style) */}
+      <section className="glass-panel p-8 bg-gradient-to-b from-white/[0.03] to-transparent overflow-x-auto custom-scrollbar">
+        <div className="flex items-center gap-2 mb-8 border-b border-white/5 pb-4">
+          <Star className="w-5 h-5 text-ipl-gold" />
+          <h2 className="text-xl font-display text-white uppercase tracking-tight">Elite Performance Split</h2>
+          <span className="text-[10px] text-gray-500 ml-auto uppercase tracking-widest font-mono flex items-center gap-4">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 bg-ipl-gold rounded-full" /> Match Points</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 bg-white/20 rounded-full" /> Base Points</span>
+          </span>
+        </div>
+
+        <div className="flex items-end justify-around gap-4 min-w-[600px] h-[400px] pb-12 relative px-4">
+            {/* Horizontal Grid lines */}
+            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-5 pr-8">
+              {[0, 1, 2, 3, 4].map(i => <div key={i} className="border-t border-white" />)}
+            </div>
+
+            {leaderboard?.slice(0, 5).map((user: any) => {
+              const maxPoints = Math.max(...leaderboard.slice(0, 5).map((u: any) => u.total_points));
+              const matchPoints = user.total_points - user.base_points;
+              const matchHeight = (matchPoints / maxPoints) * 100;
+              const baseHeight = (user.base_points / maxPoints) * 100;
+              
+              return (
+                <div key={user.username} className="relative flex flex-col items-center group w-20">
+                    {/* Total Value on Top */}
+                    <div className="absolute -top-8 text-sm font-display font-bold text-white group-hover:text-ipl-gold transition-colors">
+                        {user.total_points}
+                    </div>
+
+                    {/* Stacked Bar */}
+                    <div className="w-12 flex flex-col justify-end transition-all duration-700 ease-out h-[250px]">
+                        {/* Match Points Segment */}
+                        <div 
+                           className="bg-ipl-gold relative group-hover:brightness-110 transition-all cursor-help"
+                           style={{ height: `${matchHeight}%` }}
+                        >
+                            <span className="absolute -left-12 top-2 text-[10px] font-mono text-ipl-gold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/80 px-2 py-0.5 rounded pointer-events-none z-10">
+                                Match: {matchPoints}
+                            </span>
+                        </div>
+                        {/* Base Points Segment */}
+                        <div 
+                           className="bg-white/10 relative group-hover:bg-white/20 transition-all cursor-help"
+                           style={{ height: `${baseHeight}%` }}
+                        >
+                            <span className="absolute -left-12 bottom-2 text-[10px] font-mono text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/80 px-2 py-0.5 rounded pointer-events-none z-10">
+                                Base: {user.base_points}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Avatar at Bottom */}
+                    <div className="mt-4 relative">
+                        <div className="w-14 h-14 rounded-full border-2 border-white/10 group-hover:border-ipl-gold transition-all overflow-hidden z-20 bg-ipl-surface shadow-2xl scale-125">
+                            <img 
+                               src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} 
+                               alt="" 
+                               className="w-full h-full object-cover"
+                            />
+                        </div>
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 bg-ipl-gold/10 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+
+                    {/* Username */}
+                    <span className="mt-4 text-[10px] font-display text-gray-500 uppercase tracking-widest text-center truncate w-full">
+                        {user.username}
+                    </span>
+                </div>
+              );
+            })}
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column: Weekly Trends */}

@@ -57,13 +57,18 @@ export default function Analysis() {
               {[0, 1, 2, 3, 4].map(i => <div key={i} className="border-t border-white" />)}
             </div>
 
-            {leaderboard?.slice(0, 5).map((user: any) => {
-              const maxPoints = Math.max(...leaderboard.slice(0, 5).map((u: any) => u.total_points));
-              const matchPoints = user.total_points - user.base_points;
-              const matchHeight = (matchPoints / maxPoints) * 100;
-              const baseHeight = (user.base_points / maxPoints) * 100;
+            {(() => {
+              const maxPoints = leaderboard && leaderboard.length > 0 
+                ? Math.max(...leaderboard.map((u: any) => u.total_points)) 
+                : 1;
               
-              return (
+              return leaderboard?.map((user: any) => {
+                const matchPoints = user.total_points - user.base_points;
+                const matchHeight = (matchPoints / maxPoints) * 100;
+                const baseHeight = (user.base_points / maxPoints) * 100;
+                
+                return (
+
                 <div key={user.username} className="relative flex flex-col items-center group w-20">
                     {/* Total Value on Top */}
                     <div className="absolute -top-8 text-sm font-display font-bold text-white group-hover:text-ipl-gold transition-colors">
@@ -110,7 +115,8 @@ export default function Analysis() {
                     </span>
                 </div>
               );
-            })}
+            });
+          })()}
         </div>
       </section>
 

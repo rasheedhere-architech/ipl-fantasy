@@ -289,6 +289,7 @@ async def get_all_community_predictions(match_id: str, db: AsyncSession = Depend
         .join(User, Prediction.user_id == User.id)
         .outerjoin(AllowlistedEmail, User.email == AllowlistedEmail.email)
         .where(Prediction.match_id == match_id)
+        .where(User.is_guest == False)
         .where(or_(AllowlistedEmail.email != None, User.is_ai == True))
     )
     

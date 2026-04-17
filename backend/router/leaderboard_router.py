@@ -28,6 +28,7 @@ async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
             User.base_powerups
         )
         .outerjoin(AllowlistedEmail, User.email == AllowlistedEmail.email)
+        .where(User.is_guest == False)
         .where(or_(AllowlistedEmail.email != None, User.is_ai == True))
         .outerjoin(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
         .group_by(User.id, User.base_points, User.base_powerups)
@@ -94,6 +95,7 @@ async def get_match_leaderboard(match_id: str, db: AsyncSession = Depends(get_db
         .outerjoin(AllowlistedEmail, User.email == AllowlistedEmail.email)
         .join(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
         .where(LeaderboardEntry.match_id == match_id)
+        .where(User.is_guest == False)
         .where(or_(AllowlistedEmail.email != None, User.is_ai == True))
         .order_by(LeaderboardEntry.points.desc())
     )

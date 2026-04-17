@@ -1,7 +1,8 @@
 import { useLeaderboard } from '../api/hooks/useMatches';
 import { useAuthStore } from '../store/auth';
 import { useState } from 'react';
-import { Trophy, History, X, Info } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Trophy, History, X, Info, TrendingUp } from 'lucide-react';
 
 export default function Leaderboard() {
   const { user: currentUser } = useAuthStore();
@@ -25,6 +26,10 @@ export default function Leaderboard() {
           <h1 className="text-3xl font-display text-white">Global Leaderboard</h1>
           <p className="text-gray-400 mt-1 italic tracking-widest text-xs uppercase opacity-60">Top players of the season</p>
         </div>
+        <Link to="/analysis" className="flex items-center gap-2 px-4 py-2 bg-ipl-gold/10 hover:bg-ipl-gold/20 border border-ipl-gold/30 text-ipl-gold text-[10px] font-display uppercase tracking-widest transition-all">
+           <TrendingUp className="w-4 h-4" />
+           View Analytics
+        </Link>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">

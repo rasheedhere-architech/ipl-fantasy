@@ -90,3 +90,24 @@ export function useLeaderboard() {
     },
   });
 }
+
+export function useAnalysis() {
+  return useQuery({
+    queryKey: ['analysis'],
+    queryFn: async () => {
+      const response = await apiClient.get(`/leaderboard/analysis`);
+      return response.data;
+    },
+  });
+}
+
+export function useMatchPodiums() {
+  return useQuery({
+    queryKey: ['match-podiums'],
+    queryFn: async () => {
+      const response = await apiClient.get(`/leaderboard/match-podiums`);
+      return response.data;
+    },
+  });
+}
+

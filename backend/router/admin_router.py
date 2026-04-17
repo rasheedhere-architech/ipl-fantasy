@@ -113,6 +113,8 @@ async def trigger_match_scoring(match_id: str, payload: MatchResultUpdate, db: A
     
     # Invalidate Leaderboards after scoring update
     backend_cache.invalidate("global_leaderboard")
+    backend_cache.invalidate("match_podiums")
+    backend_cache.invalidate("analysis")
     backend_cache.invalidate(f"match_leaderboard_{match_id}")
     
     return {"message": "Results saved and scoring triggered successfully"}

@@ -1,6 +1,6 @@
 import { Outlet, Navigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
-import { Trophy, LayoutDashboard, Settings, LogOut, Menu, X } from 'lucide-react';
+import { Trophy, LayoutDashboard, Settings, LogOut, Menu, X, BarChart2 } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Layout() {
@@ -32,6 +32,10 @@ export default function Layout() {
                 <Link to="/leaderboard" className="text-gray-300 hover:text-white flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors">
                   <Trophy className="w-4 h-4" />
                   LEADERBOARD
+                </Link>
+                <Link to="/analysis" className="text-gray-300 hover:text-white flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors">
+                  <BarChart2 className="w-4 h-4" />
+                  ANALYSIS
                 </Link>
                 {user?.is_admin && (
                   <Link to="/admin" className="text-gray-300 hover:text-white flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors">
@@ -76,6 +80,10 @@ export default function Layout() {
             <Link to="/leaderboard" onClick={clMenu} className="block text-gray-300 hover:text-white font-medium flex items-center gap-3 px-4 py-3 bg-white/5 rounded-lg active:bg-white/10 transition-colors">
               <Trophy className="w-5 h-5 text-ipl-gold" />
               LEADERBOARD
+            </Link>
+            <Link to="/analysis" onClick={clMenu} className="block text-gray-300 hover:text-white font-medium flex items-center gap-3 px-4 py-3 bg-white/5 rounded-lg active:bg-white/10 transition-colors">
+              <BarChart2 className="w-5 h-5 text-ipl-gold" />
+              ANALYSIS
             </Link>
             {user?.is_admin && (
               <Link to="/admin" onClick={clMenu} className="block text-gray-300 hover:text-white font-medium flex items-center gap-3 px-4 py-3 bg-white/5 rounded-lg active:bg-white/10 transition-colors">

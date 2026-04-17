@@ -3,6 +3,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import MatchPage from './pages/MatchPage';
 import Leaderboard from './pages/Leaderboard';
+import Analysis from './pages/Analysis';
 import Admin from './pages/Admin';
 import Layout from './components/Layout';
 
@@ -51,6 +52,7 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="match/:id" element={<MatchPage />} />
           <Route path="leaderboard" element={<Leaderboard />} />
+          <Route path="analysis" element={<Analysis />} />
           <Route path="admin" element={<Admin />} />
         </Route>
       </Routes>

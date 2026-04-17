@@ -111,3 +111,88 @@ async def get_match_leaderboard(match_id: str, db: AsyncSession = Depends(get_db
     
     backend_cache.set(cache_key, entries)
     return entries
+
+@router.get("/match-podiums")
+async def get_match_podiums(db: AsyncSession = Depends(get_db)):
+    cache_key = "match_podiums"
+    # cached = backend_cache.get(cache_key)
+    # if cached: return cached
+
+    from backend.models import Match
+    matches_res = await db.execute(
+        select(Match)
+        .where(Match.status == "completed")
+        .order_by(Match.toss_time.desc())
+    )
+    matches = matches_res.scalars().all()
+    
+    podiums = []
+    for m in matches:
+        lb_res = await db.execute(
+            select(User.name, User.avatar_url, LeaderboardEntry.points)
+            .join(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
+            .where(LeaderboardEntry.match_id == m.id)
+            .order_by(LeaderboardEntry.points.desc())
+            .limit(3)
+        )
+        top_players = []
+        for name, avatar, pts in lb_res.all():
+            top_players.append({
+                "username": name,
+                "avatar_url": avatar,
+                "points": pts
+            })
+        
+        podiums.append({
+            "match_id": m.id,
+            "match_name": f"{m.team1} vs {m.team2}",
+            "match_date": m.toss_time,
+            "top_players": top_players
+        })
+    
+    backend_cache.set(cache_key, podiums)
+    return podiums
+
+@router.get("/analysis")
+async def get_analysis_data(db: AsyncSession = Depends(get_db)):
+    from datetime import UTC, datetime, timedelta
+    now = datetime.now(UTC)
+    last_week = now - timedelta(days=7)
+    
+    from backend.models import Match
+    
+    # 1. Weekly Performance
+    weekly_res = await db.execute(
+        select(
+            User.id,
+            User.name,
+            User.avatar_url,
+            func.sum(LeaderboardEntry.points).label("weekly_points"),
+            func.count(LeaderboardEntry.match_id).label("matches_played")
+        )
+        .join(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
+        .join(Match, LeaderboardEntry.match_id == Match.id)
+        .where(Match.toss_time >= last_week)
+        .where(User.is_guest == False)
+        .group_by(User.id)
+        .order_by(func.sum(LeaderboardEntry.points).desc())
+    )
+    
+    weekly_stats = []
+    for uid, name, avatar, pts, count in weekly_res.all():
+        weekly_stats.append({
+            "username": name,
+            "avatar_url": avatar,
+            "points": pts,
+            "matches": count
+        })
+
+    # 2. Trending (Rank change or overall performance delta?)
+    # For now, let's just group by user and return their aggregate stats for the last 7 days vs overall
+    # We'll call the top weekly performers "trending"
+    
+    return {
+        "weekly_podium": weekly_stats[:5], # Top 5 this week
+        "recent_podiums": await get_match_podiums(db)
+    }
+

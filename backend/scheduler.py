@@ -12,15 +12,15 @@ scheduler = AsyncIOScheduler()
 # Higher weight means they are more likely to be picked.
 # Let's say top teams get higher weights. If teams aren't here, they get a default weight of 5.
 TEAM_STRENGTHS = {
-    "Chennai Super Kings": 6, 
+    "Chennai Super Kings": 5, 
     "Mumbai Indians": 7, 
     "Gujarat Titans": 8, 
     "Rajasthan Royals": 9, 
     "Royal Challengers Bengaluru": 10, 
     "Lucknow Super Giants": 7,
-    "Kolkata Knight Riders": 6, 
+    "Kolkata Knight Riders": 5, 
     "Punjab Kings": 10, 
-    "Delhi Capitals": 8, 
+    "Delhi Capitals": 7, 
     "Sunrisers Hyderabad": 8
 }
 DEFAULT_STRENGTH = 5
@@ -46,8 +46,8 @@ async def generate_ai_prediction(db, match: Match, ai_user: User):
     use_powerup = "No"
     
     if is_heavy_favorite and ai_user.base_powerups > 0:
-        # Use powerup if it's a heavy favorite (maybe 80% chance if available to not burn through them instantly)
-        if random.random() < 0.8:
+        # Use powerup if it's a heavy favorite (maybe 30% chance if available to not burn through them instantly)
+        if random.random() < 0.3:
             use_powerup = "Yes"
     
     # 3. Predict powerplay and POTM through DB stats like the AI Auto Predict feature

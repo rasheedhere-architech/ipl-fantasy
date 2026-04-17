@@ -12,8 +12,8 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
     if not match:
         raise ValueError("Match not found")
 
-    # 1. Fetch all system users to identify non-participants
-    u_result = await db.execute(select(User))
+    # 1. Fetch only users who are not guests (includes AI and Experts)
+    u_result = await db.execute(select(User).where(User.is_guest == False))
     all_users = u_result.scalars().all()
 
     # 2. Fetch all predictions for this specific match

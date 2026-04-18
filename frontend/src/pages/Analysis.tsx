@@ -1,5 +1,5 @@
 import { useAnalysis, useLeaderboard } from '../api/hooks/useMatches';
-import { Trophy, TrendingUp, Medal, Calendar, BarChart3, Star, Zap } from 'lucide-react';
+import { Trophy, TrendingUp, Medal, Calendar, BarChart3, Star, Zap, Crown } from 'lucide-react';
 
 export default function Analysis() {
   const { data, isLoading: isAnalysisLoading } = useAnalysis();
@@ -59,11 +59,19 @@ export default function Analysis() {
             </div>
 
             {(() => {
-              const maxPoints = leaderboard && leaderboard.length > 0
-                ? Math.max(...leaderboard.map((u: any) => u.total_points))
+              const experts = leaderboard?.filter((u: any) => !u.is_guest).slice(0, 8) || [];
+              const expertStatsList = experts.map((u: any) => data?.powerups_stats?.find((s: any) => s.username === u.username));
+              const maxWins = Math.max(...expertStatsList.map((s: any) => s?.match_wins || 0), 0);
+              
+              const maxPoints = experts.length > 0
+                ? Math.max(...experts.map((u: any) => u.total_points))
                 : 1;
 
-              return leaderboard?.map((user: any) => {
+              return experts.map((user: any) => {
+                const expertStats = data?.powerups_stats?.find((s: any) => s.username === user.username);
+                const matchWins = expertStats?.match_wins || 0;
+                const isTopWinner = matchWins > 0 && matchWins === maxWins;
+                
                 const matchPoints = user.total_points - user.base_points;
                 const matchHeight = (matchPoints / maxPoints) * 100;
                 const baseHeight = (user.base_points / maxPoints) * 100;
@@ -71,6 +79,16 @@ export default function Analysis() {
                 return (
 
                   <div key={user.username} className="relative flex flex-col items-center group w-20">
+                    {/* Achievement Stars */}
+                    {matchWins > 0 && (
+                      <div className="absolute -top-14 flex items-center justify-center gap-0.5 w-full">
+                        {Array.from({ length: Math.min(matchWins, 3) }).map((_, i) => (
+                          <Star key={i} className={`w-2 h-2 text-ipl-gold fill-ipl-gold animate-pulse`} style={{ animationDelay: `${i * 200}ms` }} />
+                        ))}
+                        {matchWins > 3 && <span className="text-[8px] text-ipl-gold font-bold">+{matchWins - 3}</span>}
+                      </div>
+                    )}
+
                     {/* Total Value on Top */}
                     <div className="absolute -top-8 text-sm font-display font-bold text-white group-hover:text-ipl-gold transition-colors">
                       {user.total_points}
@@ -100,20 +118,37 @@ export default function Analysis() {
 
                     {/* Avatar at Bottom */}
                     <div className="mt-4 relative">
-                      <div className="w-14 h-14 rounded-full border-2 border-white/10 group-hover:border-ipl-gold transition-all overflow-hidden z-20 bg-ipl-surface shadow-2xl scale-125">
+                      {isTopWinner && (
+                        <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-30 animate-bounce">
+                          <Crown className="w-5 h-5 text-ipl-gold fill-ipl-gold drop-shadow-[0_0_8px_rgba(255,215,0,0.8)]" />
+                        </div>
+                      )}
+                      <div className={`w-14 h-14 rounded-full border-2 group-hover:border-ipl-gold transition-all overflow-hidden z-20 bg-ipl-surface shadow-2xl scale-125 ${
+                        matchWins > 0 ? 'border-ipl-gold shadow-[0_0_15px_rgba(255,215,0,0.3)]' : 'border-white/10'
+                      }`}>
                         <img
                           src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
                           alt=""
                           className="w-full h-full object-cover"
                         />
                       </div>
-                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 bg-ipl-gold/10 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full blur-xl transition-opacity ${
+                        matchWins > 0 ? 'bg-ipl-gold/20 opacity-100' : 'bg-ipl-gold/10 opacity-0 group-hover:opacity-100'
+                      }`} />
                     </div>
 
-                    {/* Username */}
-                    <span className="mt-4 text-[10px] font-display text-gray-500 uppercase tracking-widest text-center truncate w-full">
-                      {user.username}
-                    </span>
+                    {/* Username & Wins */}
+                    <div className="flex flex-col items-center mt-4">
+                      <span className="text-[10px] font-display text-gray-500 uppercase tracking-widest text-center truncate w-full">
+                        {user.username}
+                      </span>
+                      {matchWins > 0 && (
+                        <div className="flex items-center gap-1 mt-1 px-1.5 py-0.5 bg-ipl-gold/10 rounded-full border border-ipl-gold/20 shadow-[0_0_10px_rgba(255,215,0,0.1)]">
+                          <Trophy className="w-2.5 h-2.5 text-ipl-gold" />
+                          <span className="text-[9px] font-bold text-ipl-gold font-mono">{matchWins}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               });
@@ -183,7 +218,9 @@ export default function Analysis() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {data?.powerups_stats?.map((stat: any) => {
+          {[...(data?.powerups_stats || [])]
+            .sort((a: any, b: any) => (b.avg_points_per_powerup || 0) - (a.avg_points_per_powerup || 0))
+            .map((stat: any) => {
             const getSkillClass = (accuracy: number) => {
               if (accuracy >= 50) return { label: 'Elite Predictor', bg: 'bg-purple-500/10', border: 'border-purple-500/20', text: 'text-purple-400' };
               if (accuracy >= 35) return { label: 'Expert Picker', bg: 'bg-green-500/10', border: 'border-green-500/20', text: 'text-green-400' };

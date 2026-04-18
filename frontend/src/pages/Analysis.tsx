@@ -209,11 +209,34 @@ export default function Analysis() {
 
       {/* Powerups Usage Section */}
       <section className="space-y-6">
-        <div className="flex items-center gap-3 border-l-4 border-ipl-gold pl-4">
-          <Zap className="w-6 h-6 text-ipl-gold" />
-          <div>
-            <h2 className="text-xl font-display text-white italic tracking-tight">Powerup <span className="text-ipl-gold">Tracker</span></h2>
-            <p className="text-[10px] text-gray-500 uppercase tracking-widest font-mono">Expert Strategic Usage</p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-l-4 border-ipl-gold pl-4">
+          <div className="flex items-center gap-3">
+            <Zap className="w-6 h-6 text-ipl-gold" />
+            <div>
+              <h2 className="text-xl font-display text-white italic tracking-tight">Powerup <span className="text-ipl-gold">Tracker</span></h2>
+              <p className="text-[10px] text-gray-500 uppercase tracking-widest font-mono">Expert Strategic Usage</p>
+            </div>
+          </div>
+
+          {/* Skill Rank Legend */}
+          <div className="flex flex-wrap items-center gap-4 bg-white/5 px-4 py-2 rounded-lg border border-white/5 backdrop-blur-sm self-start md:self-auto">
+            <span className="text-[9px] text-gray-600 uppercase tracking-widest font-mono mr-1">Rank Key:</span>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 bg-purple-500 rounded-full shadow-[0_0_5px_rgba(168,85,247,0.5)]" />
+              <span className="text-[9px] text-purple-400 font-bold uppercase">Elite 50%+</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
+              <span className="text-[9px] text-green-400 font-bold uppercase">Expert 35%+</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_5px_rgba(59,130,246,0.5)]" />
+              <span className="text-[9px] text-blue-400 font-bold uppercase">Senior 20%+</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 bg-gray-500 rounded-full" />
+              <span className="text-[9px] text-gray-600 font-bold uppercase tracking-tight">Contender</span>
+            </div>
           </div>
         </div>
 

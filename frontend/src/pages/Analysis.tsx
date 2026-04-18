@@ -43,18 +43,31 @@ export default function Analysis() {
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
         {/* Elite Performance Visual Chart */}
         <section className="xl:col-span-3 glass-panel p-8 bg-gradient-to-b from-white/[0.03] to-transparent overflow-x-auto custom-scrollbar">
-          <div className="flex items-center gap-2 mb-8 border-b border-white/5 pb-4">
-            <Star className="w-5 h-5 text-ipl-gold" />
-            <h2 className="text-xl font-display text-white uppercase tracking-tight">Elite Performance Split</h2>
-            <span className="text-[10px] text-gray-500 ml-auto uppercase tracking-widest font-mono flex items-center gap-4">
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 bg-ipl-gold rounded-full" /> Match Points</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 bg-white/20 rounded-full" /> Base Points</span>
-            </span>
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-20 border-b border-white/5 pb-8">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-ipl-gold/10 rounded-lg">
+                <Star className="w-5 h-5 text-ipl-gold" />
+              </div>
+              <div>
+                <h2 className="text-xl font-display text-white uppercase tracking-tight">Elite Performance Split</h2>
+                <p className="text-[10px] text-gray-500 uppercase tracking-widest font-mono mt-0.5">Player Points Composition</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-8 bg-white/5 px-5 py-2 rounded-xl border border-white/5 shadow-inner">
+              <div className="flex items-center gap-2.5">
+                <div className="w-2.5 h-2.5 bg-ipl-gold rounded-full shadow-[0_0_10px_rgba(255,215,0,0.5)]" /> 
+                <span className="text-[10px] text-gray-300 uppercase tracking-widest font-mono font-bold">Match Points</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <div className="w-2.5 h-2.5 bg-white/20 rounded-full" /> 
+                <span className="text-[10px] text-gray-400 uppercase tracking-widest font-mono">Base Points</span>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-end justify-around gap-4 min-w-[600px] h-[400px] pb-12 relative px-4">
+          <div className="flex items-end justify-start gap-12 min-w-max h-[520px] pb-16 relative px-8 scrollbar-hide">
             {/* Horizontal Grid lines */}
-            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-5 pr-8">
+            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-[0.03] pt-24 pb-48">
               {[0, 1, 2, 3, 4].map(i => <div key={i} className="border-t border-white" />)}
             </div>
 
@@ -77,31 +90,31 @@ export default function Analysis() {
                 const baseHeight = (user.base_points / maxPoints) * 100;
 
                 return (
-                  <div key={user.username} className="relative flex flex-col items-center group w-24 flex-shrink-0">
-                    {/* Achievement Stars */}
-                    {matchWins > 0 && (
-                      <div className="absolute -top-16 flex items-center justify-center gap-0.5 w-full">
-                        {Array.from({ length: Math.min(matchWins, 3) }).map((_, i) => (
-                          <Star key={i} className={`w-2 h-2 text-ipl-gold fill-ipl-gold animate-pulse`} style={{ animationDelay: `${i * 200}ms` }} />
-                        ))}
-                        {matchWins > 3 && <span className="text-[8px] text-ipl-gold font-bold">+{matchWins - 3}</span>}
+                  <div key={user.username} className="relative flex flex-col items-center group w-32 flex-shrink-0 pb-12">
+                    {/* Top Stats Area - Achievement Stars & Total */}
+                    <div className="absolute top-0 h-24 flex flex-col items-center justify-end w-full pb-4">
+                      {matchWins > 0 && (
+                        <div className="flex items-center justify-center gap-0.5 mb-1">
+                          {Array.from({ length: Math.min(matchWins, 3) }).map((_, i) => (
+                            <Star key={i} className="w-2.5 h-2.5 text-ipl-gold fill-ipl-gold animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
+                          ))}
+                          {matchWins > 3 && <span className="text-[8px] text-ipl-gold font-bold ml-1">+{matchWins - 3}</span>}
+                        </div>
+                      )}
+                      <div className="text-lg font-display font-bold text-white group-hover:text-ipl-gold transition-colors leading-none">
+                        {user.total_points}
                       </div>
-                    )}
-
-                    {/* Total Value on Top */}
-                    <div className="absolute -top-10 text-sm font-display font-bold text-white group-hover:text-ipl-gold transition-colors">
-                      {user.total_points}
                     </div>
 
                     {/* Stacked Bar */}
-                    <div className="w-12 flex flex-col justify-end transition-all duration-700 ease-out h-[250px]">
+                    <div className="w-14 flex flex-col justify-end transition-all duration-700 ease-out h-[250px] mb-8">
                       {/* Match Points Segment */}
                       <div
-                        className="bg-ipl-gold relative group-hover:brightness-110 transition-all cursor-help"
+                        className="bg-ipl-gold relative group-hover:brightness-110 transition-all cursor-help shadow-[0_0_15px_rgba(255,215,0,0.1)]"
                         style={{ height: `${matchHeight}%` }}
                       >
-                        <span className="absolute -left-12 top-2 text-[10px] font-mono text-ipl-gold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/80 px-2 py-0.5 rounded pointer-events-none z-10">
-                          Match: {matchPoints}
+                        <span className="absolute -left-16 top-2 text-[10px] font-mono text-ipl-gold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/90 border border-white/10 px-2 py-1 rounded pointer-events-none z-40">
+                          Match: {matchPoints} pts
                         </span>
                       </div>
                       {/* Base Points Segment */}
@@ -109,44 +122,44 @@ export default function Analysis() {
                         className="bg-white/10 relative group-hover:bg-white/20 transition-all cursor-help"
                         style={{ height: `${baseHeight}%` }}
                       >
-                        <span className="absolute -left-12 bottom-2 text-[10px] font-mono text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/80 px-2 py-0.5 rounded pointer-events-none z-10">
-                          Base: {user.base_points}
+                        <span className="absolute -left-16 bottom-2 text-[10px] font-mono text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/90 border border-white/10 px-2 py-1 rounded pointer-events-none z-40">
+                          Base: {user.base_points} pts
                         </span>
                       </div>
                     </div>
 
-                    {/* Avatar at Bottom */}
-                    <div className="mt-4 relative">
-                      {isTopWinner && (
-                        <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-30 animate-bounce">
-                          <Crown className="w-5 h-5 text-ipl-gold fill-ipl-gold drop-shadow-[0_0_8px_rgba(255,215,0,0.8)]" />
+                    {/* Identity Area - Avatar & Name */}
+                    <div className="flex flex-col items-center w-full">
+                      <div className="relative">
+                        {isTopWinner && (
+                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-30 animate-bounce">
+                            <Crown className="w-6 h-6 text-ipl-gold fill-ipl-gold drop-shadow-[0_0_12px_rgba(255,215,0,0.6)]" />
+                          </div>
+                        )}
+                        <div className={`w-16 h-16 rounded-full border-2 group-hover:border-ipl-gold transition-all overflow-hidden z-20 bg-ipl-surface shadow-2xl scale-125 ${matchWins > 0 ? 'border-ipl-gold shadow-[0_0_20px_rgba(255,215,0,0.4)]' : 'border-white/10'
+                          }`}>
+                          <img
+                            src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
                         </div>
-                      )}
-                      <div className={`w-14 h-14 rounded-full border-2 group-hover:border-ipl-gold transition-all overflow-hidden z-20 bg-ipl-surface shadow-2xl scale-125 ${
-                        matchWins > 0 ? 'border-ipl-gold shadow-[0_0_15px_rgba(255,215,0,0.3)]' : 'border-white/10'
-                      }`}>
-                        <img
-                          src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
+                        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full blur-2xl transition-opacity animate-pulse ${matchWins > 0 ? 'bg-ipl-gold/20 opacity-100' : 'bg-transparent opacity-0'
+                          }`} />
                       </div>
-                      <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full blur-xl transition-opacity ${
-                        matchWins > 0 ? 'bg-ipl-gold/20 opacity-100' : 'bg-ipl-gold/10 opacity-0 group-hover:opacity-100'
-                      }`} />
-                    </div>
 
-                    {/* Username & Wins */}
-                    <div className="flex flex-col items-center mt-5 w-full px-1">
-                      <span className="text-[9px] font-display text-gray-500 uppercase tracking-wider text-center line-clamp-2 h-6 leading-tight group-hover:text-white transition-colors">
-                        {user.username}
-                      </span>
-                      {matchWins > 0 && (
-                        <div className="flex items-center gap-1 mt-2 px-2 py-0.5 bg-ipl-gold/10 rounded-full border border-ipl-gold/20 shadow-[0_0_10px_rgba(255,215,0,0.1)]">
-                          <Trophy className="w-2.5 h-2.5 text-ipl-gold" />
-                          <span className="text-[9px] font-bold text-ipl-gold font-mono">{matchWins}</span>
-                        </div>
-                      )}
+                      {/* Username & Wins */}
+                      <div className="flex flex-col items-center mt-10 w-full px-2">
+                        <span className="text-[10px] font-display text-gray-400 uppercase tracking-widest text-center line-clamp-2 min-h-[1.5rem] leading-tight group-hover:text-white transition-colors">
+                          {user.username}
+                        </span>
+                        {matchWins > 0 && (
+                          <div className="flex items-center gap-1.5 mt-2 px-2.5 py-0.5 bg-ipl-gold/10 rounded-full border border-ipl-gold/20 shadow-[0_0_15px_rgba(255,215,0,0.15)]">
+                            <Trophy className="w-3 h-3 text-ipl-gold" />
+                            <span className="text-[10px] font-bold text-ipl-gold font-mono">{matchWins}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

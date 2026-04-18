@@ -129,8 +129,9 @@ async def get_match_podiums(db: AsyncSession = Depends(get_db)):
     podiums = []
     for m in matches:
         lb_res = await db.execute(
-            select(User.name, User.avatar_url, LeaderboardEntry.points)
+            select(User.name, User.avatar_url, LeaderboardEntry.points, Prediction.use_powerup)
             .join(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
+            .outerjoin(Prediction, (User.id == Prediction.user_id) & (LeaderboardEntry.match_id == Prediction.match_id))
             .where(LeaderboardEntry.match_id == m.id)
             .order_by(LeaderboardEntry.points.desc())
         )
@@ -140,7 +141,7 @@ async def get_match_podiums(db: AsyncSession = Depends(get_db)):
         current_rank = 0
         last_points = None
         
-        for i, (name, avatar, pts) in enumerate(all_players):
+        for i, (name, avatar, pts, used_pw) in enumerate(all_players):
             if pts != last_points:
                 current_rank = i + 1
             
@@ -151,7 +152,8 @@ async def get_match_podiums(db: AsyncSession = Depends(get_db)):
                 "username": name,
                 "avatar_url": avatar,
                 "points": pts,
-                "rank": current_rank
+                "rank": current_rank,
+                "used_powerup": used_pw == "Yes"
             })
             last_points = pts
         

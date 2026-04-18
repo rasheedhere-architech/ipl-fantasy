@@ -471,7 +471,12 @@ export default function Analysis() {
                         <span className="text-[11px] font-display text-gray-300">{player.username}</span>
                       </div>
                     </div>
-                    <span className="text-xs font-mono font-bold text-ipl-gold">{player.points} pts</span>
+                    <div className="flex items-center gap-1.5">
+                      {player.used_powerup && (
+                        <Zap className="w-2.5 h-2.5 text-ipl-gold fill-ipl-gold animate-pulse" />
+                      )}
+                      <span className="text-xs font-mono font-bold text-ipl-gold">{player.points} pts</span>
+                    </div>
                   </div>
                 ))}
                 {match.top_players.length === 0 && (

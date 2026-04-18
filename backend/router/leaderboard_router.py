@@ -207,6 +207,32 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
             "matches": count
         })
 
+    # 2. Today's Performance (Last 24h)
+    today_start = now - timedelta(days=1)
+    today_res = await db.execute(
+        select(
+            User.name,
+            User.avatar_url,
+            func.sum(LeaderboardEntry.points).label("today_points"),
+            func.count(LeaderboardEntry.match_id).label("matches_played")
+        )
+        .join(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
+        .join(Match, LeaderboardEntry.match_id == Match.id)
+        .where(Match.toss_time >= today_start)
+        .where(User.is_guest == False)
+        .group_by(User.id, User.name, User.avatar_url)
+        .order_by(func.sum(LeaderboardEntry.points).desc())
+    )
+    
+    today_stats = []
+    for name, avatar, pts, count in today_res.all():
+        today_stats.append({
+            "username": name,
+            "avatar_url": avatar,
+            "points": pts,
+            "matches": count
+        })
+
     # 3. Powerups Analytics
     from backend.models import Prediction
     powerup_usage_res = await db.execute(
@@ -328,6 +354,7 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
 
     analysis_data = {
         "weekly_podium": weekly_stats[:5],
+        "today_podium": today_stats[:5],
         "recent_podiums": await get_match_podiums(db),
         "powerups_stats": [
             {

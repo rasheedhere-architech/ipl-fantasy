@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useAnalysis, useLeaderboard } from '../api/hooks/useMatches';
 import { Trophy, TrendingUp, Medal, Calendar, BarChart3, Star, Zap, Crown } from 'lucide-react';
 
 export default function Analysis() {
   const { data, isLoading: isAnalysisLoading } = useAnalysis();
   const { data: leaderboard, isLoading: isLBLoading } = useLeaderboard();
+  const [trendingTab, setTrendingTab] = useState<'weekly' | 'today'>('weekly');
 
   const isLoading = isAnalysisLoading || isLBLoading;
 
@@ -40,9 +42,86 @@ export default function Analysis() {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
-        {/* Elite Performance Visual Chart */}
-        <section className="xl:col-span-3 glass-panel p-8 bg-gradient-to-b from-white/[0.03] to-transparent overflow-x-auto custom-scrollbar">
+      <div className="space-y-12">
+        {/* Dynamic Trending Section (Full Width) */}
+        <section className="glass-panel p-8 bg-gradient-to-r from-white/[0.03] to-transparent">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8 border-b border-white/5 pb-6">
+            <div className="flex items-center gap-3">
+              <TrendingUp className="w-6 h-6 text-ipl-gold" />
+              <div>
+                <h2 className="text-xl font-display text-white uppercase tracking-tight">Trending <span className="text-ipl-gold">Experts</span></h2>
+                <p className="text-[10px] text-gray-500 uppercase tracking-widest">Top Performers by Volume</p>
+              </div>
+            </div>
+            
+            {/* Toggle Switch */}
+            <div className="flex bg-white/5 p-1 rounded-lg border border-white/5 self-start shadow-inner">
+              <button 
+                onClick={() => setTrendingTab('today')}
+                className={`px-6 py-2 rounded-md text-[10px] font-bold uppercase transition-all duration-300 ${
+                  trendingTab === 'today' ? 'bg-ipl-gold text-black shadow-lg scale-105' : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                Match Day
+              </button>
+              <button 
+                onClick={() => setTrendingTab('weekly')}
+                className={`px-6 py-2 rounded-md text-[10px] font-bold uppercase transition-all duration-300 ${
+                  trendingTab === 'weekly' ? 'bg-ipl-gold text-black shadow-lg scale-105' : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                Weekly Trend
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {(() => {
+              const items = trendingTab === 'weekly' ? data?.weekly_podium : data?.today_podium;
+              return items?.map((user: any, idx: number) => (
+                <div key={user.username} className={`glass-panel p-4 flex flex-col group transition-all hover:bg-white/[0.05] relative overflow-hidden ${idx === 0 ? 'border-ipl-gold/40 shadow-[0_0_20px_rgba(255,215,0,0.05)]' : ''}`}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="relative">
+                      <img
+                        src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
+                        className="w-12 h-12 rounded-full border border-white/10"
+                        alt=""
+                      />
+                      <div className={`absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 border-ipl-surface shadow-lg ${idx === 0 ? 'bg-ipl-gold text-black' :
+                        idx === 1 ? 'bg-gray-300 text-black' :
+                          'bg-[#CD7F32] text-black'
+                        }`}>
+                        {idx + 1}
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-display text-white group-hover:text-ipl-gold transition-colors truncate uppercase">{user.username}</h3>
+                      <p className="text-[9px] text-gray-500 uppercase tracking-tighter flex items-center gap-1">
+                        <Calendar className="w-2.5 h-2.5" /> {user.matches} {user.matches === 1 ? 'Match' : 'Matches'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-auto pt-3 border-t border-white/5 flex items-baseline justify-between">
+                    <span className="text-[8px] text-gray-600 uppercase tracking-widest font-bold">Points</span>
+                    <span className="text-2xl font-display text-ipl-gold">+{user.points}</span>
+                  </div>
+                  {idx === 0 && <div className="absolute top-0 right-0 w-8 h-8 bg-ipl-gold/10 rounded-bl-3xl flex items-center justify-center"><Crown className="w-3 h-3 text-ipl-gold" /></div>}
+                </div>
+              ));
+            })()}
+            {((trendingTab === 'weekly' && (!data?.weekly_podium || data.weekly_podium.length === 0)) ||
+              (trendingTab === 'today' && (!data?.today_podium || data.today_podium.length === 0))) && (
+                <div className="col-span-full py-12 text-center glass-panel border-dashed border-2 border-white/5 opacity-30 rounded-xl">
+                  <p className="text-[10px] font-display uppercase tracking-widest">
+                    No active momentum in the last {trendingTab === 'weekly' ? '7 days' : '24 hours'}
+                  </p>
+                </div>
+              )}
+          </div>
+        </section>
+
+        {/* Elite Performance Visual Chart (Now Full Width) */}
+        <section className="glass-panel p-8 bg-gradient-to-b from-white/[0.03] to-transparent overflow-x-auto custom-scrollbar scrollbar-hide">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-20 border-b border-white/5 pb-8">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-ipl-gold/10 rounded-lg">
@@ -55,11 +134,11 @@ export default function Analysis() {
             </div>
             <div className="flex items-center gap-8 bg-white/5 px-5 py-2 rounded-xl border border-white/5 shadow-inner">
               <div className="flex items-center gap-2.5">
-                <div className="w-2.5 h-2.5 bg-ipl-gold rounded-full shadow-[0_0_10px_rgba(255,215,0,0.5)]" /> 
+                <div className="w-2.5 h-2.5 bg-ipl-gold rounded-full shadow-[0_0_10px_rgba(255,215,0,0.5)]" />
                 <span className="text-[10px] text-gray-300 uppercase tracking-widest font-mono font-bold">Match Points</span>
               </div>
               <div className="flex items-center gap-2.5">
-                <div className="w-2.5 h-2.5 bg-white/20 rounded-full" /> 
+                <div className="w-2.5 h-2.5 bg-white/20 rounded-full" />
                 <span className="text-[10px] text-gray-400 uppercase tracking-widest font-mono">Base Points</span>
               </div>
             </div>
@@ -75,7 +154,7 @@ export default function Analysis() {
               const experts = leaderboard?.filter((u: any) => !u.is_guest) || [];
               const expertStatsList = experts.map((u: any) => data?.powerups_stats?.find((s: any) => s.username === u.username));
               const maxWins = Math.max(...expertStatsList.map((s: any) => s?.match_wins || 0), 0);
-              
+
               const maxPoints = experts.length > 0
                 ? Math.max(...experts.map((u: any) => u.total_points))
                 : 1;
@@ -84,7 +163,7 @@ export default function Analysis() {
                 const expertStats = data?.powerups_stats?.find((s: any) => s.username === user.username);
                 const matchWins = expertStats?.match_wins || 0;
                 const isTopWinner = matchWins > 0 && matchWins === maxWins;
-                
+
                 const matchPoints = user.total_points - user.base_points;
 
 
@@ -92,7 +171,7 @@ export default function Analysis() {
                   <div key={user.username} className="relative flex flex-col items-center group w-24 flex-shrink-0">
                     {/* Dynamic Bar Container (Stars + Score + Bar) */}
                     <div className="h-[400px] w-full flex flex-col justify-end items-center mb-10">
-                      <div 
+                      <div
                         className="flex flex-col items-center w-full transition-all duration-1000 ease-out"
                         style={{ height: `${((matchPoints + user.base_points) / maxPoints) * 100}%` }}
                       >
@@ -176,55 +255,6 @@ export default function Analysis() {
           </div>
         </section>
 
-        {/* Weekly Trending Column */}
-        <div className="xl:col-span-1 space-y-6">
-          <div className="flex items-center gap-3 border-l-4 border-ipl-gold pl-4">
-            <TrendingUp className="w-6 h-6 text-ipl-gold" />
-            <div>
-              <h2 className="text-xl font-display text-white">Weekly Trending</h2>
-              <p className="text-[10px] text-gray-500 uppercase tracking-widest">Top Performers (Last 7 Days)</p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {data?.weekly_podium?.map((user: any, idx: number) => (
-              <div key={user.username} className={`glass-panel p-4 flex items-center justify-between group transition-all hover:bg-white/[0.05] ${idx === 0 ? 'border-l-2 border-l-ipl-gold' : ''}`}>
-                <div className="flex items-center gap-4">
-                  <div className="relative">
-                    <img
-                      src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
-                      className="w-10 h-10 rounded-full border border-white/10"
-                      alt=""
-                    />
-                    <div className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border-2 border-ipl-surface ${idx === 0 ? 'bg-ipl-gold text-black' :
-                      idx === 1 ? 'bg-gray-300 text-black' :
-                        'bg-[#CD7F32] text-black'
-                      }`}>
-                      {idx + 1}
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-display text-white group-hover:text-ipl-gold transition-colors">{user.username}</h3>
-                    <div className="flex items-center gap-2 text-[10px] text-gray-500 font-display">
-                      <span className="flex items-center gap-1 uppercase tracking-tighter">
-                        <Calendar className="w-3 h-3" /> {user.matches} Matches
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xl font-display text-ipl-gold">+{user.points}</p>
-                  <p className="text-[8px] text-gray-600 uppercase tracking-widest leading-none">Total PTS</p>
-                </div>
-              </div>
-            ))}
-            {(!data?.weekly_podium || data.weekly_podium.length === 0) && (
-              <div className="p-12 text-center glass-panel border-dashed border-2 border-white/5 opacity-30">
-                <p className="text-[10px] font-display uppercase tracking-widest">No match data from the last 7 days</p>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Powerups Usage Section */}
@@ -264,140 +294,139 @@ export default function Analysis() {
           {[...(data?.powerups_stats || [])]
             .sort((a: any, b: any) => (b.avg_points_per_powerup || 0) - (a.avg_points_per_powerup || 0))
             .map((stat: any) => {
-            const getSkillClass = (accuracy: number) => {
-              if (accuracy >= 50) return { label: 'Elite Predictor', bg: 'bg-purple-500/10', border: 'border-purple-500/20', text: 'text-purple-400' };
-              if (accuracy >= 35) return { label: 'Expert Picker', bg: 'bg-green-500/10', border: 'border-green-500/20', text: 'text-green-400' };
-              if (accuracy >= 20) return { label: 'Senior Analyst', bg: 'bg-blue-500/10', border: 'border-blue-500/20', text: 'text-blue-400' };
-              return { label: 'Contender', bg: 'bg-white/5', border: 'border-white/10', text: 'text-gray-400' };
-            };
-            const skill = getSkillClass(stat.prediction_accuracy);
+              const getSkillClass = (accuracy: number) => {
+                if (accuracy >= 50) return { label: 'Elite Predictor', bg: 'bg-purple-500/10', border: 'border-purple-500/20', text: 'text-purple-400' };
+                if (accuracy >= 35) return { label: 'Expert Picker', bg: 'bg-green-500/10', border: 'border-green-500/20', text: 'text-green-400' };
+                if (accuracy >= 20) return { label: 'Senior Analyst', bg: 'bg-blue-500/10', border: 'border-blue-500/20', text: 'text-blue-400' };
+                return { label: 'Contender', bg: 'bg-white/5', border: 'border-white/10', text: 'text-gray-400' };
+              };
+              const skill = getSkillClass(stat.prediction_accuracy);
 
-            return (
-              <div key={stat.username} className="glass-panel p-5 space-y-5 relative group transition-all hover:bg-white/[0.04]">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <img
-                        src={stat.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${stat.username}`}
-                        className={`w-10 h-10 rounded-full border-2 transition-colors ${skill.border} group-hover:border-ipl-gold/50`}
-                        alt=""
-                      />
-                      {stat.used_matches.length > 0 && (
-                        <div className="absolute -top-1 -right-1">
-                          <Zap className="w-3 h-3 text-ipl-gold fill-ipl-gold animate-pulse" />
+              return (
+                <div key={stat.username} className="glass-panel p-5 space-y-5 relative group transition-all hover:bg-white/[0.04]">
+                  {/* Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <img
+                          src={stat.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${stat.username}`}
+                          className={`w-10 h-10 rounded-full border-2 transition-colors ${skill.border} group-hover:border-ipl-gold/50`}
+                          alt=""
+                        />
+                        {stat.used_matches.length > 0 && (
+                          <div className="absolute -top-1 -right-1">
+                            <Zap className="w-3 h-3 text-ipl-gold fill-ipl-gold animate-pulse" />
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-display text-white uppercase tracking-tight group-hover:text-ipl-gold transition-colors">{stat.username}</h3>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[7px] px-1.5 py-0.5 rounded-full border uppercase font-bold tracking-widest ${skill.bg} ${skill.border} ${skill.text}`}>
+                            {skill.label}
+                          </span>
+                          {stat.match_wins > 0 && (
+                            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-ipl-gold/10 border border-ipl-gold/20 rounded-full text-[7px] text-ipl-gold font-bold uppercase tracking-widest">
+                              <Trophy className="w-2.5 h-2.5" /> {stat.match_wins} {stat.match_wins === 1 ? 'Win' : 'Wins'}
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-sm font-display text-white uppercase tracking-tight group-hover:text-ipl-gold transition-colors">{stat.username}</h3>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[7px] px-1.5 py-0.5 rounded-full border uppercase font-bold tracking-widest ${skill.bg} ${skill.border} ${skill.text}`}>
-                          {skill.label}
-                        </span>
-                        {stat.match_wins > 0 && (
-                          <div className="flex items-center gap-1 px-1.5 py-0.5 bg-ipl-gold/10 border border-ipl-gold/20 rounded-full text-[7px] text-ipl-gold font-bold uppercase tracking-widest">
-                            <Trophy className="w-2.5 h-2.5" /> {stat.match_wins} {stat.match_wins === 1 ? 'Win' : 'Wins'}
+                    <div className="text-right">
+                      <div className="flex items-baseline justify-end gap-1">
+                        <span className="text-2xl font-display text-ipl-gold">{stat.base_powerups - stat.used_matches.length}</span>
+                        <span className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">Rem</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Effectiveness Stats */}
+                  <div className="flex items-center gap-2 py-3 border-y border-white/5">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[7px] text-gray-500 uppercase font-mono truncate">Accuracy</p>
+                      <p className={`text-xs font-display ${stat.prediction_accuracy > 35 ? 'text-green-400' : 'text-white'
+                        }`}>{stat.prediction_accuracy}%</p>
+                    </div>
+                    <div className="w-px h-6 bg-white/10" />
+                    <div className="flex-1 min-w-0 text-center">
+                      <p className="text-[7px] text-gray-500 uppercase font-mono truncate">Efficiency</p>
+                      <p className="text-xs font-display text-white">{stat.avg_points_per_powerup}</p>
+                    </div>
+                    <div className="w-px h-6 bg-white/10" />
+                    <div className="flex-1 min-w-0 text-right">
+                      <p className="text-[7px] text-gray-500 uppercase font-mono truncate">Net Yield</p>
+                      <p className="text-xs font-display text-ipl-gold">+{stat.total_powerup_points}</p>
+                    </div>
+                  </div>
+
+                  {/* Visual Inventory */}
+                  <div className="flex gap-1 h-1">
+                    {Array.from({ length: stat.base_powerups }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`flex-1 rounded-full transition-all duration-500 ${i < stat.used_matches.length
+                          ? 'bg-ipl-gold shadow-[0_0_8px_rgba(255,215,0,0.5)]'
+                          : 'bg-white/5'
+                          }`}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Usage History */}
+                  <div className="space-y-4 pt-2 border-t border-white/5">
+                    {/* Victory Record */}
+                    {stat.won_matches.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[9px] text-gray-500 uppercase tracking-widest flex items-center gap-1.5 opacity-60">
+                          <Medal className="w-3 h-3 text-ipl-gold" /> Podium Victories
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {stat.won_matches.map((mNo: string) => (
+                            <div key={mNo} className="px-2 py-0.5 bg-ipl-gold text-black rounded-sm text-[8px] font-bold shadow-[0_0_10px_rgba(255,215,0,0.2)]">
+                              M{mNo}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Deployment Logs */}
+                    <div className="space-y-2">
+                      <p className="text-[9px] text-gray-500 uppercase tracking-widest flex items-center gap-1.5 opacity-60">
+                        <Zap className="w-3 h-3" /> Powerup Deployments
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 min-h-[40px]">
+                        {stat.used_matches.length > 0 ? (
+                          stat.used_matches.map((m: any) => (
+                            <div
+                              key={m.match_id}
+                              className={`px-2 py-0.5 border rounded-sm text-[8px] font-mono tracking-tighter transition-all cursor-default ${m.match_status !== 'completed' ? 'bg-white/5 border-white/5 text-gray-500' :
+                                  m.points >= 40 ? 'bg-green-500/10 border-green-500/20 text-green-400 font-bold' :
+                                    m.points >= 20 ? 'bg-ipl-gold/10 border-ipl-gold/20 text-ipl-gold/70' :
+                                      m.points < 0 ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+                                        'bg-white/5 border-white/10 text-gray-400'
+                                }`}
+                              title={m.match_status === 'completed' ? `${m.points} points earned` : 'Pending calculation'}
+                            >
+                              M{m.match_number}: {m.teams}
+                              {m.match_status === 'completed' && <span className="ml-1 opacity-50">({m.points})</span>}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center border border-dashed border-white/5 rounded p-2">
+                            <span className="text-[8px] text-gray-700 uppercase tracking-[0.2em]">Idle Stage</span>
                           </div>
                         )}
                       </div>
                     </div>
                   </div>
-                <div className="text-right">
-                  <div className="flex items-baseline justify-end gap-1">
-                    <span className="text-2xl font-display text-ipl-gold">{stat.base_powerups - stat.used_matches.length}</span>
-                    <span className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">Rem</span>
-                  </div>
-                </div>
-              </div>
 
-              {/* Effectiveness Stats */}
-              <div className="flex items-center gap-2 py-3 border-y border-white/5">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[7px] text-gray-500 uppercase font-mono truncate">Accuracy</p>
-                  <p className={`text-xs font-display ${stat.prediction_accuracy > 35 ? 'text-green-400' : 'text-white'
-                    }`}>{stat.prediction_accuracy}%</p>
+                  {/* Subtle background glow on hover */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-ipl-gold/0 to-ipl-gold/[0.02] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                 </div>
-                <div className="w-px h-6 bg-white/10" />
-                <div className="flex-1 min-w-0 text-center">
-                  <p className="text-[7px] text-gray-500 uppercase font-mono truncate">Efficiency</p>
-                  <p className="text-xs font-display text-white">{stat.avg_points_per_powerup}</p>
-                </div>
-                <div className="w-px h-6 bg-white/10" />
-                <div className="flex-1 min-w-0 text-right">
-                  <p className="text-[7px] text-gray-500 uppercase font-mono truncate">Net Yield</p>
-                  <p className="text-xs font-display text-ipl-gold">+{stat.total_powerup_points}</p>
-                </div>
-              </div>
-
-              {/* Visual Inventory */}
-              <div className="flex gap-1 h-1">
-                {Array.from({ length: stat.base_powerups }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`flex-1 rounded-full transition-all duration-500 ${i < stat.used_matches.length
-                      ? 'bg-ipl-gold shadow-[0_0_8px_rgba(255,215,0,0.5)]'
-                      : 'bg-white/5'
-                      }`}
-                  />
-                ))}
-              </div>
-
-              {/* Usage History */}
-              <div className="space-y-4 pt-2 border-t border-white/5">
-                {/* Victory Record */}
-                {stat.won_matches.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-[9px] text-gray-500 uppercase tracking-widest flex items-center gap-1.5 opacity-60">
-                      <Medal className="w-3 h-3 text-ipl-gold" /> Podium Victories
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {stat.won_matches.map((mNo: string) => (
-                        <div key={mNo} className="px-2 py-0.5 bg-ipl-gold text-black rounded-sm text-[8px] font-bold shadow-[0_0_10px_rgba(255,215,0,0.2)]">
-                          M{mNo}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Deployment Logs */}
-                <div className="space-y-2">
-                  <p className="text-[9px] text-gray-500 uppercase tracking-widest flex items-center gap-1.5 opacity-60">
-                    <Zap className="w-3 h-3" /> Powerup Deployments
-                  </p>
-                  <div className="flex flex-wrap gap-1.5 min-h-[40px]">
-                    {stat.used_matches.length > 0 ? (
-                      stat.used_matches.map((m: any) => (
-                        <div 
-                          key={m.match_id} 
-                          className={`px-2 py-0.5 border rounded-sm text-[8px] font-mono tracking-tighter transition-all cursor-default ${
-                            m.match_status !== 'completed' ? 'bg-white/5 border-white/5 text-gray-500' :
-                            m.points >= 40 ? 'bg-green-500/10 border-green-500/20 text-green-400 font-bold' :
-                            m.points >= 20 ? 'bg-ipl-gold/10 border-ipl-gold/20 text-ipl-gold/70' :
-                            m.points < 0 ? 'bg-red-500/10 border-red-500/20 text-red-400' :
-                            'bg-white/5 border-white/10 text-gray-400'
-                          }`}
-                          title={m.match_status === 'completed' ? `${m.points} points earned` : 'Pending calculation'}
-                        >
-                          M{m.match_number}: {m.teams}
-                          {m.match_status === 'completed' && <span className="ml-1 opacity-50">({m.points})</span>}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center border border-dashed border-white/5 rounded p-2">
-                        <span className="text-[8px] text-gray-700 uppercase tracking-[0.2em]">Idle Stage</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Subtle background glow on hover */}
-              <div className="absolute inset-0 bg-gradient-to-br from-ipl-gold/0 to-ipl-gold/[0.02] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
       </section>
 

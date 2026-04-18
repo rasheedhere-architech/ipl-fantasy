@@ -187,12 +187,59 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
             "matches": count
         })
 
-    # 2. Trending (Rank change or overall performance delta?)
-    # For now, let's just group by user and return their aggregate stats for the last 7 days vs overall
-    # We'll call the top weekly performers "trending"
+    # 3. Powerups Analytics
+    from backend.models import Prediction
+    powerup_usage_res = await db.execute(
+        select(
+            User.name,
+            User.avatar_url,
+            User.base_powerups,
+            Match.team1,
+            Match.team2,
+            Match.id.label("match_id"),
+            Match.toss_time
+        )
+        .join(Prediction, User.id == Prediction.user_id)
+        .join(Match, Prediction.match_id == Match.id)
+        .where(Prediction.use_powerup == "Yes")
+        .where(User.is_guest == False)
+        .order_by(User.name, Match.toss_time.desc())
+    )
     
+    powerup_stats_map = {}
+    for name, avatar, base, t1, t2, mid, toss_time in powerup_usage_res.all():
+        if name not in powerup_stats_map:
+            powerup_stats_map[name] = {
+                "username": name,
+                "avatar_url": avatar,
+                "base_powerups": base or 10,
+                "used_matches": []
+            }
+        powerup_stats_map[name]["used_matches"].append({
+            "match_id": mid,
+            "teams": f"{t1} vs {t2}",
+            "date": toss_time
+        })
+    
+    # Include all relevant users even if they haven't used powerups
+    all_users_res = await db.execute(
+        select(User.name, User.avatar_url, User.base_powerups)
+        .outerjoin(AllowlistedEmail, User.email == AllowlistedEmail.email)
+        .where(User.is_guest == False)
+        .where(or_(AllowlistedEmail.email != None, User.is_ai == True))
+    )
+    for name, avatar, base in all_users_res.all():
+        if name not in powerup_stats_map:
+            powerup_stats_map[name] = {
+                "username": name,
+                "avatar_url": avatar,
+                "base_powerups": base or 10,
+                "used_matches": []
+            }
+
     return {
-        "weekly_podium": weekly_stats[:5], # Top 5 this week
-        "recent_podiums": await get_match_podiums(db)
+        "weekly_podium": weekly_stats[:5],
+        "recent_podiums": await get_match_podiums(db),
+        "powerups_stats": list(powerup_stats_map.values())
     }
 

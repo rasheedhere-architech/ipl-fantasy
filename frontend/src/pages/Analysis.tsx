@@ -1,5 +1,5 @@
 import { useAnalysis, useLeaderboard } from '../api/hooks/useMatches';
-import { Trophy, TrendingUp, Medal, Calendar, BarChart3, Star } from 'lucide-react';
+import { Trophy, TrendingUp, Medal, Calendar, BarChart3, Star, Zap } from 'lucide-react';
 
 export default function Analysis() {
   const { data, isLoading: isAnalysisLoading } = useAnalysis();
@@ -117,6 +117,88 @@ export default function Analysis() {
               );
             });
           })()}
+        </div>
+      </section>
+      
+      {/* Powerups Usage Section */}
+      <section className="space-y-6">
+        <div className="flex items-center gap-3 border-l-4 border-ipl-gold pl-4">
+          <Zap className="w-6 h-6 text-ipl-gold" />
+          <div>
+            <h2 className="text-xl font-display text-white italic tracking-tight">Powerup <span className="text-ipl-gold">Tracker</span></h2>
+            <p className="text-[10px] text-gray-500 uppercase tracking-widest font-mono">Expert Strategic Deployment</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {data?.powerups_stats?.map((stat: any) => (
+            <div key={stat.username} className="glass-panel p-5 space-y-5 relative group transition-all hover:bg-white/[0.04]">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                   <div className="relative">
+                     <img 
+                       src={stat.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${stat.username}`} 
+                       className="w-10 h-10 rounded-full border border-white/10 group-hover:border-ipl-gold/50 transition-colors"
+                       alt=""
+                     />
+                     {stat.used_matches.length > 0 && (
+                        <div className="absolute -top-1 -right-1">
+                          <Zap className="w-3 h-3 text-ipl-gold fill-ipl-gold animate-pulse" />
+                        </div>
+                     )}
+                   </div>
+                   <div>
+                     <h3 className="text-sm font-display text-white uppercase tracking-tight group-hover:text-ipl-gold transition-colors">{stat.username}</h3>
+                     <p className="text-[8px] text-gray-600 uppercase font-mono tracking-tighter">Initial: {stat.base_powerups} units</p>
+                   </div>
+                </div>
+                <div className="text-right">
+                  <div className="flex items-baseline justify-end gap-1">
+                    <span className="text-2xl font-display text-ipl-gold">{stat.base_powerups - stat.used_matches.length}</span>
+                    <span className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">Rem</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Visual Inventory */}
+              <div className="flex gap-1 h-1">
+                {Array.from({ length: stat.base_powerups }).map((_, i) => (
+                  <div 
+                    key={i} 
+                    className={`flex-1 rounded-full transition-all duration-500 ${
+                      i < stat.used_matches.length 
+                        ? 'bg-ipl-gold shadow-[0_0_8px_rgba(255,215,0,0.5)]' 
+                        : 'bg-white/5'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* Usage History */}
+              <div className="space-y-2">
+                <p className="text-[9px] text-gray-500 uppercase tracking-widest flex items-center gap-1.5 opacity-60">
+                   {stat.used_matches.length > 0 ? "Deployment Logs" : "No Deployments"}
+                </p>
+                <div className="flex flex-wrap gap-1.5 min-h-[40px]">
+                  {stat.used_matches.length > 0 ? (
+                    stat.used_matches.map((m: any) => (
+                      <div key={m.match_id} className="px-2 py-0.5 bg-ipl-gold/5 border border-ipl-gold/10 rounded-sm text-[8px] text-ipl-gold/70 font-mono tracking-tighter">
+                        {m.teams}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center border border-dashed border-white/5 rounded p-2">
+                       <span className="text-[8px] text-gray-700 uppercase tracking-[0.2em]">Idle Stage</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Subtle background glow on hover */}
+              <div className="absolute inset-0 bg-gradient-to-br from-ipl-gold/0 to-ipl-gold/[0.02] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+            </div>
+          ))}
         </div>
       </section>
 

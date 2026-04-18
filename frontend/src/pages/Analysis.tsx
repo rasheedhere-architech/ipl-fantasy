@@ -23,7 +23,7 @@ export default function Analysis() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
         <div className="w-12 h-12 border-4 border-ipl-gold border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-gray-400 font-display tracking-widest text-xs uppercase animate-pulse">Running Deep Analysis...</p>
+        <p className="text-gray-400 font-display tracking-widest text-xs uppercase animate-pulse">Crunching the numbers...</p>
       </div>
     );
   }
@@ -53,22 +53,20 @@ export default function Analysis() {
                 <p className="text-[10px] text-gray-500 uppercase tracking-widest">Top Performers by Volume</p>
               </div>
             </div>
-            
+
             {/* Toggle Switch */}
             <div className="flex bg-white/5 p-1 rounded-lg border border-white/5 self-start shadow-inner">
-              <button 
+              <button
                 onClick={() => setTrendingTab('today')}
-                className={`px-6 py-2 rounded-md text-[10px] font-bold uppercase transition-all duration-300 ${
-                  trendingTab === 'today' ? 'bg-ipl-gold text-black shadow-lg scale-105' : 'text-gray-500 hover:text-gray-300'
-                }`}
+                className={`px-6 py-2 rounded-md text-[10px] font-bold uppercase transition-all duration-300 ${trendingTab === 'today' ? 'bg-ipl-gold text-black shadow-lg scale-105' : 'text-gray-500 hover:text-gray-300'
+                  }`}
               >
                 Match Day
               </button>
-              <button 
+              <button
                 onClick={() => setTrendingTab('weekly')}
-                className={`px-6 py-2 rounded-md text-[10px] font-bold uppercase transition-all duration-300 ${
-                  trendingTab === 'weekly' ? 'bg-ipl-gold text-black shadow-lg scale-105' : 'text-gray-500 hover:text-gray-300'
-                }`}
+                className={`px-6 py-2 rounded-md text-[10px] font-bold uppercase transition-all duration-300 ${trendingTab === 'weekly' ? 'bg-ipl-gold text-black shadow-lg scale-105' : 'text-gray-500 hover:text-gray-300'
+                  }`}
               >
                 Weekly Trend
               </button>
@@ -402,10 +400,10 @@ export default function Analysis() {
                             <div
                               key={m.match_id}
                               className={`px-2 py-0.5 border rounded-sm text-[8px] font-mono tracking-tighter transition-all cursor-default ${m.match_status !== 'completed' ? 'bg-white/5 border-white/5 text-gray-500' :
-                                  m.points >= 40 ? 'bg-green-500/10 border-green-500/20 text-green-400 font-bold' :
-                                    m.points >= 20 ? 'bg-ipl-gold/10 border-ipl-gold/20 text-ipl-gold/70' :
-                                      m.points < 0 ? 'bg-red-500/10 border-red-500/20 text-red-400' :
-                                        'bg-white/5 border-white/10 text-gray-400'
+                                m.points >= 40 ? 'bg-green-500/10 border-green-500/20 text-green-400 font-bold' :
+                                  m.points >= 20 ? 'bg-ipl-gold/10 border-ipl-gold/20 text-ipl-gold/70' :
+                                    m.points < 0 ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+                                      'bg-white/5 border-white/10 text-gray-400'
                                 }`}
                               title={m.match_status === 'completed' ? `${m.points} points earned` : 'Pending calculation'}
                             >

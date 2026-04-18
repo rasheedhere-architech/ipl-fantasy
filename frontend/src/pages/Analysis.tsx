@@ -65,7 +65,7 @@ export default function Analysis() {
             </div>
           </div>
 
-          <div className="flex items-end justify-start gap-12 min-w-max h-[600px] pb-24 pt-32 relative px-8 scrollbar-hide">
+          <div className="flex items-end justify-start gap-6 min-w-max h-[600px] pb-24 pt-32 relative px-8 scrollbar-hide">
             {/* Horizontal Grid lines */}
             <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-[0.03] pt-24 pb-48">
               {[0, 1, 2, 3, 4].map(i => <div key={i} className="border-t border-white" />)}
@@ -89,7 +89,7 @@ export default function Analysis() {
 
 
                 return (
-                  <div key={user.username} className="relative flex flex-col items-center group w-32 flex-shrink-0">
+                  <div key={user.username} className="relative flex flex-col items-center group w-24 flex-shrink-0">
                     {/* Dynamic Bar Container (Stars + Score + Bar) */}
                     <div className="h-[400px] w-full flex flex-col justify-end items-center mb-10">
                       <div 

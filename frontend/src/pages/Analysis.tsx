@@ -5,7 +5,7 @@ import { Trophy, TrendingUp, Medal, Calendar, BarChart3, Star, Zap, Crown } from
 export default function Analysis() {
   const { data, isLoading: isAnalysisLoading } = useAnalysis();
   const { data: leaderboard, isLoading: isLBLoading } = useLeaderboard();
-  const [trendingTab, setTrendingTab] = useState<'weekly' | 'today'>('weekly');
+  const [trendingTab, setTrendingTab] = useState<'weekly' | 'today'>('today');
 
   const isLoading = isAnalysisLoading || isLBLoading;
 

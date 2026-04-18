@@ -132,8 +132,8 @@ export default function Analysis() {
                     <div className="flex flex-col items-center w-full">
                       <div className="relative">
                         {isTopWinner && (
-                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-30 animate-bounce">
-                            <Crown className="w-6 h-6 text-ipl-gold fill-ipl-gold drop-shadow-[0_0_12px_rgba(255,215,0,0.6)]" />
+                          <div className="absolute -top-12 inset-x-0 flex justify-center z-30 animate-bounce">
+                            <Crown className="w-6 h-6 text-ipl-gold fill-ipl-gold drop-shadow-[0_0_15px_rgba(255,215,0,0.7)]" />
                           </div>
                         )}
                         <div className={`w-16 h-16 rounded-full border-2 group-hover:border-ipl-gold transition-all overflow-hidden z-20 bg-ipl-surface shadow-2xl scale-125 ${matchWins > 0 ? 'border-ipl-gold shadow-[0_0_20px_rgba(255,215,0,0.4)]' : 'border-white/10'

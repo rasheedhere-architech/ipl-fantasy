@@ -346,7 +346,7 @@ export default function Analysis() {
               </div>
 
               <div className="p-4 space-y-3 bg-gradient-to-br from-transparent to-white/[0.02]">
-                {match.top_players.map((player: any, pIdx: number) => (
+                {match.top_players.map((player: any) => (
                   <div key={player.username} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <span className={`text-[10px] font-mono w-4 ${player.rank === 1 ? 'text-ipl-gold' :

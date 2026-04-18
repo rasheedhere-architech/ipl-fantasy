@@ -118,7 +118,7 @@ async def get_match_podiums(db: AsyncSession = Depends(get_db)):
     # cached = backend_cache.get(cache_key)
     # if cached: return cached
 
-    from backend.models import Match
+    from backend.models import Match, Prediction
     matches_res = await db.execute(
         select(Match)
         .where(Match.status == "completed")

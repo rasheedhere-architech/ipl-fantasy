@@ -59,7 +59,7 @@ export default function Analysis() {
             </div>
 
             {(() => {
-              const experts = leaderboard?.filter((u: any) => !u.is_guest).slice(0, 8) || [];
+              const experts = leaderboard?.filter((u: any) => !u.is_guest) || [];
               const expertStatsList = experts.map((u: any) => data?.powerups_stats?.find((s: any) => s.username === u.username));
               const maxWins = Math.max(...expertStatsList.map((s: any) => s?.match_wins || 0), 0);
               
@@ -77,11 +77,10 @@ export default function Analysis() {
                 const baseHeight = (user.base_points / maxPoints) * 100;
 
                 return (
-
-                  <div key={user.username} className="relative flex flex-col items-center group w-20">
+                  <div key={user.username} className="relative flex flex-col items-center group w-24 flex-shrink-0">
                     {/* Achievement Stars */}
                     {matchWins > 0 && (
-                      <div className="absolute -top-14 flex items-center justify-center gap-0.5 w-full">
+                      <div className="absolute -top-16 flex items-center justify-center gap-0.5 w-full">
                         {Array.from({ length: Math.min(matchWins, 3) }).map((_, i) => (
                           <Star key={i} className={`w-2 h-2 text-ipl-gold fill-ipl-gold animate-pulse`} style={{ animationDelay: `${i * 200}ms` }} />
                         ))}
@@ -90,7 +89,7 @@ export default function Analysis() {
                     )}
 
                     {/* Total Value on Top */}
-                    <div className="absolute -top-8 text-sm font-display font-bold text-white group-hover:text-ipl-gold transition-colors">
+                    <div className="absolute -top-10 text-sm font-display font-bold text-white group-hover:text-ipl-gold transition-colors">
                       {user.total_points}
                     </div>
 
@@ -138,12 +137,12 @@ export default function Analysis() {
                     </div>
 
                     {/* Username & Wins */}
-                    <div className="flex flex-col items-center mt-4">
-                      <span className="text-[10px] font-display text-gray-500 uppercase tracking-widest text-center truncate w-full">
+                    <div className="flex flex-col items-center mt-5 w-full px-1">
+                      <span className="text-[9px] font-display text-gray-500 uppercase tracking-wider text-center line-clamp-2 h-6 leading-tight group-hover:text-white transition-colors">
                         {user.username}
                       </span>
                       {matchWins > 0 && (
-                        <div className="flex items-center gap-1 mt-1 px-1.5 py-0.5 bg-ipl-gold/10 rounded-full border border-ipl-gold/20 shadow-[0_0_10px_rgba(255,215,0,0.1)]">
+                        <div className="flex items-center gap-1 mt-2 px-2 py-0.5 bg-ipl-gold/10 rounded-full border border-ipl-gold/20 shadow-[0_0_10px_rgba(255,215,0,0.1)]">
                           <Trophy className="w-2.5 h-2.5 text-ipl-gold" />
                           <span className="text-[9px] font-bold text-ipl-gold font-mono">{matchWins}</span>
                         </div>

@@ -26,4 +26,12 @@
   .glass-panel {
     @apply bg-ipl-surface/80 backdrop-blur-md border border-white/5;
   }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }

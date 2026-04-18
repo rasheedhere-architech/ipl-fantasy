@@ -86,45 +86,52 @@ export default function Analysis() {
                 const isTopWinner = matchWins > 0 && matchWins === maxWins;
                 
                 const matchPoints = user.total_points - user.base_points;
-                const matchHeight = (matchPoints / maxPoints) * 100;
-                const baseHeight = (user.base_points / maxPoints) * 100;
+
 
                 return (
-                  <div key={user.username} className="relative flex flex-col items-center group w-32 flex-shrink-0 pb-12">
-                    {/* Top Stats Area - Achievement Stars & Total */}
-                    <div className="absolute top-0 h-24 flex flex-col items-center justify-end w-full pb-4">
-                      {matchWins > 0 && (
-                        <div className="flex items-center justify-center gap-0.5 mb-1">
-                          {Array.from({ length: Math.min(matchWins, 3) }).map((_, i) => (
-                            <Star key={i} className="w-2.5 h-2.5 text-ipl-gold fill-ipl-gold animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
-                          ))}
-                          {matchWins > 3 && <span className="text-[8px] text-ipl-gold font-bold ml-1">+{matchWins - 3}</span>}
+                  <div key={user.username} className="relative flex flex-col items-center group w-32 flex-shrink-0">
+                    {/* Dynamic Bar Container (Stars + Score + Bar) */}
+                    <div className="h-[400px] w-full flex flex-col justify-end items-center mb-10">
+                      <div 
+                        className="flex flex-col items-center w-full transition-all duration-1000 ease-out"
+                        style={{ height: `${((matchPoints + user.base_points) / maxPoints) * 100}%` }}
+                      >
+                        {/* Status Floaties (Stars & Score) */}
+                        <div className="flex flex-col items-center mb-4 whitespace-nowrap animate-in fade-in slide-in-from-bottom-4 duration-1000">
+                          {matchWins > 0 && (
+                            <div className="flex items-center justify-center gap-0.5 mb-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded-full border border-white/5">
+                              {Array.from({ length: Math.min(matchWins, 3) }).map((_, i) => (
+                                <Star key={i} className="w-2.5 h-2.5 text-ipl-gold fill-ipl-gold animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
+                              ))}
+                              {matchWins > 3 && <span className="text-[8px] text-ipl-gold font-bold ml-1">+{matchWins - 3}</span>}
+                            </div>
+                          )}
+                          <div className="text-xl font-display font-bold text-white group-hover:text-ipl-gold transition-colors drop-shadow-[0_0_10px_rgba(0,0,0,0.5)]">
+                            {user.total_points}
+                          </div>
                         </div>
-                      )}
-                      <div className="text-lg font-display font-bold text-white group-hover:text-ipl-gold transition-colors leading-none">
-                        {user.total_points}
-                      </div>
-                    </div>
 
-                    {/* Stacked Bar */}
-                    <div className="w-14 flex flex-col justify-end transition-all duration-700 ease-out h-[250px] mb-8">
-                      {/* Match Points Segment */}
-                      <div
-                        className="bg-ipl-gold relative group-hover:brightness-110 transition-all cursor-help shadow-[0_0_15px_rgba(255,215,0,0.1)]"
-                        style={{ height: `${matchHeight}%` }}
-                      >
-                        <span className="absolute -left-16 top-2 text-[10px] font-mono text-ipl-gold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/90 border border-white/10 px-2 py-1 rounded pointer-events-none z-40">
-                          Match: {matchPoints} pts
-                        </span>
-                      </div>
-                      {/* Base Points Segment */}
-                      <div
-                        className="bg-white/10 relative group-hover:bg-white/20 transition-all cursor-help"
-                        style={{ height: `${baseHeight}%` }}
-                      >
-                        <span className="absolute -left-16 bottom-2 text-[10px] font-mono text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/90 border border-white/10 px-2 py-1 rounded pointer-events-none z-40">
-                          Base: {user.base_points} pts
-                        </span>
+                        {/* Stacked Bar */}
+                        <div className="w-14 flex flex-col justify-end flex-1 rounded-t-sm overflow-hidden shadow-2xl group-hover:shadow-ipl-gold/20 transition-all border-x border-t border-white/5">
+                          {/* Match Points Segment */}
+                          <div
+                            className="bg-ipl-gold relative group-hover:brightness-110 transition-all cursor-help"
+                            style={{ height: `${(matchPoints / (matchPoints + user.base_points)) * 100}%` }}
+                          >
+                            <span className="absolute -left-16 top-2 text-[10px] font-mono text-ipl-gold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/90 border border-white/10 px-2 py-1 rounded pointer-events-none z-40">
+                              Match: {matchPoints} pts
+                            </span>
+                          </div>
+                          {/* Base Points Segment */}
+                          <div
+                            className="bg-white/10 relative group-hover:bg-white/20 transition-all cursor-help"
+                            style={{ height: `${(user.base_points / (matchPoints + user.base_points)) * 100}%` }}
+                          >
+                            <span className="absolute -left-16 bottom-2 text-[10px] font-mono text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/90 border border-white/10 px-2 py-1 rounded pointer-events-none z-40">
+                              Base: {user.base_points} pts
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -147,6 +154,7 @@ export default function Analysis() {
                         <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full blur-2xl transition-opacity animate-pulse ${matchWins > 0 ? 'bg-ipl-gold/20 opacity-100' : 'bg-transparent opacity-0'
                           }`} />
                       </div>
+
 
                       {/* Username & Wins */}
                       <div className="flex flex-col items-center mt-10 w-full px-2">

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, case
 
 from backend.database import get_db
 from backend.models import User, LeaderboardEntry, AllowlistedEmail
@@ -197,7 +197,9 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
             Match.team1,
             Match.team2,
             Match.id.label("match_id"),
-            Match.toss_time
+            Match.toss_time,
+            Prediction.points_awarded,
+            Match.status
         )
         .join(Prediction, User.id == Prediction.user_id)
         .join(Match, Prediction.match_id == Match.id)
@@ -207,19 +209,34 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
     )
     
     powerup_stats_map = {}
-    for name, avatar, base, t1, t2, mid, toss_time in powerup_usage_res.all():
+    for name, avatar, base, t1, t2, mid, toss_time, points, status in powerup_usage_res.all():
         if name not in powerup_stats_map:
             powerup_stats_map[name] = {
                 "username": name,
                 "avatar_url": avatar,
                 "base_powerups": base or 10,
-                "used_matches": []
+                "used_matches": [],
+                "total_powerup_points": 0,
+                "avg_points_per_powerup": 0
             }
+        
+        m_no = mid.split("-")[2] if "-" in mid else mid
         powerup_stats_map[name]["used_matches"].append({
             "match_id": mid,
+            "match_number": m_no,
             "teams": f"{t1} vs {t2}",
-            "date": toss_time
+            "date": toss_time,
+            "points": points or 0,
+            "match_status": status
         })
+        
+        if status == "completed":
+            powerup_stats_map[name]["total_powerup_points"] += (points or 0)
+
+    for stats in powerup_stats_map.values():
+        completed_count = len([m for m in stats["used_matches"] if m["match_status"] == "completed"])
+        if completed_count > 0:
+            stats["avg_points_per_powerup"] = round(stats["total_powerup_points"] / completed_count, 1)
     
     # Include all relevant users even if they haven't used powerups
     all_users_res = await db.execute(
@@ -237,9 +254,37 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
                 "used_matches": []
             }
 
+    # 4. Global Accuracy Stats (Max 55 points per match)
+    accuracy_res = await db.execute(
+        select(
+            User.name,
+            func.sum(
+                case(
+                    (Prediction.use_powerup == "Yes", Prediction.points_awarded / 2),
+                    else_=func.coalesce(Prediction.points_awarded, 0)
+                )
+            ).label("base_match_points"),
+            func.count(Match.id).label("completed_matches")
+        )
+        .join(Prediction, User.id == Prediction.user_id)
+        .join(Match, Prediction.match_id == Match.id)
+        .where(Match.status == "completed")
+        .where(User.is_guest == False)
+        .group_by(User.id)
+    )
+    
+    accuracy_map = {}
+    for name, base_pts, count in accuracy_res.all():
+        if count > 0:
+            # Accuracy % = (Total Base Points / (Matches * 55)) * 100
+            accuracy_map[name] = round((base_pts / (count * 55)) * 100, 1)
+
     return {
         "weekly_podium": weekly_stats[:5],
         "recent_podiums": await get_match_podiums(db),
-        "powerups_stats": list(powerup_stats_map.values())
+        "powerups_stats": [
+            {**v, "prediction_accuracy": accuracy_map.get(k, 0)} 
+            for k, v in powerup_stats_map.items()
+        ]
     }
 

@@ -119,8 +119,8 @@ export default function Analysis() {
         </section>
 
         {/* Elite Performance Visual Chart (Now Full Width) */}
-        <section className="glass-panel p-8 bg-gradient-to-b from-white/[0.03] to-transparent overflow-x-auto custom-scrollbar scrollbar-hide">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-20 border-b border-white/5 pb-8">
+        <section className="glass-panel p-4 md:p-8 bg-gradient-to-b from-white/[0.03] to-transparent overflow-hidden">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-12 md:mb-20 border-b border-white/5 pb-8">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-ipl-gold/10 rounded-lg">
                 <Star className="w-5 h-5 text-ipl-gold" />
@@ -130,19 +130,20 @@ export default function Analysis() {
                 <p className="text-[10px] text-gray-500 uppercase tracking-widest font-mono mt-0.5">Player Points Composition</p>
               </div>
             </div>
-            <div className="flex items-center gap-8 bg-white/5 px-5 py-2 rounded-xl border border-white/5 shadow-inner">
-              <div className="flex items-center gap-2.5">
-                <div className="w-2.5 h-2.5 bg-ipl-gold rounded-full shadow-[0_0_10px_rgba(255,215,0,0.5)]" />
-                <span className="text-[10px] text-gray-300 uppercase tracking-widest font-mono font-bold">Match Points</span>
+            <div className="flex items-center gap-4 md:gap-8 bg-white/5 px-4 md:px-5 py-2 rounded-xl border border-white/5 shadow-inner self-start lg:self-center">
+              <div className="flex items-center gap-2">
+                <div className="w-2 md:w-2.5 h-2 md:h-2.5 bg-ipl-gold rounded-full shadow-[0_0_10px_rgba(255,215,0,0.5)]" />
+                <span className="text-[8px] md:text-[10px] text-gray-300 uppercase tracking-widest font-mono font-bold">Match</span>
               </div>
-              <div className="flex items-center gap-2.5">
-                <div className="w-2.5 h-2.5 bg-white/20 rounded-full" />
-                <span className="text-[10px] text-gray-400 uppercase tracking-widest font-mono">Base Points</span>
+              <div className="flex items-center gap-2">
+                <div className="w-2 md:w-2.5 h-2 md:h-2.5 bg-white/20 rounded-full" />
+                <span className="text-[8px] md:text-[10px] text-gray-400 uppercase tracking-widest font-mono">Base</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-end justify-start gap-3 md:gap-6 min-w-max h-[400px] md:h-[600px] pb-20 md:pb-24 pt-24 md:pt-32 relative px-4 md:px-8 scrollbar-hide">
+          <div className="overflow-x-auto custom-scrollbar scrollbar-hide -mx-4 md:mx-0">
+            <div className="flex items-end justify-start gap-4 md:gap-6 min-w-max h-[450px] md:h-[600px] pb-20 md:pb-24 pt-20 md:pt-32 relative px-6 md:px-8 scrollbar-hide">
             {/* Horizontal Grid lines */}
             <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-[0.03] pt-24 pb-48">
               {[0, 1, 2, 3, 4].map(i => <div key={i} className="border-t border-white" />)}

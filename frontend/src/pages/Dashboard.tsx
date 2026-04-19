@@ -1,11 +1,12 @@
 import MatchCard from '../components/MatchCard';
-import { useMatches } from '../api/hooks/useMatches';
+import { useMatches, useMyPredictionStatus } from '../api/hooks/useMatches';
 import { useAuthStore } from '../store/auth';
 import { Sparkles } from 'lucide-react';
 
 export default function Dashboard() {
   const { user } = useAuthStore();
   const { data: matches, isLoading, error } = useMatches();
+  const { data: predictedMatchIds } = useMyPredictionStatus();
 
   if (isLoading) return <div className="text-white text-center font-display tracking-widest animate-pulse mt-20">LOADING ARENA...</div>;
   if (error) return <div className="text-ipl-live text-center font-display tracking-widest mt-20">FAILED TO LOAD MATCHES</div>;
@@ -37,7 +38,11 @@ export default function Dashboard() {
           <p className="text-gray-400">No matches synced yet.</p>
         ) : (
           matches?.map((match: any) => (
-            <MatchCard key={match.id} {...match} />
+            <MatchCard 
+              key={match.id} 
+              {...match} 
+              has_predicted={predictedMatchIds?.includes(match.id)}
+            />
           ))
         )}
       </div>

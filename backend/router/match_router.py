@@ -8,7 +8,7 @@ from sqlalchemy.future import select
 from sqlalchemy import or_
 
 from backend.database import get_db
-from backend.dependencies import get_current_user
+from backend.dependencies import get_current_user, get_current_user_optional
 from backend.models import User, Match, Prediction, MatchStatus
 from backend.utils.email import send_prediction_confirmation
 from backend.utils.cache import backend_cache
@@ -239,6 +239,9 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
         db.add(new_pred)
             
     await db.commit()
+    
+    # Invalidate prediction status cache
+    backend_cache.invalidate(f"user_pred_status:{current_user.id}")
 
     match_number = match.external_id.split("-")[2]
     
@@ -322,3 +325,23 @@ async def get_all_community_predictions(match_id: str, db: AsyncSession = Depend
         })
         
     return results
+
+@router.get("/my/prediction-status")
+async def get_my_prediction_status(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """ Returns a list of match_ids that the current user has already predicted for """
+    if current_user.is_guest:
+        return []
+    
+    cache_key = f"user_pred_status:{current_user.id}"
+    cached = backend_cache.get(cache_key)
+    if cached:
+        return cached
+    
+    res = await db.execute(
+        select(Prediction.match_id)
+        .where(Prediction.user_id == current_user.id)
+    )
+    match_ids = res.scalars().all()
+    
+    backend_cache.set(cache_key, match_ids)
+    return match_ids

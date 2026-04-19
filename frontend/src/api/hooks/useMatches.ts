@@ -15,6 +15,16 @@ export interface Match {
   player_of_the_match?: string;
 }
 
+export function useMyPredictionStatus() {
+  return useQuery({
+    queryKey: ['predictions', 'mine', 'status'],
+    queryFn: async () => {
+      const response = await apiClient.get<string[]>('/matches/my/prediction-status');
+      return response.data;
+    },
+  });
+}
+
 export function useMatches() {
   return useQuery({
     queryKey: ['matches'],
@@ -55,6 +65,7 @@ export function useSubmitPrediction(matchId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['predictions', matchId] });
       queryClient.invalidateQueries({ queryKey: ['predictions', 'mine', matchId] });
+      queryClient.invalidateQueries({ queryKey: ['predictions', 'mine', 'status'] });
     },
   });
 }

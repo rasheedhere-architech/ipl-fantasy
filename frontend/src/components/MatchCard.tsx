@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import CountdownTimer from './CountdownTimer';
-import { MapPin } from 'lucide-react';
+import { MapPin, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 
 interface MatchCardProps {
@@ -10,6 +10,7 @@ interface MatchCardProps {
   venue: string;
   tossTime: string;
   status: 'upcoming' | 'live' | 'completed';
+  has_predicted?: boolean;
 }
 
 const teamColors: Record<string, string> = {
@@ -25,7 +26,7 @@ const teamColors: Record<string, string> = {
   LSG: '#00ADEF',
 };
 
-export default function MatchCard({ id, team1, team2, venue, tossTime, status }: MatchCardProps) {
+export default function MatchCard({ id, team1, team2, venue, tossTime, status, has_predicted }: MatchCardProps) {
   const { user } = useAuthStore();
   const t1Color = teamColors[team1] || '#ffffff';
   const t2Color = teamColors[team2] || '#ffffff';
@@ -34,10 +35,36 @@ export default function MatchCard({ id, team1, team2, venue, tossTime, status }:
   const matchNumber = matchNoMatch ? matchNoMatch[1] : null;
 
   return (
-    <div className="glass-panel neon-border p-6 relative flex flex-col justify-between group overflow-hidden">
+    <div className={`glass-panel p-6 relative flex flex-col justify-between group overflow-hidden transition-all duration-500 border-2 ${
+      status === 'upcoming' && !user?.is_guest
+        ? has_predicted 
+          ? 'border-green-500/30 hover:border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.05)]' 
+          : 'border-ipl-gold/20 hover:border-ipl-gold shadow-[0_0_20px_rgba(255,215,0,0.05)]'
+        : 'border-white/5 hover:border-white/20'
+    }`}>
       {status === 'live' && (
-        <div className="absolute top-0 right-0 bg-ipl-live text-white font-display text-xs tracking-widest px-3 py-1 shadow-[0_0_10px_#E84040] animate-pulse">
+        <div className="absolute top-0 right-0 bg-ipl-live text-white font-display text-xs tracking-widest px-3 py-1 shadow-[0_0_10px_#E84040] animate-pulse z-20">
           LIVE
+        </div>
+      )}
+
+      {status === 'upcoming' && !user?.is_guest && (
+        <div className={`absolute top-0 right-0 font-display text-[10px] tracking-widest px-3 py-1 z-20 flex items-center gap-1.5 shadow-lg ${
+          has_predicted 
+            ? 'bg-green-500 text-white shadow-green-500/20' 
+            : 'bg-ipl-gold text-black shadow-ipl-gold/20'
+        }`}>
+          {has_predicted ? (
+            <>
+              <CheckCircle2 className="w-3 h-3" />
+              PREDICTED
+            </>
+          ) : (
+            <>
+              <AlertCircle className="w-3 h-3 animate-pulse" />
+              PENDING
+            </>
+          )}
         </div>
       )}
 
@@ -74,9 +101,17 @@ export default function MatchCard({ id, team1, team2, venue, tossTime, status }:
 
       <Link
         to={`/match/${id}`}
-        className="w-full text-center bg-white/5 hover:bg-white hover:text-black text-white font-display uppercase tracking-widest py-3 border border-white/20 transition-all z-10 relative"
+        className={`w-full text-center font-display uppercase tracking-widest py-3 border transition-all z-10 relative ${
+          status === 'upcoming' && !user?.is_guest
+            ? has_predicted
+              ? 'bg-green-500/10 hover:bg-green-500 text-green-400 hover:text-white border-green-500/30'
+              : 'bg-ipl-gold/10 hover:bg-ipl-gold text-ipl-gold hover:text-black border-ipl-gold/30'
+            : 'bg-white/5 hover:bg-white hover:text-black text-white border-white/20'
+        }`}
       >
-        {status === 'upcoming' ? (user?.is_guest ? 'View Match' : 'Predict Now') : 'View Match'}
+        {status === 'upcoming' 
+          ? (user?.is_guest ? 'View Match' : (has_predicted ? 'Update Prediction' : 'Submit Prediction')) 
+          : 'View Match'}
       </Link>
     </div>
   );

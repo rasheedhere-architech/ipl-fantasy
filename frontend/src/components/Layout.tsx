@@ -23,11 +23,11 @@ export default function Layout() {
                 <Trophy className="w-6 h-6" />
                 IPL FANTASY
               </Link>
-              
+
               <div className="hidden md:flex space-x-4">
-                <Link to="/dashboard" className="text-gray-300 hover:text-white flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors">
+                <Link to="/matchcenter" className="text-gray-300 hover:text-white flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors">
                   <LayoutDashboard className="w-4 h-4" />
-                  DASHBOARD
+                  MATCH CENTER
                 </Link>
                 <Link to="/leaderboard" className="text-gray-300 hover:text-white flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors">
                   <Trophy className="w-4 h-4" />
@@ -73,9 +73,9 @@ export default function Layout() {
         {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="md:hidden bg-ipl-surface border-t border-white/10 p-4 space-y-2 shadow-lg absolute w-full left-0 animate-in slide-in-from-top-2 duration-300">
-            <Link to="/dashboard" onClick={clMenu} className="block text-gray-300 hover:text-white font-medium flex items-center gap-3 px-4 py-3 bg-white/5 rounded-lg active:bg-white/10 transition-colors">
+            <Link to="/matchcenter" onClick={clMenu} className="block text-gray-300 hover:text-white font-medium flex items-center gap-3 px-4 py-3 bg-white/5 rounded-lg active:bg-white/10 transition-colors">
               <LayoutDashboard className="w-5 h-5 text-ipl-gold" />
-              DASHBOARD
+              MATCH CENTER
             </Link>
             <Link to="/leaderboard" onClick={clMenu} className="block text-gray-300 hover:text-white font-medium flex items-center gap-3 px-4 py-3 bg-white/5 rounded-lg active:bg-white/10 transition-colors">
               <Trophy className="w-5 h-5 text-ipl-gold" />

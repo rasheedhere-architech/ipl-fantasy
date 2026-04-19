@@ -3,7 +3,7 @@ import { useMatches, useMyPredictionStatus } from '../api/hooks/useMatches';
 import { useAuthStore } from '../store/auth';
 import { Sparkles } from 'lucide-react';
 
-export default function Dashboard() {
+export default function MatchCenter() {
   const { user } = useAuthStore();
   const { data: matches, isLoading, error } = useMatches();
   const { data: predictedMatchIds } = useMyPredictionStatus();
@@ -51,7 +51,7 @@ export default function Dashboard() {
           <div className="w-2 h-2 rounded-full bg-ipl-live animate-pulse" />
           <h2 className="text-xl font-display text-white tracking-widest uppercase">Match Day</h2>
         </div>
-        
+
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {todayMatches.length === 0 ? (
             <div className="glass-panel p-8 text-center border-dashed border-2 border-white/5 opacity-50 col-span-full">
@@ -59,9 +59,9 @@ export default function Dashboard() {
             </div>
           ) : (
             todayMatches.map((match: any) => (
-              <MatchCard 
-                key={match.id} 
-                {...match} 
+              <MatchCard
+                key={match.id}
+                {...match}
                 has_predicted={predictedMatchIds?.includes(match.id)}
               />
             ))
@@ -72,7 +72,7 @@ export default function Dashboard() {
       {/* Upcoming Matches */}
       <section className="space-y-6">
         <div className="flex items-center gap-3 border-l-4 border-white/20 pl-4">
-          <h2 className="text-xl font-display text-gray-400 tracking-widest uppercase">Upcoming Sagas</h2>
+          <h2 className="text-xl font-display text-gray-400 tracking-widest uppercase">Upcoming Matches</h2>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -80,9 +80,9 @@ export default function Dashboard() {
             <p className="text-gray-400 col-span-full italic text-xs">No further matches synced for this window.</p>
           ) : (
             futureMatches.map((match: any) => (
-              <MatchCard 
-                key={match.id} 
-                {...match} 
+              <MatchCard
+                key={match.id}
+                {...match}
                 has_predicted={predictedMatchIds?.includes(match.id)}
               />
             ))

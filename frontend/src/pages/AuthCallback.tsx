@@ -21,7 +21,7 @@ export default function AuthCallback() {
         })
         .then((response) => {
           setUser(response.data, token);
-          navigate('/dashboard');
+          navigate('/matchcenter');
         })
         .catch((error) => {
           if (retries > 0) {

@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
+import MatchCenter from './pages/MatchCenter';
 import MatchPage from './pages/MatchPage';
 import Leaderboard from './pages/Leaderboard';
 import Analysis from './pages/Analysis';
@@ -48,8 +48,8 @@ function App() {
         
         {/* Protected Routes Wrapper (mocked for now) */}
         <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
+          <Route index element={<Navigate to="/matchcenter" replace />} />
+          <Route path="matchcenter" element={<MatchCenter />} />
           <Route path="match/:id" element={<MatchPage />} />
           <Route path="leaderboard" element={<Leaderboard />} />
           <Route path="analysis" element={<Analysis />} />

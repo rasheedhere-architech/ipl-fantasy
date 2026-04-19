@@ -50,7 +50,7 @@ export default function Analysis() {
               <TrendingUp className="w-6 h-6 text-ipl-gold" />
               <div>
                 <h2 className="text-xl font-display text-white uppercase tracking-tight">Trending <span className="text-ipl-gold">Experts</span></h2>
-                <p className="text-[10px] text-gray-500 uppercase tracking-widest">Top Performers by Volume</p>
+                <p className="text-[10px] text-gray-500 uppercase tracking-widest">Top Performers by Points</p>
               </div>
             </div>
 

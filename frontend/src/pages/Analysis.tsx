@@ -73,19 +73,19 @@ export default function Analysis() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
             {(() => {
               const items = trendingTab === 'weekly' ? data?.weekly_podium : data?.today_podium;
               return items?.map((user: any, idx: number) => (
-                <div key={user.username} className={`glass-panel p-4 flex flex-col group transition-all hover:bg-white/[0.05] relative overflow-hidden ${idx === 0 ? 'border-ipl-gold/40 shadow-[0_0_20px_rgba(255,215,0,0.05)]' : ''}`}>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="relative">
+                <div key={user.username} className={`glass-panel p-3 flex flex-row md:flex-col items-center md:items-start group transition-all hover:bg-white/[0.05] relative overflow-hidden ${idx === 0 ? 'border-ipl-gold/40 shadow-[0_0_20px_rgba(255,215,0,0.05)]' : ''}`}>
+                  <div className="flex items-center gap-3 md:mb-4 flex-1 md:flex-none">
+                    <div className="relative shrink-0">
                       <img
                         src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
-                        className="w-12 h-12 rounded-full border border-white/10"
+                        className="w-10 h-10 md:w-12 md:h-12 rounded-full border border-white/10"
                         alt=""
                       />
-                      <div className={`absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 border-ipl-surface shadow-lg ${idx === 0 ? 'bg-ipl-gold text-black' :
+                      <div className={`absolute -top-1 -right-1 w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center text-[9px] md:text-[10px] font-bold border-2 border-ipl-surface shadow-lg ${idx === 0 ? 'bg-ipl-gold text-black' :
                         idx === 1 ? 'bg-gray-300 text-black' :
                           'bg-[#CD7F32] text-black'
                         }`}>
@@ -93,17 +93,17 @@ export default function Analysis() {
                       </div>
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-sm font-display text-white group-hover:text-ipl-gold transition-colors truncate uppercase">{user.username}</h3>
-                      <p className="text-[9px] text-gray-500 uppercase tracking-tighter flex items-center gap-1">
+                      <h3 className="text-xs md:text-sm font-display text-white group-hover:text-ipl-gold transition-colors truncate uppercase leading-tight">{user.username}</h3>
+                      <p className="text-[8px] md:text-[9px] text-gray-500 uppercase tracking-tighter flex items-center gap-1 mt-0.5">
                         <Calendar className="w-2.5 h-2.5" /> {user.matches} {user.matches === 1 ? 'Match' : 'Matches'}
                       </p>
                     </div>
                   </div>
-                  <div className="mt-auto pt-3 border-t border-white/5 flex items-baseline justify-between">
-                    <span className="text-[8px] text-gray-600 uppercase tracking-widest font-bold">Points</span>
-                    <span className="text-2xl font-display text-ipl-gold">+{user.points}</span>
+                  <div className="md:mt-auto md:pt-3 md:border-t border-white/5 flex items-baseline justify-end md:justify-between gap-3 shrink-0">
+                    <span className="hidden md:inline text-[8px] text-gray-600 uppercase tracking-widest font-bold">Points</span>
+                    <span className="text-xl md:text-2xl font-display text-ipl-gold whitespace-nowrap">+{user.points}</span>
                   </div>
-                  {idx === 0 && <div className="absolute top-0 right-0 w-8 h-8 bg-ipl-gold/10 rounded-bl-3xl flex items-center justify-center"><Crown className="w-3 h-3 text-ipl-gold" /></div>}
+                  {idx === 0 && <div className="absolute top-0 right-0 w-6 h-6 md:w-8 md:h-8 bg-ipl-gold/10 rounded-bl-2xl md:rounded-bl-3xl flex items-center justify-center"><Crown className="w-2.5 h-2.5 md:w-3 h-3 text-ipl-gold" /></div>}
                 </div>
               ));
             })()}
@@ -142,7 +142,7 @@ export default function Analysis() {
             </div>
           </div>
 
-          <div className="flex items-end justify-start gap-6 min-w-max h-[600px] pb-24 pt-32 relative px-8 scrollbar-hide">
+          <div className="flex items-end justify-start gap-3 md:gap-6 min-w-max h-[400px] md:h-[600px] pb-20 md:pb-24 pt-24 md:pt-32 relative px-4 md:px-8 scrollbar-hide">
             {/* Horizontal Grid lines */}
             <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-[0.03] pt-24 pb-48">
               {[0, 1, 2, 3, 4].map(i => <div key={i} className="border-t border-white" />)}

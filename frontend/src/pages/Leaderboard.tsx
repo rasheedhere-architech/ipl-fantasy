@@ -38,14 +38,14 @@ export default function Leaderboard() {
           <div className="p-8 text-center animate-pulse text-white font-display text-xl tracking-widest">LOADING STANDINGS...</div>
         ) : (
           <div className="overflow-x-auto w-full custom-scrollbar">
-            <table className="w-full text-left border-collapse min-w-[700px] whitespace-nowrap">
+            <table className="w-full text-left border-collapse min-w-[450px] md:min-w-[700px] whitespace-nowrap">
               <thead>
                 <tr className="bg-white/5 border-b border-white/10">
-                  <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase">Rank</th>
-                  <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase">Player</th>
-                  <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase text-center hidden md:table-cell">History</th>
-                  <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase text-right">Points</th>
-                  <th className="p-4 font-display tracking-wider text-gray-400 text-xs uppercase text-center">Powerups</th>
+                  <th className="p-2 md:p-4 font-display tracking-wider text-gray-400 text-[10px] md:text-xs uppercase w-12 text-center">Rank</th>
+                  <th className="p-2 md:p-4 font-display tracking-wider text-gray-400 text-[10px] md:text-xs uppercase">Player</th>
+                  <th className="p-2 md:p-4 font-display tracking-wider text-gray-400 text-[10px] md:text-xs uppercase text-center hidden lg:table-cell">History</th>
+                  <th className="p-2 md:p-4 font-display tracking-wider text-gray-400 text-[10px] md:text-xs uppercase text-right">Points</th>
+                  <th className="p-2 md:p-4 font-display tracking-wider text-gray-400 text-[10px] md:text-xs uppercase text-center w-16">Pwrups</th>
                 </tr>
               </thead>
               <tbody>
@@ -58,35 +58,35 @@ export default function Leaderboard() {
                       entry.username === currentUser?.name ? 'bg-white/5' : 'hover:bg-white/5'
                     }`}
                   >
-                    <td className="p-4">
-                      <div className="flex items-center gap-2 font-display text-lg">
+                    <td className="p-2 md:p-4">
+                      <div className="flex items-center justify-center gap-2 font-display text-sm md:text-lg">
                         {entry.rank <= 3 ? (
-                          <span className={`w-8 h-8 flex items-center justify-center rounded-sm ${entry.rank === 1 ? 'bg-ipl-gold text-black' :
+                          <span className={`w-6 h-6 md:w-8 md:h-8 flex items-center justify-center rounded-sm ${entry.rank === 1 ? 'bg-ipl-gold text-black' :
                             entry.rank === 2 ? 'bg-gray-300 text-black' : 'bg-[#CD7F32] text-black'
                             }`}>
                             {entry.rank}
                           </span>
                         ) : (
-                          <span className="text-gray-500 ml-3 font-mono">{entry.rank}</span>
+                          <span className="text-gray-500 font-mono text-xs md:text-base">{entry.rank}</span>
                         )}
                       </div>
                     </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full border-2 border-white/10 overflow-hidden group-hover:border-ipl-gold transition-colors shrink-0">
+                    <td className="p-2 md:p-4">
+                      <div className="flex items-center gap-2 md:gap-4">
+                        <div className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-white/10 overflow-hidden group-hover:border-ipl-gold transition-colors shrink-0">
                           <img src={entry.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.username}`} alt={entry.username} />
                         </div>
-                        <div className="flex flex-col">
-                          <span className={`text-sm font-display tracking-wide truncate max-w-[120px] ${entry.rank <= 3 ? 'text-white' : 'text-gray-300'}`}>
+                        <div className="flex flex-col min-w-0">
+                          <span className={`text-xs md:text-sm font-display tracking-wide truncate max-w-[80px] md:max-w-[120px] ${entry.rank <= 3 ? 'text-white' : 'text-gray-300'}`}>
                             {entry.username}
                           </span>
-                          <span className="text-[10px] text-gray-500 uppercase font-display tracking-tighter">
-                            Matches: {entry.matches_played}
+                          <span className="text-[8px] md:text-[10px] text-gray-500 uppercase font-display tracking-tighter">
+                            M: {entry.matches_played}
                           </span>
                         </div>
                       </div>
                     </td>
-                    <td className="p-4 hidden md:table-cell">
+                    <td className="p-2 md:p-4 hidden lg:table-cell">
                       <div className="flex items-center justify-center gap-1.5 overflow-x-auto custom-scrollbar pb-1">
                         {entry.progression?.slice(-7).map((prog: any, idx: number) => (
                           <div
@@ -106,23 +106,23 @@ export default function Leaderboard() {
                         )}
                       </div>
                     </td>
-                    <td className="p-4 text-right">
+                    <td className="p-2 md:p-4 text-right">
                       <div className="flex flex-col items-end">
-                        <span className="text-2xl font-display text-ipl-gold leading-none">{entry.total_points}</span>
-                        <div className="flex items-center gap-1 mt-1">
+                        <span className="text-xl md:text-2xl font-display text-ipl-gold leading-none">{entry.total_points}</span>
+                        <div className="flex items-center gap-1 mt-0.5">
                           {entry.base_points > 0 && (
-                            <span className="text-[8px] px-1 bg-ipl-gold/10 border border-ipl-gold/30 text-ipl-gold rounded uppercase font-bold tracking-tighter">
-                              Base: +{entry.base_points}
+                            <span className="text-[7px] md:text-[8px] px-1 bg-ipl-gold/10 border border-ipl-gold/30 text-ipl-gold rounded uppercase font-bold tracking-tighter">
+                              +{entry.base_points}
                             </span>
                           )}
-                          <span className="text-[10px] text-gray-500 font-display uppercase tracking-widest leading-none">PTS</span>
+                          <span className="text-[8px] md:text-[10px] text-gray-500 font-display uppercase tracking-widest leading-none">PTS</span>
                         </div>
                       </div>
                     </td>
-                    <td className="p-4 text-center">
+                    <td className="p-2 md:p-4 text-center">
                       <div className="flex flex-col items-center">
-                        <span className="text-lg font-display text-ipl-live">{entry.remaining_powerups !== undefined ? entry.remaining_powerups : 10}</span>
-                        <span className="text-[8px] text-gray-500 uppercase tracking-widest">Left</span>
+                        <span className="text-base md:text-lg font-display text-ipl-live">{entry.remaining_powerups !== undefined ? entry.remaining_powerups : 10}</span>
+                        <span className="text-[7px] md:text-[8px] text-gray-500 uppercase tracking-widest leading-none">Left</span>
                       </div>
                     </td>
                   </tr>

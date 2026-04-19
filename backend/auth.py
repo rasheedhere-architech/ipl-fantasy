@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from jose import jwt, JWTError
 from fastapi import HTTPException, status
 from authlib.integrations.starlette_client import OAuth
@@ -22,7 +22,7 @@ ACCESS_TOKEN_EXPIRE_HOURS = int(os.environ.get("JWT_EXPIRY_HOURS", "8"))
 
 def create_access_token(data: dict):
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
+    expire = datetime.now(UTC) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

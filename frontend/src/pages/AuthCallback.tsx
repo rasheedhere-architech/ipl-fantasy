@@ -12,16 +12,29 @@ export default function AuthCallback() {
     const token = searchParams.get('token');
     
     if (token) {
-      // Fetch user profile from the backend
-      apiClient.get('/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+      // Clear any old session before fetching new profile
+      useAuthStore.getState().logout();
+      
+      const fetchProfile = (retries = 2) => {
+        apiClient.get('/auth/me', { 
+          headers: { Authorization: `Bearer ${token}` } 
+        })
         .then((response) => {
           setUser(response.data, token);
           navigate('/dashboard');
         })
         .catch((error) => {
-          console.error('Failed to fetch user profile', error);
-          navigate('/login?error=auth_failed');
+          if (retries > 0) {
+            console.warn(`Profile fetch failed, retrying... (${retries} left)`);
+            setTimeout(() => fetchProfile(retries - 1), 1000);
+          } else {
+            console.error('Failed to fetch user profile after retries', error);
+            navigate('/login?error=auth_failed');
+          }
         });
+      };
+
+      fetchProfile();
     } else {
       navigate('/login?error=no_token');
     }

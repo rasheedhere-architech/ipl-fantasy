@@ -92,7 +92,11 @@ async def auth_callback(request: Request, db: AsyncSession = Depends(get_db)):
         return RedirectResponse(url=f"{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}/auth/callback?token={jwt_token}")
         
     except Exception as e:
-        print(f"Auth error: {e}")
+        import traceback
+        print(f"--- AUTH ERROR ---")
+        print(f"Error Type: {type(e).__name__}")
+        print(f"Error Detail: {str(e)}")
+        traceback.print_exc()
         return RedirectResponse(url=f"{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}/login?error=auth_failed")
 
 @router.get("/auth/me")

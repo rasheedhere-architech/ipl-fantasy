@@ -5,6 +5,9 @@ import MatchPage from './pages/MatchPage';
 import Leaderboard from './pages/Leaderboard';
 import Analysis from './pages/Analysis';
 import Admin from './pages/Admin';
+import Campaigns from './pages/Campaigns';
+import CampaignPage from './pages/CampaignPage';
+import CampaignBuilderRoute, { CampaignBuilderNewRoute, CampaignBuilderEditRoute } from './pages/CampaignBuilder';
 import Layout from './components/Layout';
 
 import AuthCallback from './pages/AuthCallback';
@@ -54,6 +57,11 @@ function App() {
           <Route path="leaderboard" element={<Leaderboard />} />
           <Route path="analysis" element={<Analysis />} />
           <Route path="admin" element={<Admin />} />
+          <Route path="campaigns" element={<Campaigns />} />
+          <Route path="campaigns/:id" element={<CampaignPage />} />
+          <Route path="admin/campaigns" element={<CampaignBuilderRoute />} />
+          <Route path="admin/campaigns/new" element={<CampaignBuilderNewRoute />} />
+          <Route path="admin/campaigns/:id/edit" element={<CampaignBuilderEditRoute />} />
         </Route>
       </Routes>
     </BrowserRouter>

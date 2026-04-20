@@ -99,6 +99,50 @@ async def auth_callback(request: Request, db: AsyncSession = Depends(get_db)):
         traceback.print_exc()
         return RedirectResponse(url=f"{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}/login?error=auth_failed")
 
+@router.post("/auth/dev-login")
+async def dev_login(role: str = "user", db: AsyncSession = Depends(get_db)):
+    """Dev-only login bypass. Enable with DEV_LOGIN_ENABLED=true.
+
+    Creates or reuses a local test user and returns a JWT, skipping OAuth + allowlist checks.
+    """
+    if os.environ.get("DEV_LOGIN_ENABLED", "false").lower() != "true":
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if role not in ("admin", "user", "guest"):
+        raise HTTPException(status_code=400, detail="role must be admin, user, or guest")
+
+    email = f"dev-{role}@local.test"
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalars().first()
+
+    if not user:
+        user = User(
+            id=str(uuid.uuid4()),
+            google_id=f"dev-{role}",
+            email=email,
+            name=f"Dev {role.capitalize()}",
+            avatar_url=None,
+            is_admin=(role == "admin"),
+            is_guest=(role == "guest"),
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    jwt_token = create_access_token(data={"sub": user.id})
+    return {
+        "token": jwt_token,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "avatar": user.avatar_url,
+            "is_admin": user.is_admin,
+            "is_guest": user.is_guest,
+        },
+    }
+
+
 @router.get("/auth/me")
 async def get_me(user: User = Depends(get_current_user)):
     return {

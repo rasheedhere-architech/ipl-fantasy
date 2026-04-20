@@ -1,13 +1,31 @@
-import { Trophy } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { Trophy, TerminalSquare } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { apiClient } from '../api/client';
+import { useAuthStore } from '../store/auth';
+import toast from 'react-hot-toast';
 
 export default function Login() {
   const [searchParams] = useSearchParams();
   const error = searchParams.get('error');
+  const navigate = useNavigate();
+  const { setUser } = useAuthStore();
+
+  const devLoginEnabled = import.meta.env.VITE_DEV_LOGIN === 'true';
 
   const handleLogin = () => {
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     window.location.href = `${API_URL}/auth/google`;
+  };
+
+  const handleDevLogin = async (role: 'admin' | 'user' | 'guest') => {
+    try {
+      const { data } = await apiClient.post('/auth/dev-login', null, { params: { role } });
+      setUser(data.user, data.token);
+      toast.success(`Logged in as ${role}`);
+      navigate('/matchcenter');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail ?? 'Dev login failed — is DEV_LOGIN_ENABLED=true?');
+    }
   };
 
   return (
@@ -43,6 +61,29 @@ export default function Login() {
             <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
             Sign in with Google
           </button>
+
+          {devLoginEnabled && (
+            <div className="mt-6 pt-6 border-t border-dashed border-white/10">
+              <div className="flex items-center gap-2 mb-3">
+                <TerminalSquare className="w-4 h-4 text-ipl-gold" />
+                <p className="text-ipl-gold font-display text-[10px] uppercase tracking-widest">Dev Bypass</p>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {(['admin', 'user', 'guest'] as const).map(role => (
+                  <button
+                    key={role}
+                    onClick={() => handleDevLogin(role)}
+                    className="py-2 border border-white/10 text-gray-400 hover:border-ipl-gold hover:text-ipl-gold font-display text-[10px] uppercase tracking-widest transition-all"
+                  >
+                    {role}
+                  </button>
+                ))}
+              </div>
+              <p className="text-gray-600 text-[10px] font-display mt-2 text-center">
+                Requires <code className="text-ipl-gold">DEV_LOGIN_ENABLED=true</code> on backend
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

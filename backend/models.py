@@ -84,3 +84,89 @@ class LeaderboardEntry(Base):
     match_id: Mapped[str] = mapped_column(String, ForeignKey("matches.id"))
     points: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+
+class CampaignStatus(str, enum.Enum):
+    draft = "draft"
+    active = "active"
+    closed = "closed"
+
+
+class CampaignType(str, enum.Enum):
+    match = "match"
+    general = "general"
+
+
+class QuestionType(str, enum.Enum):
+    toggle = "toggle"
+    multiple_choice = "multiple_choice"
+    dropdown = "dropdown"
+    free_text = "free_text"
+    free_number = "free_number"
+
+
+class Campaign(Base):
+    __tablename__ = "campaigns"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    title: Mapped[str] = mapped_column(String)
+    description: Mapped[str] = mapped_column(String, nullable=True)
+    type: Mapped[CampaignType] = mapped_column(SAEnum(CampaignType), default=CampaignType.general)
+    is_master: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[CampaignStatus] = mapped_column(SAEnum(CampaignStatus), default=CampaignStatus.draft)
+    created_by: Mapped[str] = mapped_column(String, ForeignKey("users.id"))
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    non_participation_penalty: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+
+    questions: Mapped[list["CampaignQuestion"]] = relationship("CampaignQuestion", back_populates="campaign", cascade="all, delete-orphan", order_by="CampaignQuestion.order_index")
+    responses: Mapped[list["CampaignResponse"]] = relationship("CampaignResponse", back_populates="campaign", cascade="all, delete-orphan")
+
+
+class CampaignQuestion(Base):
+    __tablename__ = "campaign_questions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    campaign_id: Mapped[str] = mapped_column(String, ForeignKey("campaigns.id"))
+    question_text: Mapped[str] = mapped_column(String)
+    question_type: Mapped[QuestionType] = mapped_column(SAEnum(QuestionType))
+    # For toggle/multiple_choice/dropdown: list of option strings
+    options: Mapped[dict] = mapped_column(JSON, nullable=True)
+    # Correct answer(s): string, list, or number depending on type
+    correct_answer: Mapped[dict] = mapped_column(JSON, nullable=True)
+    # Scoring: exact_match_points, wrong_answer_points, within_range_points (free_number only)
+    scoring_rules: Mapped[dict] = mapped_column(JSON)
+    order_index: Mapped[int] = mapped_column(Integer, default=0)
+    is_mandatory: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    campaign: Mapped["Campaign"] = relationship("Campaign", back_populates="questions")
+    answers: Mapped[list["CampaignAnswer"]] = relationship("CampaignAnswer", back_populates="question", cascade="all, delete-orphan")
+
+
+class CampaignResponse(Base):
+    __tablename__ = "campaign_responses"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    campaign_id: Mapped[str] = mapped_column(String, ForeignKey("campaigns.id"))
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"))
+    total_points: Mapped[int] = mapped_column(Integer, nullable=True)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    campaign: Mapped["Campaign"] = relationship("Campaign", back_populates="responses")
+    answers: Mapped[list["CampaignAnswer"]] = relationship("CampaignAnswer", back_populates="response", cascade="all, delete-orphan")
+
+
+class CampaignAnswer(Base):
+    __tablename__ = "campaign_answers"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    response_id: Mapped[str] = mapped_column(String, ForeignKey("campaign_responses.id"))
+    question_id: Mapped[str] = mapped_column(String, ForeignKey("campaign_questions.id"))
+    # Stores string, list, or number depending on question type
+    answer_value: Mapped[dict] = mapped_column(JSON)
+    points_awarded: Mapped[int] = mapped_column(Integer, nullable=True)
+
+    response: Mapped["CampaignResponse"] = relationship("CampaignResponse", back_populates="answers")
+    question: Mapped["CampaignQuestion"] = relationship("CampaignQuestion", back_populates="answers")

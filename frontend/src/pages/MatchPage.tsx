@@ -239,8 +239,8 @@ export default function MatchPage() {
                   onClick={() => setShowAutoPredictConfirm(true)}
                   disabled={isLocked || hasPredicted || hasAutoPredicted}
                   className={`group flex items-center gap-1.5 text-[10px] sm:text-xs font-display uppercase tracking-widest px-3 sm:px-4 py-1.5 sm:py-2 rounded-full font-bold transition-all ${isLocked || hasPredicted || hasAutoPredicted
-                      ? 'bg-gray-500 text-gray-300 opacity-40 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-[#004BA0] to-[#7B2FF7] text-white hover:shadow-[0_0_18px_rgba(123,47,247,0.6)] hover:scale-105'
+                    ? 'bg-gray-500 text-gray-300 opacity-40 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-[#004BA0] to-[#7B2FF7] text-white hover:shadow-[0_0_18px_rgba(123,47,247,0.6)] hover:scale-105'
                     }`}
                 >
                   <Sparkles className="w-3 h-3 opacity-90 group-hover:animate-spin" />
@@ -260,7 +260,7 @@ export default function MatchPage() {
               </div>
               <h3 className="text-2xl font-display text-white mb-3">GUEST ACCESS</h3>
               <p className="text-gray-400 font-display text-sm tracking-wide max-w-md mx-auto leading-relaxed">
-                You are currently viewing the system as a <span className="text-ipl-gold font-bold">GUEST</span>. 
+                You are currently viewing the system as a <span className="text-ipl-gold font-bold">GUEST</span>.
                 You can see match details, community trends, and the leaderboard, but you cannot submit predictions.
               </p>
               <div className="mt-8 flex flex-col items-center gap-4">
@@ -270,101 +270,101 @@ export default function MatchPage() {
             </div>
           ) : (
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div className="space-y-4">
-              <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Match Winner</label>
-              <div className={`grid grid-cols-2 gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
-                <label className="cursor-pointer">
-                  <input type="radio" value={match.team1} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
-                  <div className={`p-4 border-2 text-center font-display text-xl transition-all peer-checked:bg-[#004BA0] peer-checked:border-[#004BA0] peer-checked:shadow-[0_0_15px_#004BA0] ${errors.match_winner ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'} peer-checked:text-white`}>
-                    {match.team1}
-                  </div>
-                </label>
-                <label className="cursor-pointer">
-                  <input type="radio" value={match.team2} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
-                  <div className={`p-4 border-2 text-center font-display text-xl transition-all peer-checked:bg-[#F4C430] peer-checked:border-[#F4C430] peer-checked:shadow-[0_0_15px_#F4C430] ${errors.match_winner ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'} peer-checked:text-[#0B0E1A]`}>
-                    {match.team2}
-                  </div>
-                </label>
+              <div className="space-y-4">
+                <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Match Winner</label>
+                <div className={`grid grid-cols-2 gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
+                  <label className="cursor-pointer">
+                    <input type="radio" value={match.team1} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
+                    <div className={`p-4 border-2 text-center font-display text-xl transition-all peer-checked:bg-[#004BA0] peer-checked:border-[#004BA0] peer-checked:shadow-[0_0_15px_#004BA0] ${errors.match_winner ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'} peer-checked:text-white`}>
+                      {match.team1}
+                    </div>
+                  </label>
+                  <label className="cursor-pointer">
+                    <input type="radio" value={match.team2} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
+                    <div className={`p-4 border-2 text-center font-display text-xl transition-all peer-checked:bg-[#F4C430] peer-checked:border-[#F4C430] peer-checked:shadow-[0_0_15px_#F4C430] ${errors.match_winner ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'} peer-checked:text-[#0B0E1A]`}>
+                      {match.team2}
+                    </div>
+                  </label>
+                </div>
               </div>
-            </div>
 
-            <div className="grid md:grid-cols-2 gap-6 pt-6">
+              <div className="grid md:grid-cols-2 gap-6 pt-6">
+                <div className="space-y-2">
+                  <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
+                    {team1PPLabel}
+                  </label>
+                  <input
+                    {...register('team1_powerplay', { required: true, valueAsNumber: true })}
+                    type="number"
+                    placeholder="0"
+                    disabled={isLocked}
+                    className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team1_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
+                    {team2PPLabel}
+                  </label>
+                  <input
+                    {...register('team2_powerplay', { required: true, valueAsNumber: true })}
+                    type="number"
+                    placeholder="0"
+                    disabled={isLocked}
+                    className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team2_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
+                  />
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
-                  {team1PPLabel}
-                </label>
+                <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Player of the Match</label>
                 <input
-                  {...register('team1_powerplay', { required: true, valueAsNumber: true })}
-                  type="number"
-                  placeholder="0"
+                  {...register('player_of_the_match', { required: true })}
+                  type="text"
+                  placeholder="Player Name"
                   disabled={isLocked}
-                  className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team1_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
+                  className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.player_of_the_match ? 'border-red-500/50' : 'border-white/20'}`}
                 />
               </div>
-              <div className="space-y-2">
-                <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
-                  {team2PPLabel}
-                </label>
-                <input
-                  {...register('team2_powerplay', { required: true, valueAsNumber: true })}
-                  type="number"
-                  placeholder="0"
-                  disabled={isLocked}
-                  className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team2_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
-                />
-              </div>
-            </div>
 
-            <div className="space-y-2">
-              <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Player of the Match</label>
-              <input
-                {...register('player_of_the_match', { required: true })}
-                type="text"
-                placeholder="Player Name"
-                disabled={isLocked}
-                className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.player_of_the_match ? 'border-red-500/50' : 'border-white/20'}`}
-              />
-            </div>
-
-            <div className="space-y-4 pt-4">
-              <div className="flex justify-between items-end">
-                <label className={`block font-display tracking-wide uppercase text-sm ${errors.use_powerup ? 'text-red-500' : 'text-gray-300'}`}>
-                  Use 2x Powerup for this match? {errors.use_powerup && <span className="ml-2 text-[10px] animate-pulse">(! Selection Required)</span>}
-                </label>
-                <span className="text-[10px] text-gray-500 font-display uppercase">Season Limit: {totalPowerups}</span>
+              <div className="space-y-4 pt-4">
+                <div className="flex justify-between items-end">
+                  <label className={`block font-display tracking-wide uppercase text-sm ${errors.use_powerup ? 'text-red-500' : 'text-gray-300'}`}>
+                    Use 2x Powerup for this match? {errors.use_powerup && <span className="ml-2 text-[10px] animate-pulse">(! Selection Required)</span>}
+                  </label>
+                  <span className="text-[10px] text-gray-500 font-display uppercase">Season Limit: {totalPowerups}</span>
+                </div>
+                <div className={`flex gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
+                  <label className={`flex-1 cursor-pointer ${(powerupsLeft <= 0 && myPredictions?.use_powerup !== 'Yes') ? 'opacity-30 grayscale pointer-events-none' : ''}`}>
+                    <input type="radio" value="Yes" {...register('use_powerup', { required: true })} className="peer sr-only" disabled={isLocked || (powerupsLeft <= 0 && myPredictions?.use_powerup !== 'Yes')} />
+                    <div className={`p-3 border-2 text-center font-display transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold ${errors.use_powerup ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'}`}>
+                      YES (Use Powerup)
+                    </div>
+                  </label>
+                  <label className="flex-1 cursor-pointer">
+                    <input type="radio" value="No" {...register('use_powerup', { required: true })} className="peer sr-only" disabled={isLocked} />
+                    <div className={`p-3 border-2 text-center font-display transition-all peer-checked:bg-white/20 peer-checked:text-white peer-checked:border-white/40 ${errors.use_powerup ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'}`}>
+                      NO
+                    </div>
+                  </label>
+                </div>
+                {powerupsLeft <= 0 && myPredictions?.use_powerup !== 'Yes' && !isLocked && (
+                  <p className="text-ipl-live text-[10px] font-display uppercase text-center mt-2 animate-pulse">Powerup Limit Reached!</p>
+                )}
               </div>
-              <div className={`flex gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
-                <label className={`flex-1 cursor-pointer ${(powerupsLeft <= 0 && myPredictions?.use_powerup !== 'Yes') ? 'opacity-30 grayscale pointer-events-none' : ''}`}>
-                  <input type="radio" value="Yes" {...register('use_powerup', { required: true })} className="peer sr-only" disabled={isLocked || (powerupsLeft <= 0 && myPredictions?.use_powerup !== 'Yes')} />
-                  <div className={`p-3 border-2 text-center font-display transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold ${errors.use_powerup ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'}`}>
-                    YES (Use Powerup)
-                  </div>
-                </label>
-                <label className="flex-1 cursor-pointer">
-                  <input type="radio" value="No" {...register('use_powerup', { required: true })} className="peer sr-only" disabled={isLocked} />
-                  <div className={`p-3 border-2 text-center font-display transition-all peer-checked:bg-white/20 peer-checked:text-white peer-checked:border-white/40 ${errors.use_powerup ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'}`}>
-                    NO
-                  </div>
-                </label>
-              </div>
-              {powerupsLeft <= 0 && myPredictions?.use_powerup !== 'Yes' && !isLocked && (
-                <p className="text-ipl-live text-[10px] font-display uppercase text-center mt-2 animate-pulse">Powerup Limit Reached!</p>
-              )}
-            </div>
 
-            <div className="pt-8">
-              <button
-                type="submit"
-                disabled={isPending || isLocked}
-                className="w-full bg-white text-ipl-navy hover:bg-gray-200 font-display uppercase tracking-widest py-4 transition-all disabled:bg-white/10 disabled:text-white/40 disabled:border-white/10"
-              >
-                {isLocked ? 'LOCK PERIOD CLOSED' : (isPending ? 'LOCKING...' : (hasPredicted ? 'Update Lock' : 'Submit Lock'))}
-              </button>
-              {isLocked && (
-                <p className="text-gray-500 text-[10px] font-display uppercase mt-3 text-center">Prediction window ended 30m before the match toss.</p>
-              )}
-            </div>
-          </form>
+              <div className="pt-8">
+                <button
+                  type="submit"
+                  disabled={isPending || isLocked}
+                  className="w-full bg-white text-ipl-navy hover:bg-gray-200 font-display uppercase tracking-widest py-4 transition-all disabled:bg-white/10 disabled:text-white/40 disabled:border-white/10"
+                >
+                  {isLocked ? 'LOCK PERIOD CLOSED' : (isPending ? 'LOCKING...' : (hasPredicted ? 'Update Lock' : 'Submit Lock'))}
+                </button>
+                {isLocked && (
+                  <p className="text-gray-500 text-[10px] font-display uppercase mt-3 text-center">Prediction window ended 30m before the match toss.</p>
+                )}
+              </div>
+            </form>
           )}
         </div>
       )}
@@ -395,85 +395,98 @@ export default function MatchPage() {
                 </tr>
               </thead>
               <tbody className="text-white font-display">
-                {allPredictions.map((pred: any, idx: number) => (
-                  <tr key={idx} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
-                    <td className="py-4 flex items-center gap-3">
-                      <img src={pred.user.avatar_url || 'https://via.placeholder.com/32'} className="w-8 h-8 rounded-full border border-white/10 group-hover:border-ipl-gold transition-colors" alt={pred.user.name} />
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold tracking-tight">{pred.user.name}</span>
-                        {pred.is_auto_predicted && (
-                          <span className="text-[9px] flex items-center gap-1 text-[#7B2FF7] uppercase tracking-tighter font-bold">
-                            <Sparkles className="w-2 h-2" /> AI Auto-Predict
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-4 text-center">
-                      <span className={`px-2 py-1 text-[10px] uppercase font-bold ${pred.answers.match_winner === match.team1 ? 'bg-[#004BA0]/20 text-[#004BA0]' : (pred.answers.match_winner === '🔒' ? 'bg-white/5 text-gray-500' : 'bg-ipl-gold/20 text-ipl-gold')}`}>
-                        {pred.answers.match_winner}
-                      </span>
-                    </td>
-                    <td className={`py-4 text-center text-[11px] font-mono opacity-90 ${pred.answers.team1_powerplay === '🔒' ? 'text-gray-600' : 'text-gray-300'}`}>
-                      {pred.answers.team1_powerplay === '🔒' ? (
-                        <span className="opacity-40">🔒</span>
-                      ) : (
-                        <div className="flex flex-col items-center leading-tight">
-                          <span className="flex gap-2">
-                            <span className="text-gray-500">{match.team1.split(' ').map((w: string) => w[0]).join('').toUpperCase()}:</span>
-                            <span className="text-white font-bold">{pred.answers.team1_powerplay}</span>
-                          </span>
-                          <span className="flex gap-2">
-                            <span className="text-gray-500">{match.team2.split(' ').map((w: string) => w[0]).join('').toUpperCase()}:</span>
-                            <span className="text-white font-bold">{pred.answers.team2_powerplay}</span>
-                          </span>
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-4 text-sm opacity-80 uppercase italic text-gray-400">
-                      {editingId === pred.prediction_id ? (
-                        <div className="flex items-center gap-2">
-                          <input
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            className="bg-black/40 border border-white/20 text-white p-1 text-[10px] w-24 focus:border-ipl-gold focus:outline-none"
-                            autoFocus
-                          />
-                          <button onClick={() => handleAdminUpdate(pred.prediction_id)} className="text-green-500 hover:text-green-400 p-1">
-                            <Check className="w-3 h-3" />
-                          </button>
-                          <button onClick={() => setEditingId(null)} className="text-red-500 hover:text-red-400 p-1">
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          {pred.answers.player_of_the_match}
-                          {currentUser?.is_admin && pred.prediction_id && (
-                            <button
-                              onClick={() => {
-                                setEditingId(pred.prediction_id);
-                                setEditValue(pred.answers.player_of_the_match);
-                              }}
-                              className="text-gray-600 hover:text-ipl-gold opacity-0 group-hover:opacity-100 transition-all p-1"
-                            >
-                              <Edit2 className="w-3 h-3" />
-                            </button>
+                {allPredictions.map((pred: any, idx: number) => {
+                  const isMyRow = pred.user?.email === currentUser?.email;
+                  return (
+                    <tr key={idx} className={`border-b border-white/5 transition-colors group ${isMyRow ? 'bg-ipl-gold/10 border-l-4 border-l-ipl-gold' : 'hover:bg-white/5'}`}>
+                      <td className="py-4 flex items-center gap-3 pl-4">
+                        <div className="relative">
+                          <img src={pred.user.avatar_url || 'https://via.placeholder.com/32'} className={`w-8 h-8 rounded-full border ${isMyRow ? 'border-ipl-gold' : 'border-white/10'} group-hover:border-ipl-gold transition-colors`} alt={pred.user.name} />
+                          {isMyRow && (
+                            <div className="absolute -top-1 -right-1 bg-ipl-gold w-3 h-3 rounded-full border-2 border-ipl-navy flex items-center justify-center">
+                              <Check className="w-2 h-2 text-black" />
+                            </div>
                           )}
                         </div>
-                      )}
-                    </td>
-                    <td className="py-4 text-right">
-                      {pred.answers.use_powerup === 'Yes' ? (
-                        <div className="inline-flex items-center gap-1 text-ipl-live">
-                          <span className="text-lg">⚡</span>
-                          <span className="text-[10px] font-bold">2X</span>
+                        <div className="flex flex-col">
+                          <span className={`text-sm font-bold tracking-tight ${isMyRow ? 'text-ipl-gold' : 'text-white'}`}>
+                            {pred.user.name}
+                            {isMyRow && <span className="ml-2 text-[10px] bg-ipl-gold text-black px-1.5 py-0.5 rounded font-black tracking-tighter uppercase">YOU</span>}
+                          </span>
+                          {pred.is_auto_predicted && (
+                            <span className="text-[9px] flex items-center gap-1 text-[#7B2FF7] uppercase tracking-tighter font-bold">
+                              <Sparkles className="w-2 h-2" /> AI Auto-Predict
+                            </span>
+                          )}
                         </div>
-                      ) : (
-                        <span className="text-gray-600 text-[10px]">{pred.answers.use_powerup === 'No' ? '—' : '🔒'}</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-4 text-center">
+                        <span className={`px-2 py-1 text-[10px] uppercase font-bold ${pred.answers.match_winner === match.team1 ? 'bg-[#004BA0]/20 text-[#004BA0]' : (pred.answers.match_winner === '🔒' ? 'bg-white/5 text-gray-500' : 'bg-ipl-gold/20 text-ipl-gold')}`}>
+                          {pred.answers.match_winner}
+                        </span>
+                      </td>
+                      <td className={`py-4 text-center text-[11px] font-mono opacity-90 ${pred.answers.team1_powerplay === '🔒' ? 'text-gray-600' : 'text-gray-300'}`}>
+                        {pred.answers.team1_powerplay === '🔒' ? (
+                          <span className="opacity-40">🔒</span>
+                        ) : (
+                          <div className="flex flex-col items-center leading-tight">
+                            <span className="flex gap-2">
+                              <span className="text-gray-500">{match.team1.split(' ').map((w: string) => w[0]).join('').toUpperCase()}:</span>
+                              <span className="text-white font-bold">{pred.answers.team1_powerplay}</span>
+                            </span>
+                            <span className="flex gap-2">
+                              <span className="text-gray-500">{match.team2.split(' ').map((w: string) => w[0]).join('').toUpperCase()}:</span>
+                              <span className="text-white font-bold">{pred.answers.team2_powerplay}</span>
+                            </span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-4 text-sm opacity-80 uppercase italic text-gray-400">
+                        {editingId === pred.prediction_id ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              className="bg-black/40 border border-white/20 text-white p-1 text-[10px] w-24 focus:border-ipl-gold focus:outline-none"
+                              autoFocus
+                            />
+                            <button onClick={() => handleAdminUpdate(pred.prediction_id)} className="text-green-500 hover:text-green-400 p-1">
+                              <Check className="w-3 h-3" />
+                            </button>
+                            <button onClick={() => setEditingId(null)} className="text-red-500 hover:text-red-400 p-1">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {pred.answers.player_of_the_match}
+                            {currentUser?.is_admin && pred.prediction_id && (
+                              <button
+                                onClick={() => {
+                                  setEditingId(pred.prediction_id);
+                                  setEditValue(pred.answers.player_of_the_match);
+                                }}
+                                className="text-gray-600 hover:text-ipl-gold opacity-0 group-hover:opacity-100 transition-all p-1"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-4 text-right">
+                        {pred.answers.use_powerup === 'Yes' ? (
+                          <div className="inline-flex items-center gap-1 text-ipl-live">
+                            <span className="text-lg">⚡</span>
+                            <span className="text-[10px] font-bold">2X</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-600 text-[10px]">{pred.answers.use_powerup === 'No' ? '—' : '🔒'}</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -586,7 +599,7 @@ export default function MatchPage() {
               </div>
               <h2 className="text-xl font-display text-white italic tracking-tighter">AI ASSASSIN ENGINE</h2>
             </div>
-            
+
             <p className="text-gray-400 text-[10px] font-display tracking-widest uppercase leading-relaxed mb-6">
               Manually trigger the AI Assassin to evaluate upcoming matches within the next 24 hours and lock in predictions.
             </p>

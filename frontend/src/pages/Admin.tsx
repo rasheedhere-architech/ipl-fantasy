@@ -152,6 +152,23 @@ export default function Admin() {
           </div>
         </section>
 
+        {/* Campaign Management */}
+        <section className="glass-panel p-6 border-t-2 border-t-ipl-gold shadow-[0_10px_30px_rgba(244,196,48,0.1)] flex flex-col mt-8 lg:col-span-2">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-ipl-gold/10 rounded-lg">
+                <ShieldCheck className="w-6 h-6 text-ipl-gold" />
+              </div>
+              <div>
+                <h2 className="text-xl font-display text-white">Campaign Builder</h2>
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-display">Create custom questions</p>
+              </div>
+            </div>
+            <a href="/admin/campaigns" className="px-5 py-2.5 bg-white text-black text-xs font-display uppercase tracking-widest hover:bg-gray-200 transition-colors">
+              Manage Campaigns
+            </a>
+          </div>
+        </section>
       </div>
 
       {/* User Management Section */}

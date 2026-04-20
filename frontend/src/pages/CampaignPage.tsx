@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle, Lock, Hash, Type, ToggleLeft, ChevronDown, List
 import toast from 'react-hot-toast';
 import { useCampaign, useSubmitCampaignResponse, type CampaignQuestion, type ScoringRules } from '../api/hooks/useCampaigns';
 import { useAuthStore } from '../store/auth';
+import { CampaignCountdown } from '../components/CampaignCountdown';
 
 // ── Scoring hint ──────────────────────────────────────────────────────────────
 
@@ -49,27 +50,38 @@ function ToggleInput({ q, value, onChange, disabled }: { q: CampaignQuestion; va
 
 function MultipleChoiceInput({ q, value, onChange, disabled }: { q: CampaignQuestion; value: any; onChange: (v: any) => void; disabled: boolean }) {
   const selected: string[] = Array.isArray(value) ? value : [];
+  const maxSel = q.scoring_rules?.max_selections;
+  
   const toggle = (opt: string) => {
-    const next = selected.includes(opt) ? selected.filter(s => s !== opt) : [...selected, opt];
+    const isSelected = selected.includes(opt);
+    if (!isSelected && maxSel && selected.length >= maxSel) {
+      toast.error(`You can only select exactly ${maxSel} options`);
+      return;
+    }
+    const next = isSelected ? selected.filter(s => s !== opt) : [...selected, opt];
     onChange(next);
   };
   return (
     <div className="flex flex-col gap-2 mt-3">
-      {(q.options ?? []).map(opt => (
-        <button
-          key={opt}
-          type="button"
-          disabled={disabled}
-          onClick={() => toggle(opt)}
-          className={`text-left px-4 py-3 border-2 font-display text-sm transition-all
-            ${selected.includes(opt)
-              ? 'border-ipl-gold bg-ipl-gold/10 text-ipl-gold'
-              : 'border-white/10 text-gray-400 hover:border-white/30 disabled:opacity-50 disabled:cursor-not-allowed'
-            }`}
-        >
-          {opt}
-        </button>
-      ))}
+      {(q.options ?? []).map(opt => {
+        const isSelected = selected.includes(opt);
+        const isMaxedOut = !isSelected && maxSel && selected.length >= maxSel;
+        return (
+          <button
+            key={opt}
+            type="button"
+            disabled={disabled || !!isMaxedOut}
+            onClick={() => toggle(opt)}
+            className={`text-left px-4 py-3 border-2 font-display text-sm transition-all
+              ${isSelected
+                ? 'border-ipl-gold bg-ipl-gold/10 text-ipl-gold'
+                : 'border-white/10 text-gray-400 hover:border-white/30 disabled:opacity-50 disabled:cursor-not-allowed'
+              }`}
+          >
+            {opt}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -187,13 +199,14 @@ export default function CampaignPage() {
   const isSubmitted = !!campaign.my_response;
   const isClosed = campaign.status === 'closed';
   const isActive = campaign.status === 'active';
-  const disabled = isSubmitted || isClosed || !isActive || !!user?.is_guest;
+  const disabled = isClosed || !isActive || !!user?.is_guest;
 
   const getAnswer = (qId: string) => {
+    if (qId in answers) return answers[qId];
     if (isSubmitted && campaign.my_response) {
       return campaign.my_response.answers[qId]?.answer_value;
     }
-    return answers[qId];
+    return undefined;
   };
 
   const setAnswer = (qId: string, val: any) => {
@@ -207,11 +220,25 @@ export default function CampaignPage() {
       question_id: q.id,
       answer_value: answers[q.id] ?? null,
     }));
+    
+    // Check if anything is entirely unanswered
     const missing = payload.filter(a => a.answer_value === null || a.answer_value === '' || (Array.isArray(a.answer_value) && a.answer_value.length === 0));
     if (missing.length > 0) {
       toast.error(`Please answer all ${missing.length} remaining question(s)`);
       return;
     }
+
+    // Check multiple choice constraints
+    for (const q of campaign.questions) {
+      if (q.question_type === 'multiple_choice' && q.scoring_rules.max_selections) {
+        const userAns = answers[q.id] || [];
+        if (userAns.length !== q.scoring_rules.max_selections) {
+          toast.error(`"${q.question_text}" requires exactly ${q.scoring_rules.max_selections} selections.`);
+          return;
+        }
+      }
+    }
+
     submit(payload, {
       onSuccess: () => toast.success('Response submitted!'),
       onError: (err: any) => toast.error(err?.response?.data?.detail ?? 'Submission failed'),
@@ -257,25 +284,30 @@ export default function CampaignPage() {
           <div className="mt-4 glass-panel border-l-4 border-l-ipl-gold p-4 flex items-center gap-3">
             <CheckCircle className="w-5 h-5 text-ipl-gold shrink-0" />
             <div>
-              <p className="text-white font-display text-sm uppercase tracking-widest">Response submitted</p>
+              <p className="text-white font-display text-sm uppercase tracking-widest">Response {isClosed ? 'submitted' : 'recorded'}</p>
               {isClosed && campaign.my_response?.total_points != null && (
                 <p className="text-gray-400 text-xs mt-0.5">
                   Total score: <span className="text-ipl-gold font-bold">{campaign.my_response.total_points} pts</span>
                 </p>
               )}
-              {!isClosed && (
-                <p className="text-gray-500 text-xs mt-0.5">Scoring will be revealed when the campaign closes</p>
+              {!isClosed && isActive && (
+                <p className="text-gray-500 text-xs mt-0.5">You can update your answers until the campaign closes</p>
               )}
             </div>
           </div>
         )}
 
         {(campaign.starts_at || campaign.ends_at) && (
-          <div className="mt-4 flex items-center gap-2 text-gray-500 text-xs font-display uppercase tracking-widest">
+          <div className="mt-4 flex items-center gap-2 text-gray-500 text-xs font-display uppercase tracking-widest flex-wrap">
             <Calendar className="w-3.5 h-3.5" />
             {campaign.starts_at && <span>Opens {new Date(campaign.starts_at).toLocaleString()}</span>}
             {campaign.starts_at && campaign.ends_at && <span>·</span>}
-            {campaign.ends_at && <span>Closes {new Date(campaign.ends_at).toLocaleString()}</span>}
+            {campaign.ends_at && (
+              <span className="flex items-center flex-wrap">
+                Closes {new Date(campaign.ends_at).toLocaleString()}
+                <CampaignCountdown endsAt={campaign.ends_at} />
+              </span>
+            )}
           </div>
         )}
 
@@ -329,13 +361,13 @@ export default function CampaignPage() {
           );
         })}
 
-        {isActive && !isSubmitted && !user?.is_guest && (
+        {isActive && !isClosed && !user?.is_guest && (
           <button
             type="submit"
             disabled={isPending}
             className="w-full py-4 bg-ipl-gold text-black font-display text-sm uppercase tracking-widest hover:bg-ipl-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isPending ? 'Submitting…' : 'Submit Responses'}
+            {isPending ? (isSubmitted ? 'Updating…' : 'Submitting…') : (isSubmitted ? 'Update Responses' : 'Submit Responses')}
           </button>
         )}
       </form>

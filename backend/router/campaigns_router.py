@@ -23,6 +23,8 @@ class ScoringRulesSchema(BaseModel):
     exact_match_points: int = 0
     wrong_answer_points: int = 0
     within_range_points: int = 0  # only used for free_number
+    max_selections: Optional[int] = None
+    multiple_choice_tiers: Optional[dict[str, int]] = None
 
 
 class QuestionCreate(BaseModel):
@@ -263,9 +265,10 @@ async def update_campaign(
         for q in payload.questions:
             if q.id and q.id in existing_by_id:
                 existing = existing_by_id[q.id]
-                # Mandatory questions are locked — admin may only reorder
+                # Mandatory questions are locked — admin may only reorder and update answers
                 if existing.is_mandatory and not campaign.is_master:
                     existing.order_index = q.order_index
+                    existing.correct_answer = q.correct_answer
                     continue
                 existing.question_text = q.question_text
                 existing.question_type = q.question_type
@@ -438,16 +441,19 @@ async def admin_get_campaign_responses(
     current_admin: User = Depends(get_current_admin),
 ):
     result = await db.execute(
-        select(CampaignResponse)
+        select(CampaignResponse, User.name, User.email)
+        .join(User, CampaignResponse.user_id == User.id)
         .where(CampaignResponse.campaign_id == campaign_id)
         .options(selectinload(CampaignResponse.answers))
         .order_by(CampaignResponse.total_points.desc().nullslast(), CampaignResponse.submitted_at)
     )
-    responses = result.scalars().all()
+    rows = result.all()
     return [
         {
             "id": r.id,
             "user_id": r.user_id,
+            "user_name": u_name,
+            "user_email": u_email,
             "total_points": r.total_points,
             "submitted_at": r.submitted_at,
             "answers": [
@@ -455,7 +461,7 @@ async def admin_get_campaign_responses(
                 for a in r.answers
             ],
         }
-        for r in responses
+        for (r, u_name, u_email) in rows
     ]
 
 
@@ -466,10 +472,6 @@ async def list_campaigns(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    cached = backend_cache.get("campaigns_list")
-    if cached:
-        return cached
-
     result = await db.execute(
         select(Campaign)
         .where(
@@ -480,9 +482,16 @@ async def list_campaigns(
         .order_by(Campaign.created_at.desc())
     )
     campaigns = result.scalars().all()
-    data = [_serialize_campaign(c) for c in campaigns]
-    backend_cache.set("campaigns_list", data)
-    return data
+
+    # Fetch user responses for all campaigns in the list
+    resp_result = await db.execute(
+        select(CampaignResponse)
+        .where(CampaignResponse.user_id == current_user.id)
+        .options(selectinload(CampaignResponse.answers))
+    )
+    my_responses = {r.campaign_id: r for r in resp_result.scalars().all()}
+
+    return [_serialize_campaign(c, my_responses.get(c.id)) for c in campaigns]
 
 
 @router.get("/{campaign_id}")
@@ -535,13 +544,12 @@ async def submit_response(
     if campaign.ends_at and now > campaign.ends_at:
         raise HTTPException(status_code=400, detail="Campaign submission window has closed")
 
-    # Prevent duplicate responses
-    existing = await db.execute(
+    existing_result = await db.execute(
         select(CampaignResponse)
         .where(CampaignResponse.campaign_id == campaign_id, CampaignResponse.user_id == current_user.id)
+        .options(selectinload(CampaignResponse.answers))
     )
-    if existing.scalars().first():
-        raise HTTPException(status_code=409, detail="You have already responded to this campaign")
+    existing_response = existing_result.scalars().first()
 
     questions_map = {q.id: q for q in campaign.questions}
 
@@ -571,17 +579,28 @@ async def submit_response(
         if q.question_type == QuestionType.multiple_choice:
             if not isinstance(answer.answer_value, list):
                 raise HTTPException(status_code=400, detail="multiple_choice answer must be a list")
+            max_sel = q.scoring_rules.get("max_selections")
+            if max_sel and len(answer.answer_value) != max_sel:
+                raise HTTPException(status_code=400, detail=f"You must select exactly {max_sel} options")
             if q.options:
                 for v in answer.answer_value:
                     if v not in q.options:
                         raise HTTPException(status_code=400, detail=f"Invalid option in multiple_choice answer")
 
-    response = CampaignResponse(
-        id=str(uuid.uuid4()),
-        campaign_id=campaign_id,
-        user_id=current_user.id,
-    )
-    db.add(response)
+    if existing_response:
+        response = existing_response
+        response.submitted_at = now
+        # Delete old answers
+        for old_ans in response.answers:
+            await db.delete(old_ans)
+    else:
+        response = CampaignResponse(
+            id=str(uuid.uuid4()),
+            campaign_id=campaign_id,
+            user_id=current_user.id,
+        )
+        db.add(response)
+        
     await db.flush()
 
     for answer in payload.answers:

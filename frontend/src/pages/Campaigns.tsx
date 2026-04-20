@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
-import { Megaphone, CheckCircle, Clock, Lock, Calendar, Trophy, Star } from 'lucide-react';
+import { Megaphone, CheckCircle, Lock, Calendar, Trophy, Star, Hash } from 'lucide-react';
 import { useCampaigns, type Campaign } from '../api/hooks/useCampaigns';
+import { CampaignCountdown } from '../components/CampaignCountdown';
 
 function StatusBadge({ status }: { status: Campaign['status'] }) {
   if (status === 'active') {
@@ -30,48 +31,69 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
   return (
     <button
       onClick={() => navigate(`/campaigns/${campaign.id}`)}
-      className="glass-panel p-6 text-left w-full border-t-2 border-t-white/10 hover:border-t-ipl-gold transition-all duration-200 group"
+      className={`glass-panel p-6 text-left w-full border-2 transition-all duration-500 group relative overflow-hidden flex flex-col h-full ${hasResponded && !isClosed
+          ? 'border-green-500/30 hover:border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.05)]'
+          : 'border-white/5 hover:border-white/20'
+        }`}
     >
-      <div className="flex items-start justify-between gap-4 mb-3">
-        <div className="p-2 bg-ipl-gold/10 rounded-lg group-hover:bg-ipl-gold/20 transition-colors">
+      {/* Top Section: Icon & Badges */}
+      <div className="flex items-start justify-between mb-4">
+        <div className="p-2.5 bg-ipl-gold/10 rounded-lg group-hover:bg-ipl-gold/20 transition-colors">
           {campaign.type === 'match' ? <Trophy className="w-5 h-5 text-ipl-gold" /> : <Star className="w-5 h-5 text-ipl-gold" />}
         </div>
-        <StatusBadge status={campaign.status} />
-      </div>
-      <span className="text-[10px] font-display uppercase tracking-widest text-gray-500 mb-2 inline-block">
-        {campaign.type}
-      </span>
 
-      <h3 className="text-white font-display text-lg mb-1 group-hover:text-ipl-gold transition-colors">
-        {campaign.title}
-      </h3>
-      {campaign.description && (
-        <p className="text-gray-500 text-xs mb-2 line-clamp-2">{campaign.description}</p>
-      )}
-      {campaign.ends_at && campaign.status === 'active' && (
-        <div className="flex items-center gap-1.5 text-[10px] text-gray-600 font-display uppercase tracking-widest mb-3">
-          <Calendar className="w-3 h-3" />
-          Closes {new Date(campaign.ends_at).toLocaleDateString()}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between text-xs text-gray-600 font-display uppercase tracking-widest">
-        <span>{campaign.questions.length} question{campaign.questions.length !== 1 ? 's' : ''}</span>
-        {hasResponded ? (
-          <span className="flex items-center gap-1.5 text-ipl-gold">
-            <CheckCircle className="w-3.5 h-3.5" />
-            {isClosed && campaign.my_response?.total_points != null
-              ? `${campaign.my_response.total_points} pts`
-              : 'Submitted'}
-          </span>
-        ) : (
-          !isClosed && (
-            <span className="flex items-center gap-1.5 text-gray-500">
-              <Clock className="w-3.5 h-3.5" />
-              Pending
+        <div className="flex flex-col items-end gap-2">
+          {hasResponded && !isClosed && (
+            <span className="bg-green-500 text-white font-display text-[10px] tracking-widest px-3 py-1 flex items-center gap-1.5 shadow-lg -mr-6 -mt-6">
+              <CheckCircle className="w-3 h-3" />
+              SUBMITTED
             </span>
-          )
+          )}
+          <div className={`${hasResponded && !isClosed ? 'mt-1' : ''}`}>
+            <StatusBadge status={campaign.status} />
+          </div>
+        </div>
+      </div>
+
+      {/* Middle Section: Title & Info */}
+      <div className="flex-1">
+        <span className="text-[10px] font-display uppercase tracking-widest text-gray-500 mb-2 inline-block">
+          {campaign.type}
+        </span>
+
+        <h3 className="text-white font-display text-xl mb-1.5 group-hover:text-ipl-gold transition-colors leading-tight">
+          {campaign.title}
+        </h3>
+
+        {campaign.description && (
+          <p className="text-gray-500 text-xs mb-4 line-clamp-2 leading-relaxed">{campaign.description}</p>
         )}
+      </div>
+
+      {/* Bottom Section: Meta Data */}
+      <div className="mt-auto pt-4 border-t border-white/5 space-y-3">
+        {campaign.ends_at && campaign.status === 'active' && (
+          <div className="flex items-center justify-between gap-2 text-[10px] text-gray-400 font-display uppercase tracking-widest bg-white/[0.03] px-2.5 py-1.5 rounded border border-white/5">
+            <div className="flex items-center gap-1.5">
+              <Calendar className="w-3 h-3 opacity-50" />
+              <span className="opacity-70 whitespace-nowrap">Closes {new Date(campaign.ends_at).toLocaleDateString()}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-700">|</span>
+              <CampaignCountdown endsAt={campaign.ends_at} hidePrefix={true} />
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between text-[10px] text-gray-500 font-display uppercase tracking-widest">
+          <span className="flex items-center gap-1.5">
+            <Hash className="w-3.5 h-3.5 opacity-40 text-ipl-gold" />
+            {campaign.questions.length} question{campaign.questions.length !== 1 ? 's' : ''}
+          </span>
+          {hasResponded && isClosed && campaign.my_response?.total_points != null && (
+            <span className="text-ipl-gold font-bold">{campaign.my_response.total_points} pts</span>
+          )}
+        </div>
       </div>
     </button>
   );
@@ -95,8 +117,12 @@ export default function Campaigns() {
     );
   }
 
-  const active = campaigns?.filter(c => c.status === 'active') ?? [];
-  const closed = campaigns?.filter(c => c.status === 'closed') ?? [];
+  const now = new Date().getTime();
+  const active = campaigns?.filter(c => {
+    if (c.status !== 'active') return false;
+    if (c.ends_at && new Date(c.ends_at).getTime() < now) return false;
+    return true;
+  }) ?? [];
 
   return (
     <div className="space-y-12 max-w-5xl mx-auto pb-20">
@@ -128,18 +154,6 @@ export default function Campaigns() {
           )}
         </div>
       </section>
-
-      {/* Closed */}
-      {closed.length > 0 && (
-        <section className="space-y-6">
-          <div className="flex items-center gap-3 border-l-4 border-white/20 pl-4">
-            <h2 className="text-xl font-display text-gray-400 tracking-widest uppercase">Past Campaigns</h2>
-          </div>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {closed.map(c => <CampaignCard key={c.id} campaign={c} />)}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

@@ -30,12 +30,19 @@ def score_answer(question: CampaignQuestion, answer_value) -> int:
         return wrong_points
 
     if q_type == QuestionType.multiple_choice:
-        # answer_value is a list; correct is a list — must match exactly (same set)
         try:
             user_set = set(answer_value) if isinstance(answer_value, list) else {answer_value}
             correct_set = set(correct) if isinstance(correct, list) else {correct}
         except TypeError:
             return wrong_points
+
+        tiers = rules.get("multiple_choice_tiers", {})
+        if tiers:
+            # How many of the user's answers are in the correct set?
+            correct_count = len(user_set.intersection(correct_set))
+            # Get points exactly from the tier, fallback to wrong_points
+            return tiers.get(str(correct_count), wrong_points)
+
         return exact_points if user_set == correct_set else wrong_points
 
     # toggle, dropdown, free_text: string comparison

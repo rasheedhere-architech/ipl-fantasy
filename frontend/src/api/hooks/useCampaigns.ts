@@ -9,6 +9,8 @@ export interface ScoringRules {
   exact_match_points: number;
   wrong_answer_points: number;
   within_range_points: number;
+  max_selections?: number;
+  multiple_choice_tiers?: Record<string, number>;
 }
 
 export interface CampaignQuestion {

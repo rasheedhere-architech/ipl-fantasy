@@ -34,9 +34,12 @@ export default function MatchCard({ id, team1, team2, venue, tossTime, status, h
   const matchNoMatch = id.match(/ipl-\d{4}-(\d+)/);
   const matchNumber = matchNoMatch ? matchNoMatch[1] : null;
 
+  const tossDate = new Date(tossTime);
+  const isLocked = new Date() > new Date(tossDate.getTime() - 30 * 60000);
+
   return (
     <div className={`glass-panel p-6 relative flex flex-col justify-between group overflow-hidden transition-all duration-500 border-2 ${
-      status === 'upcoming' && !user?.is_guest
+      status === 'upcoming' && !user?.is_guest && !isLocked
         ? has_predicted 
           ? 'border-green-500/30 hover:border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.05)]' 
           : 'border-ipl-gold/20 hover:border-ipl-gold shadow-[0_0_20px_rgba(255,215,0,0.05)]'
@@ -48,7 +51,7 @@ export default function MatchCard({ id, team1, team2, venue, tossTime, status, h
         </div>
       )}
 
-      {status === 'upcoming' && !user?.is_guest && (
+      {status === 'upcoming' && !user?.is_guest && !isLocked && (
         <div className={`absolute top-0 right-0 font-display text-[10px] tracking-widest px-3 py-1 z-20 flex items-center gap-1.5 shadow-lg ${
           has_predicted 
             ? 'bg-green-500 text-white shadow-green-500/20' 
@@ -102,14 +105,14 @@ export default function MatchCard({ id, team1, team2, venue, tossTime, status, h
       <Link
         to={`/match/${id}`}
         className={`w-full text-center font-display uppercase tracking-widest py-3 border transition-all z-10 relative ${
-          status === 'upcoming' && !user?.is_guest
+          status === 'upcoming' && !user?.is_guest && !isLocked
             ? has_predicted
               ? 'bg-green-500/10 hover:bg-green-500 text-green-400 hover:text-white border-green-500/30'
               : 'bg-ipl-gold/10 hover:bg-ipl-gold text-ipl-gold hover:text-black border-ipl-gold/30'
             : 'bg-white/5 hover:bg-white hover:text-black text-white border-white/20'
         }`}
       >
-        {status === 'upcoming' 
+        {status === 'upcoming' && !isLocked
           ? (user?.is_guest ? 'View Match' : (has_predicted ? 'Update Prediction' : 'Submit Prediction')) 
           : 'View Match'}
       </Link>

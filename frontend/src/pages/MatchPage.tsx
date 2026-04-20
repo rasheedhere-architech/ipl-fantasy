@@ -220,152 +220,154 @@ export default function MatchPage() {
 
 
 
-      <div className="glass-panel p-8">
-        <div className="flex justify-between items-center mb-8 border-b-2 border-white/5 pb-4">
-          <div className="flex items-center gap-4">
-            <h2 className="text-2xl font-display text-white">YOUR PREDICTIONS</h2>
-            {hasPredicted && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full animate-pulse">
-                <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_8px_#22c55e]"></div>
-                <span className="text-[10px] font-display text-green-500 uppercase tracking-tighter">Predictions Saved</span>
+      {!isLocked && (
+        <div className="glass-panel p-8">
+          <div className="flex justify-between items-center mb-8 border-b-2 border-white/5 pb-4">
+            <div className="flex items-center gap-4">
+              <h2 className="text-2xl font-display text-white">YOUR PREDICTIONS</h2>
+              {hasPredicted && (
+                <div className="flex items-center gap-2 px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full animate-pulse">
+                  <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_8px_#22c55e]"></div>
+                  <span className="text-[10px] font-display text-green-500 uppercase tracking-tighter">Predictions Saved</span>
+                </div>
+              )}
+            </div>
+            {!currentUser?.is_guest && (
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAutoPredictConfirm(true)}
+                  disabled={isLocked || hasPredicted || hasAutoPredicted}
+                  className={`group flex items-center gap-1.5 text-[10px] sm:text-xs font-display uppercase tracking-widest px-3 sm:px-4 py-1.5 sm:py-2 rounded-full font-bold transition-all ${isLocked || hasPredicted || hasAutoPredicted
+                      ? 'bg-gray-500 text-gray-300 opacity-40 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-[#004BA0] to-[#7B2FF7] text-white hover:shadow-[0_0_18px_rgba(123,47,247,0.6)] hover:scale-105'
+                    }`}
+                >
+                  <Sparkles className="w-3 h-3 opacity-90 group-hover:animate-spin" />
+                  AI Auto Predict
+                </button>
+                <div className="text-xs font-display text-ipl-gold uppercase tracking-widest bg-ipl-gold/10 px-3 py-1 rounded-full border border-ipl-gold/20 whitespace-nowrap">
+                  {powerupsLeft} POWERUPS LEFT
+                </div>
               </div>
             )}
           </div>
-          {!currentUser?.is_guest && (
-            <div className="flex items-center gap-4">
-              <button
-                type="button"
-                onClick={() => setShowAutoPredictConfirm(true)}
-                disabled={isLocked || hasPredicted || hasAutoPredicted}
-                className={`group flex items-center gap-1.5 text-[10px] sm:text-xs font-display uppercase tracking-widest px-3 sm:px-4 py-1.5 sm:py-2 rounded-full font-bold transition-all ${isLocked || hasPredicted || hasAutoPredicted
-                    ? 'bg-gray-500 text-gray-300 opacity-40 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-[#004BA0] to-[#7B2FF7] text-white hover:shadow-[0_0_18px_rgba(123,47,247,0.6)] hover:scale-105'
-                  }`}
-              >
-                <Sparkles className="w-3 h-3 opacity-90 group-hover:animate-spin" />
-                AI Auto Predict
-              </button>
-              <div className="text-xs font-display text-ipl-gold uppercase tracking-widest bg-ipl-gold/10 px-3 py-1 rounded-full border border-ipl-gold/20 whitespace-nowrap">
-                {powerupsLeft} POWERUPS LEFT
+
+          {currentUser?.is_guest ? (
+            <div className="py-12 px-6 text-center bg-white/[0.02] border border-white/5 rounded-xl">
+              <div className="inline-flex items-center justify-center p-4 bg-ipl-gold/10 rounded-full mb-6">
+                <Sparkles className="w-8 h-8 text-ipl-gold animate-pulse" />
+              </div>
+              <h3 className="text-2xl font-display text-white mb-3">GUEST ACCESS</h3>
+              <p className="text-gray-400 font-display text-sm tracking-wide max-w-md mx-auto leading-relaxed">
+                You are currently viewing the system as a <span className="text-ipl-gold font-bold">GUEST</span>. 
+                You can see match details, community trends, and the leaderboard, but you cannot submit predictions.
+              </p>
+              <div className="mt-8 flex flex-col items-center gap-4">
+                <p className="text-[10px] text-gray-500 font-display uppercase tracking-[0.2em]">Contact an admin to join the league</p>
+                <div className="h-[1px] w-20 bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
               </div>
             </div>
+          ) : (
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <div className="space-y-4">
+              <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Match Winner</label>
+              <div className={`grid grid-cols-2 gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
+                <label className="cursor-pointer">
+                  <input type="radio" value={match.team1} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
+                  <div className={`p-4 border-2 text-center font-display text-xl transition-all peer-checked:bg-[#004BA0] peer-checked:border-[#004BA0] peer-checked:shadow-[0_0_15px_#004BA0] ${errors.match_winner ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'} peer-checked:text-white`}>
+                    {match.team1}
+                  </div>
+                </label>
+                <label className="cursor-pointer">
+                  <input type="radio" value={match.team2} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
+                  <div className={`p-4 border-2 text-center font-display text-xl transition-all peer-checked:bg-[#F4C430] peer-checked:border-[#F4C430] peer-checked:shadow-[0_0_15px_#F4C430] ${errors.match_winner ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'} peer-checked:text-[#0B0E1A]`}>
+                    {match.team2}
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6 pt-6">
+              <div className="space-y-2">
+                <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
+                  {team1PPLabel}
+                </label>
+                <input
+                  {...register('team1_powerplay', { required: true, valueAsNumber: true })}
+                  type="number"
+                  placeholder="0"
+                  disabled={isLocked}
+                  className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team1_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
+                  {team2PPLabel}
+                </label>
+                <input
+                  {...register('team2_powerplay', { required: true, valueAsNumber: true })}
+                  type="number"
+                  placeholder="0"
+                  disabled={isLocked}
+                  className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team2_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Player of the Match</label>
+              <input
+                {...register('player_of_the_match', { required: true })}
+                type="text"
+                placeholder="Player Name"
+                disabled={isLocked}
+                className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.player_of_the_match ? 'border-red-500/50' : 'border-white/20'}`}
+              />
+            </div>
+
+            <div className="space-y-4 pt-4">
+              <div className="flex justify-between items-end">
+                <label className={`block font-display tracking-wide uppercase text-sm ${errors.use_powerup ? 'text-red-500' : 'text-gray-300'}`}>
+                  Use 2x Powerup for this match? {errors.use_powerup && <span className="ml-2 text-[10px] animate-pulse">(! Selection Required)</span>}
+                </label>
+                <span className="text-[10px] text-gray-500 font-display uppercase">Season Limit: {totalPowerups}</span>
+              </div>
+              <div className={`flex gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
+                <label className={`flex-1 cursor-pointer ${(powerupsLeft <= 0 && myPredictions?.use_powerup !== 'Yes') ? 'opacity-30 grayscale pointer-events-none' : ''}`}>
+                  <input type="radio" value="Yes" {...register('use_powerup', { required: true })} className="peer sr-only" disabled={isLocked || (powerupsLeft <= 0 && myPredictions?.use_powerup !== 'Yes')} />
+                  <div className={`p-3 border-2 text-center font-display transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold ${errors.use_powerup ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'}`}>
+                    YES (Use Powerup)
+                  </div>
+                </label>
+                <label className="flex-1 cursor-pointer">
+                  <input type="radio" value="No" {...register('use_powerup', { required: true })} className="peer sr-only" disabled={isLocked} />
+                  <div className={`p-3 border-2 text-center font-display transition-all peer-checked:bg-white/20 peer-checked:text-white peer-checked:border-white/40 ${errors.use_powerup ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'}`}>
+                    NO
+                  </div>
+                </label>
+              </div>
+              {powerupsLeft <= 0 && myPredictions?.use_powerup !== 'Yes' && !isLocked && (
+                <p className="text-ipl-live text-[10px] font-display uppercase text-center mt-2 animate-pulse">Powerup Limit Reached!</p>
+              )}
+            </div>
+
+            <div className="pt-8">
+              <button
+                type="submit"
+                disabled={isPending || isLocked}
+                className="w-full bg-white text-ipl-navy hover:bg-gray-200 font-display uppercase tracking-widest py-4 transition-all disabled:bg-white/10 disabled:text-white/40 disabled:border-white/10"
+              >
+                {isLocked ? 'LOCK PERIOD CLOSED' : (isPending ? 'LOCKING...' : (hasPredicted ? 'Update Lock' : 'Submit Lock'))}
+              </button>
+              {isLocked && (
+                <p className="text-gray-500 text-[10px] font-display uppercase mt-3 text-center">Prediction window ended 30m before the match toss.</p>
+              )}
+            </div>
+          </form>
           )}
         </div>
-
-        {currentUser?.is_guest ? (
-          <div className="py-12 px-6 text-center bg-white/[0.02] border border-white/5 rounded-xl">
-            <div className="inline-flex items-center justify-center p-4 bg-ipl-gold/10 rounded-full mb-6">
-              <Sparkles className="w-8 h-8 text-ipl-gold animate-pulse" />
-            </div>
-            <h3 className="text-2xl font-display text-white mb-3">GUEST ACCESS</h3>
-            <p className="text-gray-400 font-display text-sm tracking-wide max-w-md mx-auto leading-relaxed">
-              You are currently viewing the system as a <span className="text-ipl-gold font-bold">GUEST</span>. 
-              You can see match details, community trends, and the leaderboard, but you cannot submit predictions.
-            </p>
-            <div className="mt-8 flex flex-col items-center gap-4">
-              <p className="text-[10px] text-gray-500 font-display uppercase tracking-[0.2em]">Contact an admin to join the league</p>
-              <div className="h-[1px] w-20 bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="space-y-4">
-            <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Match Winner</label>
-            <div className={`grid grid-cols-2 gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
-              <label className="cursor-pointer">
-                <input type="radio" value={match.team1} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
-                <div className={`p-4 border-2 text-center font-display text-xl transition-all peer-checked:bg-[#004BA0] peer-checked:border-[#004BA0] peer-checked:shadow-[0_0_15px_#004BA0] ${errors.match_winner ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'} peer-checked:text-white`}>
-                  {match.team1}
-                </div>
-              </label>
-              <label className="cursor-pointer">
-                <input type="radio" value={match.team2} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
-                <div className={`p-4 border-2 text-center font-display text-xl transition-all peer-checked:bg-[#F4C430] peer-checked:border-[#F4C430] peer-checked:shadow-[0_0_15px_#F4C430] ${errors.match_winner ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'} peer-checked:text-[#0B0E1A]`}>
-                  {match.team2}
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6 pt-6">
-            <div className="space-y-2">
-              <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
-                {team1PPLabel}
-              </label>
-              <input
-                {...register('team1_powerplay', { required: true, valueAsNumber: true })}
-                type="number"
-                placeholder="0"
-                disabled={isLocked}
-                className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team1_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
-                {team2PPLabel}
-              </label>
-              <input
-                {...register('team2_powerplay', { required: true, valueAsNumber: true })}
-                type="number"
-                placeholder="0"
-                disabled={isLocked}
-                className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team2_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Player of the Match</label>
-            <input
-              {...register('player_of_the_match', { required: true })}
-              type="text"
-              placeholder="Player Name"
-              disabled={isLocked}
-              className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.player_of_the_match ? 'border-red-500/50' : 'border-white/20'}`}
-            />
-          </div>
-
-          <div className="space-y-4 pt-4">
-            <div className="flex justify-between items-end">
-              <label className={`block font-display tracking-wide uppercase text-sm ${errors.use_powerup ? 'text-red-500' : 'text-gray-300'}`}>
-                Use 2x Powerup for this match? {errors.use_powerup && <span className="ml-2 text-[10px] animate-pulse">(! Selection Required)</span>}
-              </label>
-              <span className="text-[10px] text-gray-500 font-display uppercase">Season Limit: {totalPowerups}</span>
-            </div>
-            <div className={`flex gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
-              <label className={`flex-1 cursor-pointer ${(powerupsLeft <= 0 && myPredictions?.use_powerup !== 'Yes') ? 'opacity-30 grayscale pointer-events-none' : ''}`}>
-                <input type="radio" value="Yes" {...register('use_powerup', { required: true })} className="peer sr-only" disabled={isLocked || (powerupsLeft <= 0 && myPredictions?.use_powerup !== 'Yes')} />
-                <div className={`p-3 border-2 text-center font-display transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold ${errors.use_powerup ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'}`}>
-                  YES (Use Powerup)
-                </div>
-              </label>
-              <label className="flex-1 cursor-pointer">
-                <input type="radio" value="No" {...register('use_powerup', { required: true })} className="peer sr-only" disabled={isLocked} />
-                <div className={`p-3 border-2 text-center font-display transition-all peer-checked:bg-white/20 peer-checked:text-white peer-checked:border-white/40 ${errors.use_powerup ? 'border-red-500/50 text-red-500/50' : 'border-white/20 text-gray-400'}`}>
-                  NO
-                </div>
-              </label>
-            </div>
-            {powerupsLeft <= 0 && myPredictions?.use_powerup !== 'Yes' && !isLocked && (
-              <p className="text-ipl-live text-[10px] font-display uppercase text-center mt-2 animate-pulse">Powerup Limit Reached!</p>
-            )}
-          </div>
-
-          <div className="pt-8">
-            <button
-              type="submit"
-              disabled={isPending || isLocked}
-              className="w-full bg-white text-ipl-navy hover:bg-gray-200 font-display uppercase tracking-widest py-4 transition-all disabled:bg-white/10 disabled:text-white/40 disabled:border-white/10"
-            >
-              {isLocked ? 'LOCK PERIOD CLOSED' : (isPending ? 'LOCKING...' : (hasPredicted ? 'Update Lock' : 'Submit Lock'))}
-            </button>
-            {isLocked && (
-              <p className="text-gray-500 text-[10px] font-display uppercase mt-3 text-center">Prediction window ended 30m before the match toss.</p>
-            )}
-          </div>
-        </form>
-        )}
-      </div>
+      )}
       <div className="glass-panel p-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
         <div className="flex items-center gap-3 mb-8 border-b-2 border-white/5 pb-4">
           <h2 className="text-2xl font-display text-white italic tracking-tighter">COMMUNITY REVEAL</h2>

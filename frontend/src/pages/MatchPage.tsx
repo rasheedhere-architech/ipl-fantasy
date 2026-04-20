@@ -396,7 +396,7 @@ export default function MatchPage() {
               </thead>
               <tbody className="text-white font-display">
                 {allPredictions.map((pred: any, idx: number) => {
-                  const isMyRow = pred.user?.email === currentUser?.email;
+                  const isMyRow = pred.user?.id === currentUser?.id;
                   return (
                     <tr key={idx} className={`border-b border-white/5 transition-colors group ${isMyRow ? 'bg-ipl-gold/10 border-l-4 border-l-ipl-gold' : 'hover:bg-white/5'}`}>
                       <td className="py-4 flex items-center gap-3 pl-4">

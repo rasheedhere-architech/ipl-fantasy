@@ -252,7 +252,8 @@ export default function Analysis() {
               });
             })()}
           </div>
-        </section>
+        </div>
+      </section>
 
       </div>
 

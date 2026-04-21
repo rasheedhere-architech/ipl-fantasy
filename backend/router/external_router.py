@@ -1,9 +1,17 @@
+import os
+import httpx
 import json
 from datetime import datetime
 from fastapi import APIRouter, Depends, Request, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+
 from backend.dependencies import get_db, oauth2_scheme, get_current_user
 from backend.models import User
+
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 
 router = APIRouter(prefix="/external", tags=["external"])
 
@@ -32,31 +40,69 @@ async def post_match_results_webhook(
     print(f"Headers: {json.dumps(headers, indent=2)}")
     print(f"Body: {body_display}\n")
     
-    # 3. Manual Authentication
+    # 3. Robust Authentication
     token = await oauth2_scheme(request)
     if not token:
         print("[DEBUG] Auth Failed: No token found in headers")
+        raise HTTPException(status_code=401, detail="No authorization token provided")
+
+    current_user = None
+
+    # Technique 1: Try Internal JWT (Standard Web Frontend)
+    try:
+        current_user = await get_current_user(token, db)
+        print(f"[DEBUG] Auth Success via Internal JWT: {current_user.email}")
+    except Exception:
+        # Not a valid internal JWT, try Google techniques
+        pass
+
+    # Technique 2: Try Google ID Token (n8n or other tools providing JWT)
+    if not current_user and GOOGLE_CLIENT_ID:
+        try:
+            # This handles the case where n8n sends an ID Token JWT
+            idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
+            email = idinfo.get('email')
+            if email:
+                result = await db.execute(select(User).where(User.email == email))
+                current_user = result.scalars().first()
+                if current_user:
+                    print(f"[DEBUG] Auth Success via Google ID Token: {current_user.email}")
+        except Exception as e:
+            print(f"[DEBUG] Google ID Token check failed/skipped: {str(e)}")
+
+    # Technique 3: Try Google Access Token (n8n standard Access Token)
+    if not current_user:
+        try:
+            # We call Google's userinfo endpoint with the opaque access token
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    headers={"Authorization": f"Bearer {token}"}
+                )
+                if resp.status_code == 200:
+                    info = resp.json()
+                    email = info.get("email")
+                    if email:
+                        result = await db.execute(select(User).where(User.email == email))
+                        current_user = result.scalars().first()
+                        if current_user:
+                            print(f"[DEBUG] Auth Success via Google Access Token: {current_user.email}")
+        except Exception as e:
+            print(f"[DEBUG] Google Access Token check failed: {str(e)}")
+
+    # Final Authorization Evaluation
+    if not current_user:
+        print("[DEBUG] Auth Failed: Token could not be validated by any provider")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authorization failed - please check your credentials"
         )
-    
-    try:
-        current_user = await get_current_user(token, db)
-        if not current_user.is_telegram_admin and not current_user.is_admin:
-            print(f"[DEBUG] Auth Failed: User {current_user.email} is not an admin")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="The user doesn't have enough privileges"
-            )
-    except HTTPException as e:
-        print(f"[DEBUG] Auth Failed: {e.detail}")
-        raise e
-    except Exception as e:
-        print(f"[DEBUG] Auth Failed: Unexpected error {str(e)}")
+
+    if not current_user.is_telegram_admin and not current_user.is_admin:
+        print(f"[DEBUG] Auth Failed: User {current_user.email} is not an admin")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization failed - please check your credentials"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user doesn't have enough privileges"
         )
 
     print(f"[DEBUG] Auth Success: {current_user.email}")

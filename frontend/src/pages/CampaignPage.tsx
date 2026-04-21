@@ -194,7 +194,7 @@ export default function CampaignPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { data: campaign, isLoading, error } = useCampaign(id!);
-  const { mutate: submit, isPending } = useSubmitCampaignResponse(id!);
+  const { mutate: submit } = useSubmitCampaignResponse(id!);
 
   const [answers, setAnswers] = useState<Record<string, any>>({});
 

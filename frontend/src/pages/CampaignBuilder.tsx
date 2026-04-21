@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, Plus, Trash2, GripVertical, ChevronDown, Save,
+  ArrowLeft, Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Save,
   Play, Lock, FileEdit, BarChart2, Users, Copy, Star, Trophy
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -75,6 +75,14 @@ function QuestionEditor({
 
   const setCorrect = (val: any) => onChange({ ...q, correct_answer: val });
 
+  const moveOption = (i: number, dir: 'up' | 'down') => {
+    const opts = [...(q.options ?? [])];
+    const j = dir === 'up' ? i - 1 : i + 1;
+    if (j < 0 || j >= opts.length) return;
+    [opts[i], opts[j]] = [opts[j], opts[i]];
+    onChange({ ...q, options: opts });
+  };
+
   return (
     <div className={`glass-panel space-y-0 ${locked ? 'border-t-2 border-t-ipl-gold/60 bg-ipl-gold/[0.03]' : 'border-t-2 border-t-white/10'}`}>
       <div
@@ -134,6 +142,20 @@ function QuestionEditor({
                 <p className="text-gray-500 text-[10px] font-display uppercase tracking-widest">Options</p>
                 {(q.options ?? []).map((opt, i) => (
                   <div key={i} className="flex gap-2">
+                    <div className="flex flex-col gap-0.5 mr-1">
+                      {q.question_type !== 'toggle' && (
+                        <>
+                          <button type="button" onClick={() => moveOption(i, 'up')} disabled={i === 0}
+                            className="text-gray-600 hover:text-white disabled:opacity-0 transition-colors">
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button type="button" onClick={() => moveOption(i, 'down')} disabled={i === (q.options ?? []).length - 1}
+                            className="text-gray-600 hover:text-white disabled:opacity-0 transition-colors">
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                     <input
                       type="text"
                       value={opt}
@@ -234,11 +256,15 @@ function QuestionEditor({
                 )}
               </div>
 
-              {q.question_type === 'multiple_choice' && q.scoring_rules.max_selections != null && q.scoring_rules.max_selections > 0 && (
+              {q.question_type === 'multiple_choice' && (
                 <div className="pt-2">
                   <p className="text-ipl-gold/80 text-[10px] font-display uppercase tracking-widest font-bold mb-2">Points based on Correct Count</p>
                   <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-                    {Array.from({ length: q.scoring_rules.max_selections }).map((_, i) => {
+                    {Array.from({
+                      length: q.scoring_rules.max_selections
+                        ? (Array.isArray(q.correct_answer) && q.correct_answer.length > 0 ? Math.min(q.scoring_rules.max_selections, q.correct_answer.length) : q.scoring_rules.max_selections)
+                        : (Array.isArray(q.correct_answer) ? q.correct_answer.length : 0)
+                    }).map((_, i) => {
                       const tier = String(i + 1);
                       return (
                         <div key={tier}>
@@ -250,12 +276,15 @@ function QuestionEditor({
                               newTiers[tier] = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
                               onChange({ ...q, scoring_rules: { ...q.scoring_rules, multiple_choice_tiers: newTiers } });
                             }}
-                            placeholder="0 pts"
+                            placeholder="+10"
                             className="w-full bg-black/40 border-2 border-white/10 py-2 px-3 text-white font-display text-sm focus:outline-none focus:border-ipl-gold transition-all" />
                         </div>
                       );
                     })}
                   </div>
+                  {(!q.scoring_rules.max_selections && (!Array.isArray(q.correct_answer) || q.correct_answer.length === 0)) && (
+                    <p className="text-gray-600 text-[10px] font-display mt-2 italic">Select "Correct Answers" above to see tiered scoring options.</p>
+                  )}
                 </div>
               )}
             </div>

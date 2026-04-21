@@ -10,15 +10,31 @@ import { CampaignCountdown } from '../components/CampaignCountdown';
 
 function ScoringHint({ rules, type }: { rules: ScoringRules; type: CampaignQuestion['question_type'] }) {
   const parts: string[] = [];
-  if (rules.exact_match_points !== 0) parts.push(`+${rules.exact_match_points} exact`);
-  if (type === 'free_number' && rules.within_range_points !== 0)
-    parts.push(`+${rules.within_range_points} within ±5`);
-  if (rules.wrong_answer_points !== 0) parts.push(`${rules.wrong_answer_points} wrong`);
+  const formatPts = (pts: number) => pts > 0 ? `+${pts}` : `${pts}`;
+
+  if (type === 'multiple_choice' && rules.multiple_choice_tiers) {
+    const tiers = Object.entries(rules.multiple_choice_tiers)
+      .filter(([_, pts]) => pts !== 0)
+      .sort((a, b) => parseInt(b[0]) - parseInt(a[0]));
+
+    if (tiers.length > 0) {
+      parts.push(tiers.map(([count, pts]) => `${formatPts(pts)} (${count} correct)`).join(' · '));
+    }
+  } else {
+    if (rules.exact_match_points !== 0) parts.push(`${formatPts(rules.exact_match_points)} exact`);
+    if (type === 'free_number' && rules.within_range_points !== 0)
+      parts.push(`${formatPts(rules.within_range_points)} within ±5`);
+  }
+
+  if (rules.wrong_answer_points !== 0) {
+    parts.push(`${formatPts(rules.wrong_answer_points)} ${type === 'multiple_choice' ? 'base' : 'wrong'}`);
+  }
+
   if (parts.length === 0) return null;
   return (
-    <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-display uppercase tracking-widest mt-1.5">
-      <Info className="w-3 h-3" />
-      {parts.join(' · ')}
+    <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-display uppercase tracking-widest mt-1.5 bg-white/5 py-1 px-2 rounded-sm border border-white/5 w-fit">
+      <Info className="w-3 h-3 text-ipl-gold" />
+      {parts.join(' | ')}
     </div>
   );
 }
@@ -51,7 +67,7 @@ function ToggleInput({ q, value, onChange, disabled }: { q: CampaignQuestion; va
 function MultipleChoiceInput({ q, value, onChange, disabled }: { q: CampaignQuestion; value: any; onChange: (v: any) => void; disabled: boolean }) {
   const selected: string[] = Array.isArray(value) ? value : [];
   const maxSel = q.scoring_rules?.max_selections;
-  
+
   const toggle = (opt: string) => {
     const isSelected = selected.includes(opt);
     if (!isSelected && maxSel && selected.length >= maxSel) {
@@ -158,9 +174,10 @@ const QUESTION_ICONS: Record<CampaignQuestion['question_type'], React.ReactNode>
 function ResultBadge({ points, correct }: { points: number | null | undefined; correct: any }) {
   if (points == null) return null;
   const color = points > 0 ? 'text-green-400' : points < 0 ? 'text-ipl-live' : 'text-gray-500';
+  const prefix = points > 0 ? '+' : '';
   return (
     <div className={`text-sm font-display font-bold ${color}`}>
-      {points > 0 ? '+' : ''}{points} pts
+      {prefix}{points}
       {correct != null && (
         <span className="text-gray-500 font-normal text-xs ml-2">
           (correct: {Array.isArray(correct) ? correct.join(', ') : String(correct)})
@@ -220,7 +237,7 @@ export default function CampaignPage() {
       question_id: q.id,
       answer_value: answers[q.id] ?? null,
     }));
-    
+
     // Check if anything is entirely unanswered
     const missing = payload.filter(a => a.answer_value === null || a.answer_value === '' || (Array.isArray(a.answer_value) && a.answer_value.length === 0));
     if (missing.length > 0) {
@@ -364,10 +381,11 @@ export default function CampaignPage() {
         {isActive && !isClosed && !user?.is_guest && (
           <button
             type="submit"
-            disabled={isPending}
-            className="w-full py-4 bg-ipl-gold text-black font-display text-sm uppercase tracking-widest hover:bg-ipl-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={true}
+            className="w-full py-4 bg-gray-600/20 text-gray-500 font-display text-sm uppercase tracking-widest cursor-not-allowed flex items-center justify-center gap-2 border border-white/5"
           >
-            {isPending ? (isSubmitted ? 'Updating…' : 'Submitting…') : (isSubmitted ? 'Update Responses' : 'Submit Responses')}
+            <Lock className="w-4 h-4" />
+            Submissions Temporarily Disabled
           </button>
         )}
       </form>

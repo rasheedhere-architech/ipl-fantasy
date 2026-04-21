@@ -184,16 +184,18 @@ function UserScoreManager() {
   const { mutate: updateBasePoints, isPending } = useUpdateBasePoints();
   const [localPoints, setLocalPoints] = useState<Record<string, number>>({});
   const [localPowerups, setLocalPowerups] = useState<Record<string, number>>({});
-
+  const [localTelegram, setLocalTelegram] = useState<Record<string, boolean>>({});
   const handleUpdate = (userId: string) => {
     const basePoints = localPoints[userId];
     const basePowerups = localPowerups[userId];
-    if (basePoints === undefined && basePowerups === undefined) return;
+    const isTelegramAdmin = localTelegram[userId];
+    if (basePoints === undefined && basePowerups === undefined && isTelegramAdmin === undefined) return;
     const user = users?.find(u => u.id === userId);
     updateBasePoints({
       userId,
       basePoints: basePoints ?? user?.base_points ?? 0,
-      basePowerups: basePowerups ?? user?.base_powerups ?? 10
+      basePowerups: basePowerups ?? user?.base_powerups ?? 10,
+      isTelegramAdmin: isTelegramAdmin ?? user?.is_telegram_admin ?? false
     });
   };
 
@@ -212,12 +214,13 @@ function UserScoreManager() {
       </div>
 
       <div className="overflow-x-auto w-full custom-scrollbar pb-2">
-        <table className="w-full text-left min-w-[650px] whitespace-nowrap">
+        <table className="w-full text-left min-w-[750px] whitespace-nowrap">
           <thead>
             <tr className="bg-white/5 border-b border-white/10 uppercase font-display text-[10px] tracking-widest text-gray-500">
               <th className="p-4 font-normal">Active Player</th>
               <th className="p-4 font-normal text-center">Base Score</th>
               <th className="p-4 font-normal text-center">Base Powerups</th>
+              <th className="p-4 font-normal text-center">Telegram</th>
               <th className="p-4 font-normal text-right">Adjust Settings</th>
             </tr>
           </thead>
@@ -246,6 +249,15 @@ function UserScoreManager() {
                   <div className="inline-block px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded font-mono text-blue-400 text-lg">
                     {user.base_powerups !== undefined ? user.base_powerups : 10}
                   </div>
+                </td>
+                <td className="p-4 text-center">
+                  <button 
+                    onClick={() => setLocalTelegram({ ...localTelegram, [user.id]: !(localTelegram[user.id] ?? user.is_telegram_admin) })}
+                    className={`p-2 border-2 transition-all ${ (localTelegram[user.id] ?? user.is_telegram_admin) ? 'bg-ipl-live border-ipl-live text-white' : 'border-white/10 text-gray-600 hover:border-white/20' }`}
+                    title="Telegram Admin Access"
+                  >
+                    <Bot className="w-5 h-5" />
+                  </button>
                 </td>
                 <td className="p-4 text-right">
                   <div className="flex justify-end items-center gap-3">

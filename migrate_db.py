@@ -15,38 +15,24 @@ async def run_migration():
     print(f"🚀 Connecting to database: {DATABASE_URL[:20]}...")
     engine = create_async_engine(DATABASE_URL)
     
-    async with engine.begin() as conn:
-        print("🔍 Checking and adding 'base_points' column to 'users' table...")
-        
-        # PostgreSQL specific 'ADD COLUMN IF NOT EXISTS' syntax
-        # If it's SQLite, we catch the error manually
-        try:
-            # We use try/except for broader compatibility (SQLite doesn't support IF NOT EXISTS in ALTER)
-            await conn.execute(text("ALTER TABLE users ADD COLUMN base_points INTEGER DEFAULT 0"))
-            print("✅ Successfully added 'base_points' column.")
-        except Exception as e:
-            if "already exists" in str(e).lower() or "duplicate column name" in str(e).lower():
-                print("ℹ️ Column 'base_points' already exists. Skipping.")
-            else:
-                print(f"❌ Error during migration: {e}")
-                
-        try:
-            await conn.execute(text("ALTER TABLE users ADD COLUMN base_powerups INTEGER DEFAULT 10"))
-            print("✅ Successfully added 'base_powerups' column.")
-        except Exception as e:
-            if "already exists" in str(e).lower() or "duplicate column name" in str(e).lower():
-                print("ℹ️ Column 'base_powerups' already exists. Skipping.")
-            else:
-                print(f"❌ Error during migration: {e}")
-                
-        try:
-            await conn.execute(text("ALTER TABLE predictions ADD COLUMN is_auto_predicted BOOLEAN DEFAULT FALSE"))
-            print("✅ Successfully added 'is_auto_predicted' column to 'predictions' table.")
-        except Exception as e:
-            if "already exists" in str(e).lower() or "duplicate column name" in str(e).lower():
-                print("ℹ️ Column 'is_auto_predicted' already exists in 'predictions'. Skipping.")
-            else:
-                print(f"❌ Error during migration: {e}")
+    commands = [
+        ("ALTER TABLE users ADD COLUMN base_points INTEGER DEFAULT 0", "base_points"),
+        ("ALTER TABLE users ADD COLUMN base_powerups INTEGER DEFAULT 10", "base_powerups"),
+        ("ALTER TABLE predictions ADD COLUMN is_auto_predicted BOOLEAN DEFAULT FALSE", "is_auto_predicted"),
+        ("ALTER TABLE users ADD COLUMN is_telegram_admin BOOLEAN DEFAULT FALSE", "is_telegram_admin")
+    ]
+    
+    for sql, col_name in commands:
+        async with engine.connect() as conn:
+            try:
+                await conn.execute(text(sql))
+                await conn.commit()
+                print(f"✅ Successfully added '{col_name}' column.")
+            except Exception as e:
+                if "already exists" in str(e).lower() or "duplicate column name" in str(e).lower():
+                    print(f"ℹ️ Column '{col_name}' already exists. Skipping.")
+                else:
+                    print(f"❌ Error during migration of '{col_name}': {e}")
                 
     print("✨ Migration complete!")
     await engine.dispose()

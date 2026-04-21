@@ -139,6 +139,7 @@ async def dev_login(role: str = "user", db: AsyncSession = Depends(get_db)):
             "avatar": user.avatar_url,
             "is_admin": user.is_admin,
             "is_guest": user.is_guest,
+            "is_telegram_admin": user.is_telegram_admin,
         },
     }
 
@@ -151,5 +152,6 @@ async def get_me(user: User = Depends(get_current_user)):
         "name": user.name,
         "avatar": user.avatar_url,
         "is_admin": user.is_admin,
-        "is_guest": user.is_guest
+        "is_guest": user.is_guest,
+        "is_telegram_admin": user.is_telegram_admin
     }

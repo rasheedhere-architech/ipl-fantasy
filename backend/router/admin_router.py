@@ -143,13 +143,21 @@ async def update_user_base_points(user_id: str, payload: dict, db: AsyncSession 
         user.base_points = int(payload["base_points"])
     if "base_powerups" in payload:
         user.base_powerups = int(payload["base_powerups"])
+    if "is_telegram_admin" in payload:
+        user.is_telegram_admin = bool(payload["is_telegram_admin"])
         
     await db.commit()
     
     # Invalidate Leaderboards after user stat adjustment
     backend_cache.invalidate("global_leaderboard")
     
-    return {"message": "User base stats updated", "user_id": user_id, "base_points": user.base_points, "base_powerups": user.base_powerups}
+    return {
+        "message": "User base stats updated", 
+        "user_id": user_id, 
+        "base_points": user.base_points, 
+        "base_powerups": user.base_powerups,
+        "is_telegram_admin": user.is_telegram_admin
+    }
 
 
 

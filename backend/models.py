@@ -20,6 +20,7 @@ class User(Base):
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     is_ai: Mapped[bool] = mapped_column(Boolean, default=False)
     is_guest: Mapped[bool] = mapped_column(Boolean, server_default='false', default=False)
+    is_telegram_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     base_points: Mapped[int] = mapped_column(Integer, default=0)
     base_powerups: Mapped[int] = mapped_column(Integer, default=10)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))

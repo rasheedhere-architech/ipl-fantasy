@@ -70,8 +70,12 @@ export function useAllUsers() {
 export function useUpdateBasePoints() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ userId, basePoints, basePowerups }: { userId: string; basePoints: number; basePowerups: number }) => {
-      const response = await apiClient.put(`/admin/users/${userId}/base-points`, { base_points: basePoints, base_powerups: basePowerups });
+    mutationFn: async ({ userId, basePoints, basePowerups, isTelegramAdmin }: { userId: string; basePoints: number; basePowerups: number; isTelegramAdmin: boolean }) => {
+      const response = await apiClient.put(`/admin/users/${userId}/base-points`, { 
+        base_points: basePoints, 
+        base_powerups: basePowerups,
+        is_telegram_admin: isTelegramAdmin
+      });
       return response.data;
     },
     onSuccess: () => {

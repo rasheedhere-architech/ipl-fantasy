@@ -21,6 +21,8 @@ app = FastAPI(title="IPL Fantasy API", lifespan=lifespan)
 # FRONTEND_URL can be a single URL or comma-separated list of URLs
 frontend_url_raw = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 allowed_origins = [url.strip() for url in frontend_url_raw.split(",") if url.strip()]
+# Add n8n cloud origin for webhooks if needed
+allowed_origins.append("https://rasheedhere.app.n8n.cloud")
 
 app.add_middleware(
     CORSMiddleware,
@@ -34,11 +36,14 @@ app.add_middleware(SessionMiddleware, secret_key=os.environ.get("JWT_SECRET", "s
 
 
 from backend.router import auth_router, admin_router, match_router, leaderboard_router
+from backend.router import campaigns_router, external_router
 
 app.include_router(auth_router.router)
 app.include_router(admin_router.router)
 app.include_router(match_router.router)
 app.include_router(leaderboard_router.router)
+app.include_router(campaigns_router.router)
+app.include_router(external_router.router)
 
 @app.get("/")
 async def root():

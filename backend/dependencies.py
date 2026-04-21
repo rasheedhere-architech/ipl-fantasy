@@ -37,6 +37,14 @@ async def get_current_admin(current_user: User = Depends(get_current_user)):
         )
     return current_user
 
+async def get_telegram_admin(current_user: User = Depends(get_current_user)):
+    if not current_user.is_telegram_admin and not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user doesn't have enough privileges"
+        )
+    return current_user
+
 async def get_current_user_optional(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
     if not token:
         return None

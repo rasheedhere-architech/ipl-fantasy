@@ -13,6 +13,9 @@ export interface Match {
   team1_powerplay_score?: number;
   team2_powerplay_score?: number;
   player_of_the_match?: string;
+  reported_by_name?: string;
+  reported_by_email?: string;
+  report_method?: string;
 }
 
 export function useMyPredictionStatus() {

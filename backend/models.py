@@ -52,6 +52,10 @@ class Match(Base):
     player_of_the_match: Mapped[str] = mapped_column(String, nullable=True)
     
     raw_result_json: Mapped[dict] = mapped_column(JSON, nullable=True)
+    reported_by: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=True)
+    report_method: Mapped[str] = mapped_column(String, nullable=True) # "telegram", "manual", "api", "agent"
+    
+    reporter: Mapped["User"] = relationship("User", foreign_keys=[reported_by])
 
 class Prediction(Base):
     __tablename__ = "predictions"

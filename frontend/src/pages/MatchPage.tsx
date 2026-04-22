@@ -215,6 +215,23 @@ export default function MatchPage() {
               <div className="text-2xl font-display text-white tracking-wide uppercase">{match.player_of_the_match}</div>
             </div>
           </div>
+
+          {(match.reported_by_name) && (
+            <div className="mt-8 pt-4 border-t border-white/5 flex justify-between items-center text-[10px] font-display uppercase tracking-widest text-gray-500">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 bg-ipl-gold rounded-full"></div>
+                MATCH OFFICIAL RESULTS
+              </div>
+              <div className="flex items-center gap-2">
+                Reported by <span className="text-ipl-gold font-bold">{match.reported_by_name}</span>
+                {match.report_method && (
+                  <span className="text-[8px] bg-white/5 px-1.5 py-0.5 rounded border border-white/10 lowercase opacity-60">
+                    via {match.report_method}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

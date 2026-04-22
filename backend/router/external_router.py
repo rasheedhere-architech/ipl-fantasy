@@ -107,8 +107,7 @@ async def post_match_results_webhook(
 
     print(f"[DEBUG] Auth Success: {current_user.email}")
     
-    # 4. Telegram Username Validation
-    # We verify that the 'username' provided in the payload belongs to a registered admin.
+    reporter_id = current_user.id
     telegram_user_to_check = body_json.get("username") if isinstance(body_json, dict) else None
     if telegram_user_to_check:
         res = await db.execute(select(User).where(User.telegram_username == telegram_user_to_check))
@@ -129,6 +128,7 @@ async def post_match_results_webhook(
             )
             
         print(f"[DEBUG] Telegram Validation Success: @{telegram_user_to_check} is an admin")
+        reporter_id = target_user.id
     else:
         # If no username is provided, we default to the current_user's own status (already checked above)
         pass
@@ -200,6 +200,8 @@ async def post_match_results_webhook(
         # Update status and commit
         from backend.models import MatchStatus
         match.status = MatchStatus.completed
+        match.reported_by = reporter_id
+        match.report_method = "telegram"
         
         await db.commit()
         await db.refresh(match)

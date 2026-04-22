@@ -29,8 +29,10 @@ async def list_matches(db: AsyncSession = Depends(get_db)):
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     cutoff = today_start + timedelta(days=3)
     
+    from sqlalchemy.orm import selectinload
     result = await db.execute(
         select(Match)
+        .options(selectinload(Match.reporter))
         .where(
             ((Match.toss_time >= today_start) & (Match.toss_time <= cutoff)) & 
             ((Match.status == MatchStatus.upcoming) | (Match.status == MatchStatus.completed))
@@ -52,7 +54,10 @@ async def list_matches(db: AsyncSession = Depends(get_db)):
             "winner": m.winner,
             "team1_powerplay_score": m.team1_powerplay_score,
             "team2_powerplay_score": m.team2_powerplay_score,
-            "player_of_the_match": m.player_of_the_match
+            "player_of_the_match": m.player_of_the_match,
+            "reported_by_name": m.reporter.name if m.reporter else None,
+            "reported_by_email": m.reporter.email if m.reporter else None,
+            "report_method": m.report_method
         })
     return matches
 
@@ -143,7 +148,8 @@ async def post_autopredict(match_id: str, db: AsyncSession = Depends(get_db), cu
 
 @router.get("/{match_id}")
 async def get_match(match_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Match).where(Match.id == match_id))
+    from sqlalchemy.orm import selectinload
+    result = await db.execute(select(Match).options(selectinload(Match.reporter)).where(Match.id == match_id))
     m = result.scalars().first()
     if not m:
         raise HTTPException(status_code=404, detail="Match not found")
@@ -158,7 +164,10 @@ async def get_match(match_id: str, db: AsyncSession = Depends(get_db), current_u
         "winner": m.winner,
         "team1_powerplay_score": m.team1_powerplay_score,
         "team2_powerplay_score": m.team2_powerplay_score,
-        "player_of_the_match": m.player_of_the_match
+        "player_of_the_match": m.player_of_the_match,
+        "reported_by_name": m.reporter.name if m.reporter else None,
+        "reported_by_email": m.reporter.email if m.reporter else None,
+        "report_method": m.report_method
     }
         
     # Hardcoded question metadata for frontend compatibility

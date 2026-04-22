@@ -21,7 +21,9 @@ async def run_migration():
         ("ALTER TABLE predictions ADD COLUMN is_auto_predicted BOOLEAN DEFAULT FALSE", "is_auto_predicted"),
         ("ALTER TABLE users ADD COLUMN is_telegram_admin BOOLEAN DEFAULT FALSE", "is_telegram_admin"),
         ("ALTER TABLE users ADD COLUMN telegram_username VARCHAR", "telegram_username"),
-        ("ALTER TABLE predictions ADD COLUMN points_breakdown JSON", "points_breakdown")
+        ("ALTER TABLE predictions ADD COLUMN points_breakdown JSON", "points_breakdown"),
+        ("ALTER TABLE matches ADD COLUMN reported_by VARCHAR", "reported_by"),
+        ("ALTER TABLE matches ADD COLUMN report_method VARCHAR", "report_method")
     ]
     
     for sql, col_name in commands:

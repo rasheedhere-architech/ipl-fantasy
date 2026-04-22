@@ -99,10 +99,11 @@ async def trigger_match_scoring(match_id: str, payload: MatchResultUpdate, db: A
     # Save the entire raw blob for audit/future use
     match.raw_result_json = answers
     
-    # Mark as completed
+    # Mark as completed and save reporter
     from backend.models import MatchStatus
     match.status = MatchStatus.completed
-            
+    match.reported_by = current_admin.id
+    match.report_method = "manual"
     await db.commit()
     await db.refresh(match)
     

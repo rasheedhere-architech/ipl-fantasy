@@ -142,120 +142,127 @@ export default function Analysis() {
             </div>
           </div>
 
-          <div className="overflow-x-auto custom-scrollbar scrollbar-hide -mx-4 md:mx-0">
-            <div className="flex items-end justify-start gap-4 md:gap-6 min-w-max h-[450px] md:h-[600px] pb-20 md:pb-24 pt-20 md:pt-32 relative px-6 md:px-8 scrollbar-hide">
-            {/* Horizontal Grid lines */}
-            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-[0.03] pt-24 pb-48">
-              {[0, 1, 2, 3, 4].map(i => <div key={i} className="border-t border-white" />)}
-            </div>
+          {(() => {
+            const experts = leaderboard?.filter((u: any) => !u.is_guest) || [];
+            const expertStatsList = experts.map((u: any) => data?.powerups_stats?.find((s: any) => s.username === u.username));
+            const maxWins = Math.max(...expertStatsList.map((s: any) => s?.match_wins || 0), 0);
+            const maxPoints = experts.length > 0 ? Math.max(...experts.map((u: any) => u.total_points)) : 1;
 
-            {(() => {
-              const experts = leaderboard?.filter((u: any) => !u.is_guest) || [];
-              const expertStatsList = experts.map((u: any) => data?.powerups_stats?.find((s: any) => s.username === u.username));
-              const maxWins = Math.max(...expertStatsList.map((s: any) => s?.match_wins || 0), 0);
+            return (
+              <>
+                {/* Desktop/Tablet View: Scrollable Bar Chart */}
+                <div className="hidden md:block overflow-x-auto custom-scrollbar scrollbar-hide">
+                  <div className="flex items-end justify-start gap-6 min-w-max h-[750px] pb-24 pt-48 relative px-8 scrollbar-hide">
+                    {/* Horizontal Grid lines */}
+                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-[0.03] pt-48 pb-48">
+                      {[0, 1, 2, 3, 4].map(i => <div key={i} className="border-t border-white" />)}
+                    </div>
 
-              const maxPoints = experts.length > 0
-                ? Math.max(...experts.map((u: any) => u.total_points))
-                : 1;
+                    {experts.map((user: any) => {
+                      const expertStats = data?.powerups_stats?.find((s: any) => s.username === user.username);
+                      const matchWins = expertStats?.match_wins || 0;
+                      const isTopWinner = matchWins > 0 && matchWins === maxWins;
+                      const matchPoints = user.total_points - user.base_points;
 
-              return experts.map((user: any) => {
-                const expertStats = data?.powerups_stats?.find((s: any) => s.username === user.username);
-                const matchWins = expertStats?.match_wins || 0;
-                const isTopWinner = matchWins > 0 && matchWins === maxWins;
-
-                const matchPoints = user.total_points - user.base_points;
-
-
-                return (
-                  <div key={user.username} className="relative flex flex-col items-center group w-24 flex-shrink-0">
-                    {/* Dynamic Bar Container (Stars + Score + Bar) */}
-                    <div className="h-[400px] w-full flex flex-col justify-end items-center mb-10">
-                      <div
-                        className="flex flex-col items-center w-full transition-all duration-1000 ease-out"
-                        style={{ height: `${((matchPoints + user.base_points) / maxPoints) * 100}%` }}
-                      >
-                        {/* Status Floaties (Stars & Score) */}
-                        <div className="flex flex-col items-center mb-4 whitespace-nowrap animate-in fade-in slide-in-from-bottom-4 duration-1000">
-                          {matchWins > 0 && (
-                            <div className="flex items-center justify-center gap-0.5 mb-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded-full border border-white/5">
-                              {Array.from({ length: Math.min(matchWins, 3) }).map((_, i) => (
-                                <Star key={i} className="w-2.5 h-2.5 text-ipl-gold fill-ipl-gold animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
-                              ))}
-                              {matchWins > 3 && <span className="text-[8px] text-ipl-gold font-bold ml-1">+{matchWins - 3}</span>}
+                      return (
+                        <div key={user.username} className="relative flex flex-col items-center group w-24 flex-shrink-0">
+                          <div className="h-[400px] w-full flex flex-col justify-end items-center mb-10">
+                            <div className="flex flex-col items-center w-full transition-all duration-1000 ease-out" style={{ height: `${((matchPoints + user.base_points) / maxPoints) * 100}%` }}>
+                              <div className="flex flex-col items-center mb-4 whitespace-nowrap animate-in fade-in slide-in-from-bottom-4 duration-1000">
+                                {matchWins > 0 && (
+                                  <div className="flex items-center justify-center gap-0.5 mb-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded-full border border-white/5">
+                                    {Array.from({ length: Math.min(matchWins, 3) }).map((_, i) => (
+                                      <Star key={i} className="w-2.5 h-2.5 text-ipl-gold fill-ipl-gold animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
+                                    ))}
+                                    {matchWins > 3 && <span className="text-[8px] text-ipl-gold font-bold ml-1">+{matchWins - 3}</span>}
+                                  </div>
+                                )}
+                                <div className="text-xl font-display font-bold text-white group-hover:text-ipl-gold transition-colors drop-shadow-[0_0_10px_rgba(0,0,0,0.5)]">
+                                  {user.total_points}
+                                </div>
+                              </div>
+                              <div className="w-14 flex flex-col justify-end flex-1 rounded-t-sm overflow-hidden shadow-2xl group-hover:shadow-ipl-gold/20 transition-all border-x border-t border-white/5">
+                                <div className="bg-ipl-gold relative group-hover:brightness-110 transition-all cursor-help" style={{ height: `${(matchPoints / (matchPoints + user.base_points)) * 100}%` }}>
+                                  <span className="absolute -left-16 top-2 text-[10px] font-mono text-ipl-gold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/90 border border-white/10 px-2 py-1 rounded pointer-events-none z-40">Match: {matchPoints} pts</span>
+                                </div>
+                                <div className="bg-white/10 relative group-hover:bg-white/20 transition-all cursor-help" style={{ height: `${(user.base_points / (matchPoints + user.base_points)) * 100}%` }}>
+                                  <span className="absolute -left-16 bottom-2 text-[10px] font-mono text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/90 border border-white/10 px-2 py-1 rounded pointer-events-none z-40">Base: {user.base_points} pts</span>
+                                </div>
+                              </div>
                             </div>
-                          )}
-                          <div className="text-xl font-display font-bold text-white group-hover:text-ipl-gold transition-colors drop-shadow-[0_0_10px_rgba(0,0,0,0.5)]">
-                            {user.total_points}
+                          </div>
+                          <div className="flex flex-col items-center w-full">
+                            <div className="relative">
+                              {isTopWinner && <div className="absolute -top-12 inset-x-0 flex justify-center z-30 animate-bounce"><Crown className="w-6 h-6 text-ipl-gold fill-ipl-gold drop-shadow-[0_0_15px_rgba(255,215,0,0.7)]" /></div>}
+                              <div className={`w-16 h-16 rounded-full border-2 group-hover:border-ipl-gold transition-all overflow-hidden z-20 bg-ipl-surface shadow-2xl scale-125 ${matchWins > 0 ? 'border-ipl-gold shadow-[0_0_20px_rgba(255,215,0,0.4)]' : 'border-white/10'}`}>
+                                <img src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} alt="" className="w-full h-full object-cover" />
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-center mt-10 w-full px-2">
+                              <span className="text-[10px] font-display text-gray-400 uppercase tracking-widest text-center line-clamp-2 min-h-[1.5rem] leading-tight group-hover:text-white transition-colors">{user.username}</span>
+                              {matchWins > 0 && <div className="flex items-center gap-1.5 mt-2 px-2.5 py-0.5 bg-ipl-gold/10 rounded-full border border-ipl-gold/20 shadow-[0_0_15px_rgba(255,215,0,0.15)]"><Trophy className="w-3 h-3 text-ipl-gold" /><span className="text-[10px] font-bold text-ipl-gold font-mono">{matchWins}</span></div>}
+                            </div>
                           </div>
                         </div>
-
-                        {/* Stacked Bar */}
-                        <div className="w-14 flex flex-col justify-end flex-1 rounded-t-sm overflow-hidden shadow-2xl group-hover:shadow-ipl-gold/20 transition-all border-x border-t border-white/5">
-                          {/* Match Points Segment */}
-                          <div
-                            className="bg-ipl-gold relative group-hover:brightness-110 transition-all cursor-help"
-                            style={{ height: `${(matchPoints / (matchPoints + user.base_points)) * 100}%` }}
-                          >
-                            <span className="absolute -left-16 top-2 text-[10px] font-mono text-ipl-gold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/90 border border-white/10 px-2 py-1 rounded pointer-events-none z-40">
-                              Match: {matchPoints} pts
-                            </span>
-                          </div>
-                          {/* Base Points Segment */}
-                          <div
-                            className="bg-white/10 relative group-hover:bg-white/20 transition-all cursor-help"
-                            style={{ height: `${(user.base_points / (matchPoints + user.base_points)) * 100}%` }}
-                          >
-                            <span className="absolute -left-16 bottom-2 text-[10px] font-mono text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/90 border border-white/10 px-2 py-1 rounded pointer-events-none z-40">
-                              Base: {user.base_points} pts
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Identity Area - Avatar & Name */}
-                    <div className="flex flex-col items-center w-full">
-                      <div className="relative">
-                        {isTopWinner && (
-                          <div className="absolute -top-12 inset-x-0 flex justify-center z-30 animate-bounce">
-                            <Crown className="w-6 h-6 text-ipl-gold fill-ipl-gold drop-shadow-[0_0_15px_rgba(255,215,0,0.7)]" />
-                          </div>
-                        )}
-                        <div className={`w-16 h-16 rounded-full border-2 group-hover:border-ipl-gold transition-all overflow-hidden z-20 bg-ipl-surface shadow-2xl scale-125 ${matchWins > 0 ? 'border-ipl-gold shadow-[0_0_20px_rgba(255,215,0,0.4)]' : 'border-white/10'
-                          }`}>
-                          <img
-                            src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full blur-2xl transition-opacity animate-pulse ${matchWins > 0 ? 'bg-ipl-gold/20 opacity-100' : 'bg-transparent opacity-0'
-                          }`} />
-                      </div>
-
-
-                      {/* Username & Wins */}
-                      <div className="flex flex-col items-center mt-10 w-full px-2">
-                        <span className="text-[10px] font-display text-gray-400 uppercase tracking-widest text-center line-clamp-2 min-h-[1.5rem] leading-tight group-hover:text-white transition-colors">
-                          {user.username}
-                        </span>
-                        {matchWins > 0 && (
-                          <div className="flex items-center gap-1.5 mt-2 px-2.5 py-0.5 bg-ipl-gold/10 rounded-full border border-ipl-gold/20 shadow-[0_0_15px_rgba(255,215,0,0.15)]">
-                            <Trophy className="w-3 h-3 text-ipl-gold" />
-                            <span className="text-[10px] font-bold text-ipl-gold font-mono">{matchWins}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                      );
+                    })}
                   </div>
-                );
-              });
-            })()}
-          </div>
-        </div>
-      </section>
+                </div>
 
-      </div>
+                {/* Mobile View: Tactical Tactical Rows */}
+                <div className="md:hidden space-y-4">
+                  {experts.map((user: any, idx: number) => {
+                    const expertStats = data?.powerups_stats?.find((s: any) => s.username === user.username);
+                    const matchWins = expertStats?.match_wins || 0;
+                    const matchPoints = user.total_points - user.base_points;
+                    const matchPercent = (matchPoints / user.total_points) * 100;
+
+                    return (
+                      <div key={user.username} className="glass-panel p-4 border-l-2 border-ipl-gold/30 animate-in fade-in slide-in-from-left duration-500" style={{ animationDelay: `${idx * 100}ms` }}>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="relative">
+                              <img src={user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} className="w-10 h-10 rounded-full border border-white/10" alt={user.username} />
+                              {matchWins > 0 && <div className="absolute -top-1 -right-1 bg-ipl-gold text-black rounded-full p-0.5"><Trophy className="w-2 h-2" /></div>}
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-display text-white uppercase tracking-tight truncate w-32">{user.username}</p>
+                              <p className="text-[8px] text-gray-500 uppercase tracking-[0.2em]">{matchWins} Match Victories</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xl font-display text-white tracking-tighter leading-none">{user.total_points}</p>
+                            <p className="text-[7px] text-ipl-gold uppercase font-bold tracking-widest mt-1">Total Points</p>
+                          </div>
+                        </div>
+
+                        {/* Tactical Stacked Bar */}
+                        <div className="relative h-4 bg-white/5 rounded-full overflow-hidden flex border border-white/5">
+                          <div className="h-full bg-ipl-gold shadow-[0_0_15px_rgba(255,215,0,0.2)]" style={{ width: `${matchPercent}%` }} />
+                          <div className="h-full bg-white/10" style={{ width: `${100 - matchPercent}%` }} />
+                          
+                          {/* Centered Divider Glow */}
+                          <div className="absolute top-0 bottom-0 w-px bg-white/30" style={{ left: `${matchPercent}%` }} />
+                        </div>
+
+                        <div className="flex justify-between items-center mt-2 px-1">
+                          <div className="flex items-center gap-2">
+                             <span className="text-[8px] font-bold text-ipl-gold uppercase tracking-tighter">Match: {matchPoints}pts</span>
+                             <span className="text-[7px] text-gray-500 font-mono">({Math.round(matchPercent)}%)</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                             <span className="text-[7px] text-gray-500 font-mono">({Math.round(100 - matchPercent)}%)</span>
+                             <span className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter">Base: {user.base_points}pts</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
+        </section>
 
       {/* Powerups Usage Section */}
       <section className="space-y-6">
@@ -488,5 +495,6 @@ export default function Analysis() {
         </div>
       </section>
     </div>
-  );
+  </div>
+);
 }

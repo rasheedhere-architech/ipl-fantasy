@@ -21,12 +21,24 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
     # Map by user_id for quick lookup
     predictions_map = {p.user_id: p for p in p_result.scalars().all()}
     
+    # Check if penalty applies (only from Match 12 onwards)
+    # match_id format is typically "ipl-2026-X"
+    match_number = 0
+    if "-" in match_id:
+        parts = match_id.split("-")
+        try:
+            match_number = int(parts[-1])
+        except ValueError:
+            pass
+            
+    penalty_points = -5 if match_number >= 12 else 0
+    
     user_points = {}
     
     for user in all_users:
         if user.id not in predictions_map:
             # RULE: Non-participation penalty
-            user_points[user.id] = -5
+            user_points[user.id] = penalty_points
             continue
             
         p = predictions_map[user.id]

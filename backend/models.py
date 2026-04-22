@@ -69,6 +69,7 @@ class Prediction(Base):
     is_auto_predicted: Mapped[bool] = mapped_column(Boolean, default=False)
     
     points_awarded: Mapped[int] = mapped_column(Integer, nullable=True)
+    points_breakdown: Mapped[dict] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 class ScoringRule(Base):

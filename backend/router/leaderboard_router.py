@@ -48,20 +48,22 @@ async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
     entries = []
     for rank, (uid, name, avatar, points, played, bp, total_powerups) in enumerate(users_data, start=1):
         # Fetch detailed per-match progression for this user
-        from backend.models import Match
+        from backend.models import Match, Prediction
         prog_res = await db.execute(
-            select(LeaderboardEntry.points, Match.team1, Match.team2, Match.id)
+            select(LeaderboardEntry.points, Match.team1, Match.team2, Match.id, Prediction.points_breakdown)
             .join(Match, LeaderboardEntry.match_id == Match.id)
+            .outerjoin(Prediction, (LeaderboardEntry.user_id == Prediction.user_id) & (LeaderboardEntry.match_id == Prediction.match_id))
             .where(LeaderboardEntry.user_id == uid)
             .order_by(Match.toss_time.asc())
         )
         detailed_progression = []
-        for p, t1, t2, mid in prog_res.all():
+        for p, t1, t2, mid, breakdown in prog_res.all():
             m_no = mid.split("-")[2] if "-" in mid else mid
             detailed_progression.append({
                 "match_number": m_no,
                 "teams": f"{t1} vs {t2}",
-                "points": p
+                "points": p,
+                "breakdown": breakdown
             })
         progression = detailed_progression # Now an array of objects!
         

@@ -31,27 +31,63 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
             
         p = predictions_map[user.id]
         points = 0
+        breakdown_rules = []
         
         # RULE 1: Match Winner (+10 Correct, -5 Incorrect)
         if match.winner and p.match_winner:
-            if str(p.match_winner).strip().lower() == str(match.winner).strip().lower():
-                points += 10
-            else:
-                points -= 5
+            is_correct = str(p.match_winner).strip().lower() == str(match.winner).strip().lower()
+            rule_points = 10 if is_correct else -5
+            points += rule_points
+            breakdown_rules.append({
+                "category": "Match Winner",
+                "status": "correct" if is_correct else "incorrect",
+                "points": rule_points,
+                "predicted": p.match_winner,
+                "actual": match.winner
+            })
         
         # RULE 2: Player of the Match (+25 Correct)
         if match.player_of_the_match and p.player_of_the_match:
-            if str(p.player_of_the_match).strip().lower() == str(match.player_of_the_match).strip().lower():
+            is_correct = str(p.player_of_the_match).strip().lower() == str(match.player_of_the_match).strip().lower()
+            if is_correct:
                 points += 25
+                breakdown_rules.append({
+                    "category": "Player of the Match",
+                    "status": "correct",
+                    "points": 25,
+                    "predicted": p.player_of_the_match,
+                    "actual": match.player_of_the_match
+                })
+            else:
+                breakdown_rules.append({
+                    "category": "Player of the Match",
+                    "status": "incorrect",
+                    "points": 0,
+                    "predicted": p.player_of_the_match,
+                    "actual": match.player_of_the_match
+                })
 
         # RULE 3: Team 1 Powerplay (Bingo 15, Range 5)
         if match.team1_powerplay_score is not None and p.team1_powerplay is not None:
             try:
                 diff = abs(int(p.team1_powerplay) - int(match.team1_powerplay_score))
+                rule_points = 0
+                status = "miss"
                 if diff == 0:
-                    points += 15
+                    rule_points = 15
+                    status = "bingo"
                 elif diff <= 5:
-                    points += 5
+                    rule_points = 5
+                    status = "range"
+                
+                points += rule_points
+                breakdown_rules.append({
+                    "category": f"{match.team1} Powerplay",
+                    "status": status,
+                    "points": rule_points,
+                    "predicted": p.team1_powerplay,
+                    "actual": match.team1_powerplay_score
+                })
             except (ValueError, TypeError):
                 pass
 
@@ -59,16 +95,42 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
         if match.team2_powerplay_score is not None and p.team2_powerplay is not None:
             try:
                 diff = abs(int(p.team2_powerplay) - int(match.team2_powerplay_score))
+                rule_points = 0
+                status = "miss"
                 if diff == 0:
-                    points += 15
+                    rule_points = 15
+                    status = "bingo"
                 elif diff <= 5:
-                    points += 5
+                    rule_points = 5
+                    status = "range"
+                
+                points += rule_points
+                breakdown_rules.append({
+                    "category": f"{match.team2} Powerplay",
+                    "status": status,
+                    "points": rule_points,
+                    "predicted": p.team2_powerplay,
+                    "actual": match.team2_powerplay_score
+                })
             except (ValueError, TypeError):
                 pass
 
         # RULE 5: Powerup Multiplier (2x)
+        points_before_powerup = points
         if p.use_powerup == "Yes":
             points = points * 2
+            
+        # Build final breakdown
+        p.points_breakdown = {
+            "rules": breakdown_rules,
+            "powerup": {
+                "used": p.use_powerup == "Yes",
+                "multiplier": 2 if p.use_powerup == "Yes" else 1,
+                "points_before": points_before_powerup,
+                "points_after": points
+            },
+            "total": points
+        }
             
         # Save points back to the prediction record
         p.points_awarded = points

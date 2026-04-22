@@ -185,17 +185,26 @@ function UserScoreManager() {
   const [localPoints, setLocalPoints] = useState<Record<string, number>>({});
   const [localPowerups, setLocalPowerups] = useState<Record<string, number>>({});
   const [localTelegram, setLocalTelegram] = useState<Record<string, boolean>>({});
+  const [localTelegramUser, setLocalTelegramUser] = useState<Record<string, string>>({});
+
   const handleUpdate = (userId: string) => {
     const basePoints = localPoints[userId];
     const basePowerups = localPowerups[userId];
     const isTelegramAdmin = localTelegram[userId];
-    if (basePoints === undefined && basePowerups === undefined && isTelegramAdmin === undefined) return;
+    const telegramUsername = localTelegramUser[userId];
+
     const user = users?.find(u => u.id === userId);
     updateBasePoints({
       userId,
       basePoints: basePoints ?? user?.base_points ?? 0,
       basePowerups: basePowerups ?? user?.base_powerups ?? 10,
-      isTelegramAdmin: isTelegramAdmin ?? user?.is_telegram_admin ?? false
+      isTelegramAdmin: isTelegramAdmin ?? user?.is_telegram_admin ?? false,
+      telegramUsername: telegramUsername ?? user?.telegram_username
+    }, {
+      onSuccess: () => {
+        toast.success(`Updated settings for ${user?.name}`);
+      },
+      onError: () => toast.error('Failed to update user settings')
     });
   };
 
@@ -214,13 +223,14 @@ function UserScoreManager() {
       </div>
 
       <div className="overflow-x-auto w-full custom-scrollbar pb-2">
-        <table className="w-full text-left min-w-[750px] whitespace-nowrap">
+        <table className="w-full text-left min-w-[900px] whitespace-nowrap">
           <thead>
             <tr className="bg-white/5 border-b border-white/10 uppercase font-display text-[10px] tracking-widest text-gray-500">
               <th className="p-4 font-normal">Active Player</th>
               <th className="p-4 font-normal text-center">Base Score</th>
               <th className="p-4 font-normal text-center">Base Powerups</th>
-              <th className="p-4 font-normal text-center">Telegram</th>
+              <th className="p-4 font-normal text-center">Telegram Access</th>
+              <th className="p-4 font-normal text-center">Telegram Handle</th>
               <th className="p-4 font-normal text-right">Adjust Settings</th>
             </tr>
           </thead>
@@ -253,11 +263,23 @@ function UserScoreManager() {
                 <td className="p-4 text-center">
                   <button 
                     onClick={() => setLocalTelegram({ ...localTelegram, [user.id]: !(localTelegram[user.id] ?? user.is_telegram_admin) })}
-                    className={`p-2 border-2 transition-all ${ (localTelegram[user.id] ?? user.is_telegram_admin) ? 'bg-ipl-live border-ipl-live text-white' : 'border-white/10 text-gray-600 hover:border-white/20' }`}
-                    title="Telegram Admin Access"
+                    className={`p-2 border-2 transition-all ${ (localTelegram[user.id] ?? user.is_telegram_admin) ? 'bg-ipl-live border-ipl-live text-white shadow-[0_0_15px_rgba(205,38,38,0.3)]' : 'border-white/10 text-gray-600 hover:border-white/20' }`}
+                    title="Toggle Telegram Admin Access"
                   >
                     <Bot className="w-5 h-5" />
                   </button>
+                </td>
+                <td className="p-4 text-center">
+                   <div className="relative inline-block group/input">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-xs">@</span>
+                    <input
+                      type="text"
+                      placeholder={user.telegram_username || "username"}
+                      className="w-32 bg-black/40 border-2 border-white/10 py-2 pl-7 pr-3 text-white placeholder:text-gray-700 focus:outline-none focus:border-ipl-gold transition-all font-mono text-xs uppercase"
+                      value={localTelegramUser[user.id] ?? user.telegram_username ?? ''}
+                      onChange={(e) => setLocalTelegramUser({ ...localTelegramUser, [user.id]: e.target.value })}
+                    />
+                  </div>
                 </td>
                 <td className="p-4 text-right">
                   <div className="flex justify-end items-center gap-3">

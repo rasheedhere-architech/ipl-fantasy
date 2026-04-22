@@ -107,9 +107,38 @@ async def post_match_results_webhook(
 
     print(f"[DEBUG] Auth Success: {current_user.email}")
     
+    # 4. Telegram Username Validation
+    # We verify that the 'username' provided in the payload belongs to a registered admin.
+    telegram_user_to_check = body_json.get("username") if isinstance(body_json, dict) else None
+    if telegram_user_to_check:
+        res = await db.execute(select(User).where(User.telegram_username == telegram_user_to_check))
+        target_user = res.scalars().first()
+        
+        if not target_user:
+            print(f"[DEBUG] Auth Failed: Telegram user '@{telegram_user_to_check}' not found in database")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Telegram user '@{telegram_user_to_check}' is not registered."
+            )
+            
+        if not target_user.is_telegram_admin and not target_user.is_admin:
+            print(f"[DEBUG] Auth Failed: Telegram user '@{telegram_user_to_check}' is not an admin")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Telegram user '@{telegram_user_to_check}' does not have enough privileges."
+            )
+            
+        print(f"[DEBUG] Telegram Validation Success: @{telegram_user_to_check} is an admin")
+    else:
+        # If no username is provided, we default to the current_user's own status (already checked above)
+        pass
+
     # Process the body
     return {
         "status": "success",
-        "message": "Payload received and logged",
-        "received_body": body_json if 'body_json' in locals() else body_display
+        "message": "Payload received and validated",
+        "authorized_as": current_user.email,
+        "telegram_user": telegram_user_to_check,
+        "received_body": body_json if 'body_json' in locals() else body_display,
+        "chatId": body_json.get("chatId") if isinstance(body_json, dict) else None
     }

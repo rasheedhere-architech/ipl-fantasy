@@ -19,7 +19,8 @@ async def run_migration():
         ("ALTER TABLE users ADD COLUMN base_points INTEGER DEFAULT 0", "base_points"),
         ("ALTER TABLE users ADD COLUMN base_powerups INTEGER DEFAULT 10", "base_powerups"),
         ("ALTER TABLE predictions ADD COLUMN is_auto_predicted BOOLEAN DEFAULT FALSE", "is_auto_predicted"),
-        ("ALTER TABLE users ADD COLUMN is_telegram_admin BOOLEAN DEFAULT FALSE", "is_telegram_admin")
+        ("ALTER TABLE users ADD COLUMN is_telegram_admin BOOLEAN DEFAULT FALSE", "is_telegram_admin"),
+        ("ALTER TABLE users ADD COLUMN telegram_username VARCHAR", "telegram_username")
     ]
     
     for sql, col_name in commands:

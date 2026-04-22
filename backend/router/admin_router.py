@@ -145,6 +145,8 @@ async def update_user_base_points(user_id: str, payload: dict, db: AsyncSession 
         user.base_powerups = int(payload["base_powerups"])
     if "is_telegram_admin" in payload:
         user.is_telegram_admin = bool(payload["is_telegram_admin"])
+    if "telegram_username" in payload:
+        user.telegram_username = payload["telegram_username"]
         
     await db.commit()
     
@@ -156,7 +158,8 @@ async def update_user_base_points(user_id: str, payload: dict, db: AsyncSession 
         "user_id": user_id, 
         "base_points": user.base_points, 
         "base_powerups": user.base_powerups,
-        "is_telegram_admin": user.is_telegram_admin
+        "is_telegram_admin": user.is_telegram_admin,
+        "telegram_username": user.telegram_username
     }
 
 

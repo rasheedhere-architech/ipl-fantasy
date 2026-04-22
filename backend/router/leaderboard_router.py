@@ -8,22 +8,39 @@ from backend.models import User, LeaderboardEntry, AllowlistedEmail
 from backend.utils.cache import backend_cache
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
+START_MATCH_NO = 12
+
+def match_filter_clause():
+    """Returns a SQL expression to filter matches by the numeric suffix of match_id."""
+    # SQLite/Postgres specific: Extract suffix after last '-'
+    # For simplicity and cross-DB compatibility, we'll use a Python-side filter for now 
+    # where possible, or a string comparison if the IDs are zero-padded.
+    # Since they are not zero-padded (e.g. ipl-2026-7), we'll fetch matches first or use Python logic.
+    pass
+
+async def get_valid_match_ids(db: AsyncSession):
+    from backend.models import Match
+    res = await db.execute(select(Match.id))
+    all_ids = res.scalars().all()
+    return [mid for mid in all_ids if "-" in mid and mid.split("-")[-1].isdigit() and int(mid.split("-")[-1]) >= START_MATCH_NO]
 
 @router.get("")
 async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
-    cache_key = "global_leaderboard"
+    cache_key = f"global_leaderboard_from_{START_MATCH_NO}"
     cached = backend_cache.get(cache_key)
     if cached:
         return cached
 
-    # Group by user summing all points
+    valid_match_ids = await get_valid_match_ids(db)
+
+    # Group by user summing all points from valid matches
     result = await db.execute(
         select(
             User.id,
             User.name,
             User.avatar_url,
-            (func.coalesce(func.sum(LeaderboardEntry.points), 0) + User.base_points).label("total_points"),
-            func.count(LeaderboardEntry.match_id).label("matches_played"),
+            (func.coalesce(func.sum(case((LeaderboardEntry.match_id.in_(valid_match_ids), LeaderboardEntry.points), else_=0)), 0) + User.base_points).label("total_points"),
+            func.count(case((LeaderboardEntry.match_id.in_(valid_match_ids), LeaderboardEntry.match_id), else_=None)).label("matches_played"),
             User.base_points,
             User.base_powerups
         )
@@ -32,7 +49,7 @@ async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
         .where(or_(AllowlistedEmail.email != None, User.is_ai == True))
         .outerjoin(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
         .group_by(User.id, User.base_points, User.base_powerups)
-        .order_by((func.coalesce(func.sum(LeaderboardEntry.points), 0) + User.base_points).desc())
+        .order_by((func.coalesce(func.sum(case((LeaderboardEntry.match_id.in_(valid_match_ids), LeaderboardEntry.points), else_=0)), 0) + User.base_points).desc())
     )
     
     users_data = result.all()
@@ -44,6 +61,7 @@ async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
         .group_by(Prediction.user_id)
     )
     powerups_used_map = {row[0]: row[1] for row in p_res.all()}
+
     
     entries = []
     for rank, (uid, name, avatar, points, played, bp, total_powerups) in enumerate(users_data, start=1):
@@ -66,6 +84,12 @@ async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
                 "breakdown": breakdown
             })
         progression = detailed_progression # Now an array of objects!
+        # Filter progression to only show matches from START_MATCH_NO onwards if desired, 
+        # but usually history is okay to show. The USER said "Calculate points from 12", 
+        # so we'll keep the history but the TOTAL is filtered.
+        # Actually, let's filter history too for consistency with "points from 12".
+        progression = [p for p in detailed_progression if int(p["match_number"]) >= START_MATCH_NO]
+
         
         used = powerups_used_map.get(uid, 0)
         remaining_powerups = max(0, (total_powerups or 10) - used)
@@ -185,6 +209,8 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
     
     from backend.models import Match
     
+    valid_match_ids = await get_valid_match_ids(db)
+    
     # 1. Weekly Performance
     weekly_res = await db.execute(
         select(
@@ -197,7 +223,9 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
         .join(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
         .join(Match, LeaderboardEntry.match_id == Match.id)
         .where(Match.toss_time >= last_week)
+        .where(Match.id.in_(valid_match_ids))
         .where(User.is_guest == False)
+
         .group_by(User.id)
         .order_by(func.sum(LeaderboardEntry.points).desc())
     )
@@ -254,9 +282,11 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
         .join(Prediction, User.id == Prediction.user_id)
         .join(Match, Prediction.match_id == Match.id)
         .where(Prediction.use_powerup == "Yes")
+        .where(Match.id.in_(valid_match_ids))
         .where(User.is_guest == False)
         .order_by(User.name, Match.toss_time.desc())
     )
+
     
     powerup_stats_map = {}
     for name, avatar, base, t1, t2, mid, toss_time, points, status in powerup_usage_res.all():
@@ -320,9 +350,11 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
         .join(Prediction, User.id == Prediction.user_id)
         .join(Match, Prediction.match_id == Match.id)
         .where(Match.status == "completed")
+        .where(Match.id.in_(valid_match_ids))
         .where(User.is_guest == False)
         .group_by(User.id, User.name)
     )
+
     
     accuracy_map = {}
     for uid, name, base_pts, count in accuracy_res.all():
@@ -335,8 +367,10 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
         .join(LeaderboardEntry, Match.id == LeaderboardEntry.match_id)
         .join(User, LeaderboardEntry.user_id == User.id)
         .where(Match.status == "completed")
+        .where(Match.id.in_(valid_match_ids))
         .where(User.is_guest == False)
     )
+
     
     match_scores = {} # match_id -> List of (username, points)
     for mid, name, pts in match_wins_res.all():

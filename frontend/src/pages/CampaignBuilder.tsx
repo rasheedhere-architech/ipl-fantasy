@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Save,
+  ArrowLeft, Plus, Trash2, ChevronDown, ChevronUp, Save,
   Play, Lock, FileEdit, BarChart2, Users, Copy, Star, Trophy
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -21,6 +21,7 @@ const needsOptions = (t: CampaignQuestion['question_type']) =>
 
 function emptyQuestion(order: number): QuestionCreate {
   return {
+    id: `new-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     question_text: '',
     question_type: 'toggle',
     options: ['', ''],
@@ -42,11 +43,12 @@ const QUESTION_TYPES: { value: CampaignQuestion['question_type']; label: string 
 // ── Question editor ───────────────────────────────────────────────────────────
 
 function QuestionEditor({
-  q, idx, onChange, onRemove, locked = false,
+  q, idx, total, onChange, onRemove, onMove, locked = false,
   isExpanded = true, onToggleExpand
 }: {
-  q: QuestionCreate; idx: number;
+  q: QuestionCreate; idx: number; total: number;
   onChange: (q: QuestionCreate) => void; onRemove: () => void;
+  onMove: (dir: 'up' | 'down') => void;
   locked?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
@@ -90,7 +92,24 @@ function QuestionEditor({
         onClick={onToggleExpand}
       >
         <div className="flex items-center gap-2 text-gray-400">
-          <GripVertical className="w-4 h-4 text-gray-600" />
+          <div className="flex flex-col -gap-1 mr-1">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onMove('up'); }}
+              disabled={idx === 0}
+              className="text-gray-600 hover:text-white disabled:opacity-0 transition-colors p-0.5"
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onMove('down'); }}
+              disabled={idx === total - 1}
+              className="text-gray-600 hover:text-white disabled:opacity-0 transition-colors p-0.5"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+          </div>
           <span className="font-display text-xs uppercase tracking-widest text-white">Q{idx + 1}</span>
           {!isExpanded && q.question_text && (
             <span className="ml-2 text-xs truncate max-w-[200px] text-gray-500 font-display">
@@ -351,6 +370,18 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
     setExpandedIndex(prev => prev === i ? null : prev);
   };
 
+  const moveQuestion = (i: number, dir: 'up' | 'down') => {
+    const nextIdx = dir === 'up' ? i - 1 : i + 1;
+    if (nextIdx < 0 || nextIdx >= questions.length) return;
+
+    const newQs = [...questions];
+    [newQs[i], newQs[nextIdx]] = [newQs[nextIdx], newQs[i]];
+    setQuestions(newQs);
+
+    if (expandedIndex === i) setExpandedIndex(nextIdx);
+    else if (expandedIndex === nextIdx) setExpandedIndex(i);
+  };
+
   const handleSave = () => {
     if (!title.trim()) { toast.error('Title is required'); return; }
     if (questions.length === 0) { toast.error('Add at least one question'); return; }
@@ -464,10 +495,18 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
           </button>
         </div>
         {questions.map((q, i) => (
-          <QuestionEditor key={q.id ?? i} q={q} idx={i} onChange={v => updateQuestion(i, v)} onRemove={() => removeQuestion(i)}
+          <QuestionEditor
+            key={q.id || i}
+            q={q}
+            idx={i}
+            total={questions.length}
+            onChange={v => updateQuestion(i, v)}
+            onRemove={() => removeQuestion(i)}
+            onMove={dir => moveQuestion(i, dir)}
             locked={!!q.is_mandatory && !isMaster}
             isExpanded={expandedIndex === i}
-            onToggleExpand={() => setExpandedIndex(expandedIndex === i ? null : i)} />
+            onToggleExpand={() => setExpandedIndex(expandedIndex === i ? null : i)}
+          />
         ))}
       </section>
 

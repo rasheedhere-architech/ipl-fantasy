@@ -173,7 +173,8 @@ async def post_match_results_webhook(
             "GT": "Gujarat Titans",
             "DC": "Delhi Capitals",
             "LSG": "Lucknow Super Giants",
-            "PBKS": "Punjab Kings"
+            "PBKS": "Punjab Kings",
+            "PK": "Punjab Kings"
         }
         
         # Intelligently map scores based on team names defined in the match record

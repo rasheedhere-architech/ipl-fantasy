@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMatch, useSubmitPrediction, useMyPredictions, useAllMatchPredictions } from '../api/hooks/useMatches';
 import { useUpdateMatchResults, useTriggerAIPredictions } from '../api/hooks/useAdmin';
-import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X, Sparkles, Settings, AlertTriangle, ShieldAlert, Bot } from 'lucide-react';
+import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X, Sparkles, Settings, AlertTriangle, ShieldAlert, Bot, MapPin } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { apiClient } from '../api/client';
 import toast from 'react-hot-toast';
@@ -163,12 +163,15 @@ export default function MatchPage() {
         <p className="text-gray-400 mt-6 font-display uppercase tracking-[0.3em] font-bold text-xs ring-offset-2">
           Match {matchNumber}
         </p>
-        <h1 className="text-5xl text-white font-display mt-4">
-          <span className="text-[#004BA0]">{match.team1}</span>
-          <span className="text-gray-600 mx-4 text-3xl">VS</span>
-          <span className="text-[#F4C430]">{match.team2}</span>
+        <h1 className="text-3xl md:text-5xl text-white font-display mt-4 flex flex-col md:flex-row items-center justify-center gap-2 md:gap-0">
+          <span className="text-[#004BA0] leading-tight">{match.team1}</span>
+          <span className="text-gray-600 mx-4 text-xl md:text-3xl">VS</span>
+          <span className="text-[#F4C430] leading-tight">{match.team2}</span>
         </h1>
-        <p className="text-gray-400 mt-4 font-display uppercase tracking-widest">{match.venue}</p>
+        <p className="text-gray-400 mt-8 font-display uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 opacity-60">
+          <MapPin className="w-3.5 h-3.5 text-ipl-gold" />
+          {match.venue}
+        </p>
       </div>
 
       {match.status === 'completed' && (

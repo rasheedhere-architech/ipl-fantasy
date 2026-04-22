@@ -8,7 +8,7 @@ import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X, Sparkles, Setting
 import { useAuthStore } from '../store/auth';
 import { apiClient } from '../api/client';
 import toast from 'react-hot-toast';
-import { teamColors, getTeamColor } from '../utils/teamColors';
+import { getTeamColor } from '../utils/teamColors';
 
 export default function MatchPage() {
   const { id } = useParams();
@@ -185,7 +185,7 @@ export default function MatchPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div 
+            <div
               className="bg-white/5 p-6 border relative overflow-hidden group transition-all"
               style={{ borderColor: `${getTeamColor(match.winner)}40`, boxShadow: `0 0 20px ${getTeamColor(match.winner)}15` }}
             >
@@ -193,7 +193,7 @@ export default function MatchPage() {
                 <CheckCircle2 className="w-24 h-24 text-ipl-gold" />
               </div>
               <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] mb-4">Official Winner</label>
-              <div 
+              <div
                 className="text-3xl font-display tracking-widest uppercase"
                 style={{ color: getTeamColor(match.winner), textShadow: `0 0 20px ${getTeamColor(match.winner)}60` }}
               >
@@ -304,9 +304,9 @@ export default function MatchPage() {
                 <div className={`grid grid-cols-2 gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
                   <label className="cursor-pointer">
                     <input type="radio" value={match.team1} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
-                    <div 
+                    <div
                       className="team-select-button p-4 border-2 text-center font-display text-xl transition-all peer-checked:text-white"
-                      style={{ 
+                      style={{
                         '--team-color': getTeamColor(match.team1),
                         borderColor: errors.match_winner ? 'rgba(239, 68, 68, 0.5)' : 'rgba(255, 255, 255, 0.2)',
                         color: errors.match_winner ? 'rgba(239, 68, 68, 0.5)' : 'rgba(156, 163, 175, 1)'
@@ -317,9 +317,9 @@ export default function MatchPage() {
                   </label>
                   <label className="cursor-pointer">
                     <input type="radio" value={match.team2} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
-                    <div 
+                    <div
                       className="team-select-button p-4 border-2 text-center font-display text-xl transition-all peer-checked:text-white"
-                      style={{ 
+                      style={{
                         '--team-color': getTeamColor(match.team2),
                         borderColor: errors.match_winner ? 'rgba(239, 68, 68, 0.5)' : 'rgba(255, 255, 255, 0.2)',
                         color: errors.match_winner ? 'rgba(239, 68, 68, 0.5)' : 'rgba(156, 163, 175, 1)'
@@ -474,9 +474,9 @@ export default function MatchPage() {
                         </div>
                       </td>
                       <td className="py-4 text-center">
-                        <span 
+                        <span
                           className={`px-2 py-1 text-[10px] uppercase font-bold ${pred.answers.match_winner === '🔒' ? 'bg-white/5 text-gray-500' : ''}`}
-                          style={pred.answers.match_winner !== '🔒' ? { 
+                          style={pred.answers.match_winner !== '🔒' ? {
                             backgroundColor: `${getTeamColor(pred.answers.match_winner)}20`,
                             color: getTeamColor(pred.answers.match_winner)
                           } : {}}

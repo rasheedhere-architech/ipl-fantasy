@@ -224,17 +224,13 @@ async def post_match_results_webhook(
             "match_id": match.id,
             "processed_results": {
                 "winner": match.winner,
-                "team1_score": match.team1_powerplay_score,
-                "team2_score": match.team2_powerplay_score,
+                "scores": {
+                    match.team1: match.team1_powerplay_score,
+                    match.team2: match.team2_powerplay_score,
+                },
                 "potm": match.player_of_the_match
-            }
+            },
+            "authorized_as": current_user.email,
+        "chatId": body_json.get("chatId") if isinstance(body_json, dict) else None,
         }
 
-    # If it wasn't a match_result payload, just return generic success
-    return {
-        "status": "success",
-        "message": "Payload received and validated",
-        "authorized_as": current_user.email,
-        "chatId": body_json.get("chatId") if isinstance(body_json, dict) else None,
-        "received_body": body_json if 'body_json' in locals() else body_display
-    }

@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom';
 import CountdownTimer from './CountdownTimer';
 import { MapPin, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
-
 interface MatchCardProps {
   id: string;
   team1: string;
@@ -13,23 +12,10 @@ interface MatchCardProps {
   has_predicted?: boolean;
 }
 
-const teamColors: Record<string, string> = {
-  MI: '#004BA0',
-  CSK: '#F4C430',
-  RCB: '#CC0000',
-  KKR: '#552583',
-  DC: '#0078BC',
-  RR: '#E91E8C',
-  PBKS: '#AA0000',
-  SRH: '#FF6600',
-  GT: '#1B6CA8',
-  LSG: '#00ADEF',
-};
-
 export default function MatchCard({ id, team1, team2, venue, tossTime, status, has_predicted }: MatchCardProps) {
   const { user } = useAuthStore();
-  const t1Color = teamColors[team1] || '#ffffff';
-  const t2Color = teamColors[team2] || '#ffffff';
+  const t1Color = '#ffffff';
+  const t2Color = '#ffffff';
 
   const matchNoMatch = id.match(/ipl-\d{4}-(\d+)/);
   const matchNumber = matchNoMatch ? matchNoMatch[1] : null;

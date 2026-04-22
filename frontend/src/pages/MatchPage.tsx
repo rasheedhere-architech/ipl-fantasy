@@ -185,12 +185,20 @@ export default function MatchPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white/5 p-6 border border-white/10 relative overflow-hidden group">
+            <div 
+              className="bg-white/5 p-6 border relative overflow-hidden group transition-all"
+              style={{ borderColor: `${getTeamColor(match.winner)}40`, boxShadow: `0 0 20px ${getTeamColor(match.winner)}15` }}
+            >
               <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
                 <CheckCircle2 className="w-24 h-24 text-ipl-gold" />
               </div>
               <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] mb-4">Official Winner</label>
-              <div className="text-3xl font-display text-white tracking-widest uppercase">{match.winner}</div>
+              <div 
+                className="text-3xl font-display tracking-widest uppercase"
+                style={{ color: getTeamColor(match.winner), textShadow: `0 0 20px ${getTeamColor(match.winner)}60` }}
+              >
+                {match.winner}
+              </div>
             </div>
 
             <div className="bg-white/5 p-6 border border-white/10 relative overflow-hidden group">

@@ -232,7 +232,7 @@ async def post_match_results_webhook(
                 },
                 "potm": match.player_of_the_match
             },
-            "authorized_as": telegram_user_to_check,
+            "authorized_as": current_user.email,
         "chatId": body_json.get("chatId") if isinstance(body_json, dict) else None,
         }
 

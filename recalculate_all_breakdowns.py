@@ -38,6 +38,13 @@ async def main():
         print("✨ All matches re-processed. Breakdowns generated.")
         await db.commit()
 
+        # 4. Invalidate Caches
+        from backend.utils.cache import backend_cache
+        backend_cache.invalidate("global_leaderboard")
+        backend_cache.invalidate("match_podiums")
+        backend_cache.invalidate("analysis")
+        print("🧹 Caches invalidated.")
+
     await engine.dispose()
 
 if __name__ == "__main__":

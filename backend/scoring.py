@@ -38,7 +38,12 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
     for user in all_users:
         if user.id not in predictions_map:
             # RULE: Non-participation penalty
-            user_points[user.id] = penalty_points
+            # SPECIAL: AI users only start receiving penalties from match 25 onwards
+            current_penalty = penalty_points
+            if user.is_ai and match_number < 25:
+                current_penalty = 0
+                
+            user_points[user.id] = current_penalty
             continue
             
         p = predictions_map[user.id]

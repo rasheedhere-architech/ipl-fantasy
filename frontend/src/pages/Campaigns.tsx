@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Megaphone, CheckCircle, Lock, Calendar, Trophy, Star, Hash } from 'lucide-react';
+import { Megaphone, CheckCircle, Lock, Trophy, Star, Hash } from 'lucide-react';
 import { useCampaigns, type Campaign } from '../api/hooks/useCampaigns';
 import { CampaignCountdown } from '../components/CampaignCountdown';
 

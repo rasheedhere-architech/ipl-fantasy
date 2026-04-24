@@ -153,6 +153,7 @@ async def update_user_base_points(user_id: str, payload: dict, db: AsyncSession 
     
     # Invalidate Leaderboards after user stat adjustment
     backend_cache.invalidate("global_leaderboard")
+    backend_cache.invalidate("analysis")
     
     return {
         "message": "User base stats updated", 

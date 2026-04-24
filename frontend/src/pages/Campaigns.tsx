@@ -32,8 +32,8 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
     <button
       onClick={() => navigate(`/campaigns/${campaign.id}`)}
       className={`glass-panel p-6 text-left w-full border-2 transition-all duration-500 group relative overflow-hidden flex flex-col h-full ${hasResponded && !isClosed
-          ? 'border-green-500/30 hover:border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.05)]'
-          : 'border-white/5 hover:border-white/20'
+        ? 'border-green-500/30 hover:border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.05)]'
+        : 'border-white/5 hover:border-white/20'
         }`}
     >
       {/* Top Section: Icon & Badges */}
@@ -73,14 +73,9 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
       {/* Bottom Section: Meta Data */}
       <div className="mt-auto pt-4 border-t border-white/5 space-y-3">
         {campaign.ends_at && campaign.status === 'active' && (
-          <div className="flex items-center justify-between gap-2 text-[10px] text-gray-400 font-display uppercase tracking-widest bg-white/[0.03] px-2.5 py-1.5 rounded border border-white/5">
-            <div className="flex items-center gap-1.5">
-              <Calendar className="w-3 h-3 opacity-50" />
-              <span className="opacity-70 whitespace-nowrap">Closes {new Date(campaign.ends_at).toLocaleDateString()}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-700">|</span>
-              <CampaignCountdown endsAt={campaign.ends_at} hidePrefix={true} />
+          <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400 font-display uppercase tracking-widest bg-white/[0.03] px-2.5 py-1.5 rounded border border-white/5">
+            <div className="flex items-center">
+              <CampaignCountdown endsAt={campaign.ends_at} />
             </div>
           </div>
         )}

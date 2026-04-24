@@ -320,12 +320,9 @@ export default function CampaignPage() {
 
         {(campaign.starts_at || campaign.ends_at) && (
           <div className="mt-4 flex items-center gap-2 text-gray-500 text-xs font-display uppercase tracking-widest flex-wrap">
-            <Calendar className="w-3.5 h-3.5" />
-            {campaign.starts_at && <span>Opens {new Date(campaign.starts_at).toLocaleString()}</span>}
-            {campaign.starts_at && campaign.ends_at && <span>·</span>}
+
             {campaign.ends_at && (
               <span className="flex items-center flex-wrap">
-                Closes {new Date(campaign.ends_at).toLocaleString()}
                 <CampaignCountdown endsAt={campaign.ends_at} />
               </span>
             )}

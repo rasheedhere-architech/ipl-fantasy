@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Lock, Hash, Type, ToggleLeft, ChevronDown, ListChecks, Info, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -194,9 +194,19 @@ export default function CampaignPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { data: campaign, isLoading, error } = useCampaign(id!);
-  const { mutate: submit } = useSubmitCampaignResponse(id!);
+  const { mutate: submit, isPending: isSubmitting } = useSubmitCampaignResponse(id!);
 
   const [answers, setAnswers] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    if (campaign?.my_response) {
+      const initial: Record<string, any> = {};
+      Object.entries(campaign.my_response.answers).forEach(([qId, ans]) => {
+        initial[qId] = ans.answer_value;
+      });
+      setAnswers(initial);
+    }
+  }, [campaign]);
 
   if (isLoading) {
     return (
@@ -218,13 +228,7 @@ export default function CampaignPage() {
   const isActive = campaign.status === 'active';
   const disabled = isClosed || !isActive || !!user?.is_guest;
 
-  const getAnswer = (qId: string) => {
-    if (qId in answers) return answers[qId];
-    if (isSubmitted && campaign.my_response) {
-      return campaign.my_response.answers[qId]?.answer_value;
-    }
-    return undefined;
-  };
+  const getAnswer = (qId: string) => answers[qId];
 
   const setAnswer = (qId: string, val: any) => {
     if (disabled) return;
@@ -381,11 +385,23 @@ export default function CampaignPage() {
         {isActive && !isClosed && !user?.is_guest && (
           <button
             type="submit"
-            disabled={true}
-            className="w-full py-4 bg-gray-600/20 text-gray-500 font-display text-sm uppercase tracking-widest cursor-not-allowed flex items-center justify-center gap-2 border border-white/5"
+            disabled={isSubmitting}
+            className="w-full py-4 bg-ipl-gold text-black font-display text-sm uppercase tracking-widest hover:bg-ipl-gold/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,215,0,0.2)] active:scale-[0.98]"
           >
-            <Lock className="w-4 h-4" />
-            Submissions Temporarily Disabled
+            {isSubmitting ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Submitting...
+              </span>
+            ) : (
+              <>
+                <CheckCircle className="w-4 h-4" />
+                {isSubmitted ? 'Update Response' : 'Submit Response'}
+              </>
+            )}
           </button>
         )}
       </form>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Plus, Trash2, ChevronDown, ChevronUp, Save,
-  Play, Lock, FileEdit, BarChart2, Users, Copy, Star, Trophy
+  Play, Lock, FileEdit, BarChart2, Users, Copy, Star, Trophy, ArrowDownAZ
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -85,6 +85,16 @@ function QuestionEditor({
     onChange({ ...q, options: opts });
   };
 
+  const sortOptions = () => {
+    if (!q.options) return;
+    const opts = [...q.options].sort((a, b) => {
+      if (!a) return 1;
+      if (!b) return -1;
+      return a.localeCompare(b);
+    });
+    onChange({ ...q, options: opts });
+  };
+
   return (
     <div className={`glass-panel space-y-0 ${locked ? 'border-t-2 border-t-ipl-gold/60 bg-ipl-gold/[0.03]' : 'border-t-2 border-t-white/10'}`}>
       <div
@@ -158,7 +168,20 @@ function QuestionEditor({
 
             {has_options && (
               <div className="space-y-2">
-                <p className="text-gray-500 text-[10px] font-display uppercase tracking-widest">Options</p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-gray-500 text-[10px] font-display uppercase tracking-widest">Options</p>
+                  {q.question_type !== 'toggle' && (q.options ?? []).length > 1 && (
+                    <button
+                      type="button"
+                      onClick={sortOptions}
+                      className="text-ipl-gold hover:text-white font-display text-[10px] uppercase tracking-widest flex items-center gap-1.5 transition-colors group"
+                      title="Sort options alphabetically"
+                    >
+                      <ArrowDownAZ className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                      Sort A-Z
+                    </button>
+                  )}
+                </div>
                 {(q.options ?? []).map((opt, i) => (
                   <div key={i} className="flex gap-2">
                     <div className="flex flex-col gap-0.5 mr-1">

@@ -21,7 +21,9 @@ export default function AuthCallback() {
         })
         .then((response) => {
           setUser(response.data, token);
-          navigate('/matchcenter');
+          const redirectTo = localStorage.getItem('redirect_after_login') || '/matchcenter';
+          localStorage.removeItem('redirect_after_login');
+          navigate(redirectTo);
         })
         .catch((error) => {
           if (retries > 0) {

@@ -1,4 +1,4 @@
-import { Outlet, Navigate, Link } from 'react-router-dom';
+import { Outlet, Navigate, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import { Trophy, LayoutDashboard, Settings, LogOut, Menu, X, BarChart2, Megaphone } from 'lucide-react';
 import { useState } from 'react';
@@ -7,8 +7,10 @@ export default function Layout() {
   const { isAuthenticated, user, logout } = useAuthStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  const location = useLocation();
+
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   const clMenu = () => setIsMenuOpen(false);

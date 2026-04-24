@@ -1,5 +1,5 @@
 import { Trophy, TerminalSquare } from 'lucide-react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth';
 import toast from 'react-hot-toast';
@@ -8,11 +8,17 @@ export default function Login() {
   const [searchParams] = useSearchParams();
   const error = searchParams.get('error');
   const navigate = useNavigate();
+  const location = useLocation();
   const { setUser } = useAuthStore();
+
+  const from = location.state?.from?.pathname || '/matchcenter';
+  const search = location.state?.from?.search || '';
+  const targetUrl = from + search;
 
   const devLoginEnabled = import.meta.env.VITE_DEV_LOGIN === 'true';
 
   const handleLogin = () => {
+    localStorage.setItem('redirect_after_login', targetUrl);
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     window.location.href = `${API_URL}/auth/google`;
   };
@@ -22,7 +28,7 @@ export default function Login() {
       const { data } = await apiClient.post('/auth/dev-login', null, { params: { role } });
       setUser(data.user, data.token);
       toast.success(`Logged in as ${role}`);
-      navigate('/matchcenter');
+      navigate(targetUrl);
     } catch (err: any) {
       toast.error(err?.response?.data?.detail ?? 'Dev login failed — is DEV_LOGIN_ENABLED=true?');
     }

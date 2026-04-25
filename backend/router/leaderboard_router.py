@@ -72,7 +72,7 @@ async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
             .join(Match, LeaderboardEntry.match_id == Match.id)
             .outerjoin(Prediction, (LeaderboardEntry.user_id == Prediction.user_id) & (LeaderboardEntry.match_id == Prediction.match_id))
             .where(LeaderboardEntry.user_id == uid)
-            .order_by(Match.toss_time.asc())
+            .order_by(Match.toss_time.desc())
         )
         detailed_progression = []
         for p, t1, t2, mid, breakdown in prog_res.all():

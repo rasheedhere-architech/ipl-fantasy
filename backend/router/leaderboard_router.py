@@ -26,7 +26,7 @@ async def get_valid_match_ids(db: AsyncSession):
 
 @router.get("")
 async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
-    cache_key = f"global_leaderboard_from_{START_MATCH_NO}"
+    cache_key = "global_leaderboard"
     cached = backend_cache.get(cache_key)
     if cached:
         return cached

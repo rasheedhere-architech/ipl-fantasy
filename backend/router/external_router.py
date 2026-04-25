@@ -108,6 +108,7 @@ async def post_match_results_webhook(
     print(f"[DEBUG] Auth Success: {current_user.email}")
     
     reporter_id = current_user.id
+    authored_as_name = current_user.email
     telegram_user_to_check = body_json.get("username") if isinstance(body_json, dict) else None
     if telegram_user_to_check:
         res = await db.execute(select(User).where(User.telegram_username == telegram_user_to_check))
@@ -129,6 +130,7 @@ async def post_match_results_webhook(
             
         print(f"[DEBUG] Telegram Validation Success: @{telegram_user_to_check} is an admin")
         reporter_id = target_user.id
+        authored_as_name = f"@{target_user.telegram_username}" if target_user.telegram_username else target_user.email
     else:
         # If no username is provided, we default to the current_user's own status (already checked above)
         pass
@@ -232,7 +234,7 @@ async def post_match_results_webhook(
                 },
                 "potm": match.player_of_the_match
             },
-            "authorized_as": current_user.email,
+            "authored_as": authored_as_name,
         "chatId": body_json.get("chatId") if isinstance(body_json, dict) else None,
         }
 

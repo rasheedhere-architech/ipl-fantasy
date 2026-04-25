@@ -608,6 +608,39 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
     )
     direct_map = {name: count for name, count in direct_res.all()}
 
+    # Doosra Spinner - Most incorrect winner predictions
+    doosra_res = await db.execute(
+        select(User.name, func.count(Prediction.id))
+        .join(User, Prediction.user_id == User.id)
+        .join(Match, Prediction.match_id == Match.id)
+        .where(Match.status == "completed")
+        .where(Match.winner != None)
+        .where(Match.winner != "Draw")
+        .where(Prediction.match_winner != None)
+        .where(Prediction.match_winner != Match.winner)
+        .group_by(User.name)
+    )
+    doosra_map = {name: count for name, count in doosra_res.all()}
+
+    # One Man Army - Sole predictor for a team in a match
+    all_preds_res = await db.execute(
+        select(User.name, Prediction.match_id, Prediction.match_winner)
+        .join(User, Prediction.user_id == User.id)
+    )
+    match_winner_counts = {}
+    user_predictions = []
+    for name, mid, winner in all_preds_res.all():
+        if not winner: continue
+        user_predictions.append((name, mid, winner))
+        if mid not in match_winner_counts:
+            match_winner_counts[mid] = {}
+        match_winner_counts[mid][winner] = match_winner_counts[mid].get(winner, 0) + 1
+
+    army_map = {}
+    for name, mid, winner in user_predictions:
+        if match_winner_counts[mid][winner] == 1:
+            army_map[name] = army_map.get(name, 0) + 1
+
     # The Big Show (Maxwell) - Max Yield from Powerup
     maxwell_res = await db.execute(
         select(User.name, func.max(Prediction.points_awarded))
@@ -632,6 +665,8 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
         "caught_bowled": get_winners(cb_map),
         "hit_wicket": get_winners(hw_map),
         "direct_hit": get_winners(direct_map),
+        "doosra_spinner": get_winners(doosra_map),
+        "one_man_army": get_winners(army_map),
     }
 
     # 9. Final Response Structure

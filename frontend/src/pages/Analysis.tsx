@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAnalysis, useLeaderboard } from '../api/hooks/useMatches';
-import { Trophy, TrendingUp, Medal, Calendar, BarChart3, Star, Zap, Crown, Target, ShieldAlert, ShieldCheck, Info } from 'lucide-react';
+import { Trophy, TrendingUp, Medal, Calendar, BarChart3, Star, Zap, Crown, Target, ShieldAlert, ShieldCheck, Info, RotateCcw, UserPlus } from 'lucide-react';
 
 export default function Analysis() {
   const { data, isLoading: isAnalysisLoading } = useAnalysis();
@@ -172,6 +172,24 @@ export default function Analysis() {
               desc: 'Heartbreak Miss',
               info: 'Sir Jadeja precision. Awarded for predictions that were off by exactly 1 run from a Bullseye.',
               winner: hof.direct_hit
+            },
+            {
+              key: 'doosra_spinner',
+              label: 'Doosra Spinner',
+              icon: <RotateCcw className="w-4 h-4" />,
+              color: 'text-pink-400',
+              desc: 'Wrong Way',
+              info: 'The master of misdirection. Awarded to the expert with the most incorrect Match Winner predictions.',
+              winner: hof.doosra_spinner
+            },
+            {
+              key: 'one_man_army',
+              label: 'One Man Army',
+              icon: <UserPlus className="w-4 h-4" />,
+              color: 'text-purple-400',
+              desc: 'Lone Wolf',
+              info: 'Standing alone. Awarded to the expert who is the ONLY person to predict a specific team to win in a match.',
+              winner: hof.one_man_army
             }
           ].map((award) => (
             <div key={award.key} className="group relative bg-white/5 border border-white/10 rounded-2xl p-4 hover:border-ipl-gold/30 transition-all duration-500">
@@ -233,7 +251,9 @@ export default function Analysis() {
                                                   award.key === 'caught_bowled' ? `${w.value} Perfects` :
                                                     award.key === 'hit_wicket' ? `${w.value} Fails` :
                                                       award.key === 'direct_hit' ? `${w.value} Misses` :
-                                                        `${w.value} Bullseyes`}
+                                                        award.key === 'doosra_spinner' ? `${w.value} Wrongs` :
+                                                          award.key === 'one_man_army' ? `${w.value} Solos` :
+                                                            `${w.value} Bullseyes`}
                             </span>
                           </div>
                         </div>

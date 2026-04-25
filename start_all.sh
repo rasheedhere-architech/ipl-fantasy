@@ -18,6 +18,8 @@ cd frontend
 
 # Install dependencies if node_modules doesn't exist
 if [ ! -d "node_modules" ]; then
+    # Switch to node version 23
+    nvm use 23
     echo "Node modules not found. Installing dependencies..."
     npm install
 fi

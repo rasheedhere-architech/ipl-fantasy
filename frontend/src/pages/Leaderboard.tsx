@@ -45,7 +45,10 @@ export default function Leaderboard() {
                   <tr className="bg-white/5 border-b border-white/10">
                     <th className="p-2 md:p-4 font-display tracking-wider text-gray-400 text-[10px] md:text-xs uppercase w-12 text-center">Rank</th>
                     <th className="p-2 md:p-4 font-display tracking-wider text-gray-400 text-[10px] md:text-xs uppercase">Player</th>
-                    <th className="p-2 md:p-4 font-display tracking-wider text-gray-400 text-[10px] md:text-xs uppercase text-center hidden lg:table-cell">History</th>
+                    <th className="p-2 md:p-4 font-display tracking-wider text-gray-400 text-center hidden lg:table-cell">
+                      <div className="text-[10px] md:text-xs uppercase">History</div>
+                      <div className="text-[8px] text-gray-500 font-mono tracking-tighter mt-0.5 opacity-60">(Latest → Oldest)</div>
+                    </th>
                     <th className="p-2 md:p-4 font-display tracking-wider text-gray-400 text-[10px] md:text-xs uppercase text-right">Points</th>
                     <th className="p-2 md:p-4 font-display tracking-wider text-gray-400 text-[10px] md:text-xs uppercase text-center w-16">Pwrups</th>
                   </tr>
@@ -89,7 +92,7 @@ export default function Leaderboard() {
                       </td>
                       <td className="p-2 md:p-4 hidden lg:table-cell">
                         <div className="flex items-center justify-center gap-1.5 overflow-x-auto custom-scrollbar pb-1">
-                          {entry.progression?.slice(-7).map((prog: any, idx: number) => (
+                          {entry.progression?.slice(0, 10).map((prog: any, idx: number) => (
                             <div
                               key={idx}
                               className={`w-7 h-7 flex-shrink-0 flex items-center justify-center text-[10px] font-mono rounded-sm border ${prog.points >= 25 ? 'bg-green-500/20 border-green-500/30 text-green-400' :
@@ -171,6 +174,7 @@ export default function Leaderboard() {
                 <div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-2">
                   <Trophy className="w-4 h-4 text-ipl-gold opacity-50" />
                   <h4 className="text-[10px] font-display text-gray-400 uppercase tracking-widest">Match History</h4>
+                  <span className="ml-auto text-[8px] font-mono text-gray-500 tracking-tighter opacity-60">(Latest First)</span>
                 </div>
 
                 <div className="max-h-[500px] overflow-y-auto custom-scrollbar space-y-2 pr-2">

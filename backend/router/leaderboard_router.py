@@ -88,7 +88,7 @@ async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
         # but usually history is okay to show. The USER said "Calculate points from 12", 
         # so we'll keep the history but the TOTAL is filtered.
         # Actually, let's filter history too for consistency with "points from 12".
-        progression = [p for p in detailed_progression if int(p["match_number"]) >= START_MATCH_NO]
+        progression = [p for p in detailed_progression if int(p["match_number"]) >= START_MATCH_NO][:10]
 
         
         used = powerups_used_map.get(uid, 0)

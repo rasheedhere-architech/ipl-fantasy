@@ -484,8 +484,8 @@ export default function MatchPage() {
                 return (
                   <div key={idx} className={`flex items-center justify-between rounded-lg border transition-all ${isDesktop ? 'md:p-3.5 md:gap-4' : 'p-2 gap-2'} ${isMyRow ? 'bg-ipl-gold/10 border-ipl-gold/50 shadow-[0_0_15px_rgba(244,196,48,0.15)]' : 'bg-white/5 border-white/10'}`}>
                     <div className="flex items-center gap-2 md:gap-3">
-                      <div className="relative">
-                        <img src={pred.user.avatar_url || 'https://via.placeholder.com/32'} className={`${isDesktop ? 'md:w-9 md:h-9' : 'w-7 h-7'} rounded-full border ${isMyRow ? 'border-ipl-gold' : 'border-white/10'}`} alt={pred.user.name} />
+                      <div className="relative shrink-0">
+                        <img src={pred.user.avatar_url || 'https://via.placeholder.com/32'} className={`${isDesktop ? 'md:w-9 md:h-9' : 'w-7 h-7'} rounded-full border object-cover ${isMyRow ? 'border-ipl-gold' : 'border-white/10'}`} alt={pred.user.name} />
                         {isMyRow && (
                           <div className={`absolute -top-1 -right-1 bg-ipl-gold rounded-full border border-ipl-navy flex items-center justify-center ${isDesktop ? 'md:w-3.5 md:h-3.5' : 'w-2.5 h-2.5'}`}>
                             <Check className={`${isDesktop ? 'md:w-2 md:h-2' : 'w-1.5 h-1.5'} text-black`} />

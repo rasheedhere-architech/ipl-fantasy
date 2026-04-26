@@ -47,3 +47,34 @@ export const getTeamColor = (teamName: string) => {
 
   return '#ffffff';
 };
+
+export const getTeamShortName = (teamName: string) => {
+  if (!teamName) return '';
+  const normalized = teamName.trim().toUpperCase();
+  if (teamColors[normalized]) return normalized;
+  
+  const words = teamName.trim().split(/\s+/);
+  if (words.length > 1) {
+    const initials = words.map(w => w[0]).join('').toUpperCase();
+    if (teamColors[initials]) return initials;
+  }
+  
+  const teamMapping: Record<string, string> = {
+    'MUMBAI': 'MI',
+    'CHENNAI': 'CSK',
+    'BANGALORE': 'RCB',
+    'BENGALURU': 'RCB',
+    'KOLKATA': 'KKR',
+    'DELHI': 'DC',
+    'RAJASTHAN': 'RR',
+    'PUNJAB': 'PBKS',
+    'HYDERABAD': 'SRH',
+    'GUJARAT': 'GT',
+    'LUCKNOW': 'LSG'
+  };
+
+  for (const [key, value] of Object.entries(teamMapping)) {
+    if (normalized.includes(key)) return value;
+  }
+  return teamName;
+};

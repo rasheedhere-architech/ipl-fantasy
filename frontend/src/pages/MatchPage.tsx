@@ -1,14 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMatch, useSubmitPrediction, useMyPredictions, useAllMatchPredictions } from '../api/hooks/useMatches';
 import { useUpdateMatchResults, useTriggerAIPredictions } from '../api/hooks/useAdmin';
-import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X, Sparkles, Settings, AlertTriangle, ShieldAlert, Bot, MapPin } from 'lucide-react';
+import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X, Sparkles, Settings, AlertTriangle, ShieldAlert, Bot, MapPin, Zap } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { apiClient } from '../api/client';
 import toast from 'react-hot-toast';
-import { getTeamColor } from '../utils/teamColors';
+import { getTeamColor, getTeamShortName } from '../utils/teamColors';
 
 export default function MatchPage() {
   const { id } = useParams();
@@ -59,10 +59,27 @@ export default function MatchPage() {
     }
   }, [data]);
 
-  if (isLoading) return <div className="text-white text-center font-display tracking-widest mt-20 animate-pulse">LOADING MATCH...</div>;
-  if (error || !data || !data.match) return <div className="text-ipl-live text-center font-display tracking-widest mt-20">FAILED TO LOAD MATCH</div>;
+  const match = data?.match;
+  const sortedPredictions = useMemo(() => {
+    if (!allPredictions || !match) return [];
+    return [...allPredictions].sort((a, b) => {
+      const getScore = (p: any) => {
+        const w = p.answers?.match_winner;
+        if (w === match.team1) return 1;
+        if (w === match.team2) return 2;
+        return 3;
+      };
+      const scoreDiff = getScore(a) - getScore(b);
+      if (scoreDiff !== 0) return scoreDiff;
+      const nameA = a.user?.name || '';
+      const nameB = b.user?.name || '';
+      return nameA.localeCompare(nameB);
+    });
+  }, [allPredictions, match]);
 
-  const match = data.match;
+  if (isLoading) return <div className="text-white text-center font-display tracking-widest mt-20 animate-pulse">LOADING MATCH...</div>;
+  if (error || !data || !match) return <div className="text-ipl-live text-center font-display tracking-widest mt-20">FAILED TO LOAD MATCH</div>;
+
   const questions = data.questions || [];
   const powerupsUsed = data.powerups_used || 0;
   const totalPowerups = data.total_powerups ?? 10;
@@ -423,7 +440,9 @@ export default function MatchPage() {
       )}
       <div className="glass-panel p-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
         <div className="flex items-center gap-3 mb-8 border-b-2 border-white/5 pb-4">
-          <h2 className="text-2xl font-display text-white italic tracking-tighter">COMMUNITY REVEAL</h2>
+          <h2 className="text-2xl font-display text-white italic tracking-tighter">
+            MATCH {matchNumber} <span className="text-ipl-gold">REVEAL</span>
+          </h2>
           {isLocked ? (
             <span className="bg-ipl-live/20 text-ipl-live text-[10px] px-2 py-1 rounded font-display animate-pulse uppercase tracking-tighter">Live Guesses</span>
           ) : (
@@ -436,118 +455,178 @@ export default function MatchPage() {
             NO PREDICTIONS FOUND FOR THIS MATCH
           </div>
         ) : (
-          <div className="overflow-x-auto w-full custom-scrollbar pb-2">
-            <table className="w-full text-left border-collapse min-w-[600px] whitespace-nowrap">
-              <thead>
-                <tr className="text-ipl-gold font-display text-[11px] uppercase tracking-widest border-b border-white/10">
-                  <th className="py-4 font-normal">Expert</th>
-                  <th className="py-4 font-normal text-center">Winner</th>
-                  <th className="py-4 font-normal text-center">PP Scores</th>
-                  <th className="py-4 font-normal">Player of Match</th>
-                  <th className="py-4 font-normal text-right">Power up</th>
-                </tr>
-              </thead>
-              <tbody className="text-white font-display">
-                {allPredictions.map((pred: any, idx: number) => {
-                  const isMyRow = pred.user?.id === currentUser?.id;
-                  return (
-                    <tr key={idx} className={`border-b border-white/5 transition-colors group ${isMyRow ? 'bg-ipl-gold/10 border-l-4 border-l-ipl-gold' : 'hover:bg-white/5'}`}>
-                      <td className="py-4 flex items-center gap-3 pl-4">
-                        <div className="relative">
-                          <img src={pred.user.avatar_url || 'https://via.placeholder.com/32'} className={`w-8 h-8 rounded-full border ${isMyRow ? 'border-ipl-gold' : 'border-white/10'} group-hover:border-ipl-gold transition-colors`} alt={pred.user.name} />
-                          {isMyRow && (
-                            <div className="absolute -top-1 -right-1 bg-ipl-gold w-3 h-3 rounded-full border-2 border-ipl-navy flex items-center justify-center">
-                              <Check className="w-2 h-2 text-black" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className={`text-sm font-bold tracking-tight ${isMyRow ? 'text-ipl-gold' : 'text-white'}`}>
+          <div className="flex flex-col gap-4 md:gap-6">
+            {/* Stats Header */}
+            <div className="flex justify-center items-center gap-6 md:gap-8 bg-white/5 rounded-lg md:rounded-xl p-3 md:p-4 border border-white/10">
+              <div className="flex flex-col items-center">
+                <span className="text-[9px] md:text-[10px] text-gray-400 font-display uppercase tracking-widest leading-none mb-1">{getTeamShortName(match.team1)}</span>
+                <span className="text-xl md:text-3xl font-display leading-none drop-shadow-md" style={{ color: getTeamColor(match.team1) }}>
+                  {allPredictions.filter((p: any) => p.answers.match_winner === match.team1).length}
+                </span>
+              </div>
+              <div className="h-6 md:h-10 w-[1px] md:w-[2px] bg-white/20 rounded-full" />
+              <div className="flex flex-col items-center">
+                <span className="text-[9px] md:text-[10px] text-gray-400 font-display uppercase tracking-widest leading-none mb-1">{getTeamShortName(match.team2)}</span>
+                <span className="text-xl md:text-3xl font-display leading-none drop-shadow-md" style={{ color: getTeamColor(match.team2) }}>
+                  {allPredictions.filter((p: any) => p.answers.match_winner === match.team2).length}
+                </span>
+              </div>
+            </div>
+
+            {/* Helper Function */}
+            {(() => {
+              const renderPredictionCard = (pred: any, idx: number, isDesktop = false) => {
+                const isMyRow = pred.user?.id === currentUser?.id;
+                const teamWinnerShort = pred.answers.match_winner === '🔒' ? '🔒' : getTeamShortName(pred.answers.match_winner);
+                const team1Short = getTeamShortName(match.team1);
+                const team2Short = getTeamShortName(match.team2);
+
+                return (
+                  <div key={idx} className={`flex items-center justify-between rounded-lg border transition-all ${isDesktop ? 'md:p-3.5 md:gap-4' : 'p-2 gap-2'} ${isMyRow ? 'bg-ipl-gold/10 border-ipl-gold/50 shadow-[0_0_15px_rgba(244,196,48,0.15)]' : 'bg-white/5 border-white/10'}`}>
+                    <div className="flex items-center gap-2 md:gap-3">
+                      <div className="relative">
+                        <img src={pred.user.avatar_url || 'https://via.placeholder.com/32'} className={`${isDesktop ? 'md:w-9 md:h-9' : 'w-7 h-7'} rounded-full border ${isMyRow ? 'border-ipl-gold' : 'border-white/10'}`} alt={pred.user.name} />
+                        {isMyRow && (
+                          <div className={`absolute -top-1 -right-1 bg-ipl-gold rounded-full border border-ipl-navy flex items-center justify-center ${isDesktop ? 'md:w-3.5 md:h-3.5' : 'w-2.5 h-2.5'}`}>
+                            <Check className={`${isDesktop ? 'md:w-2 md:h-2' : 'w-1.5 h-1.5'} text-black`} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-1 md:gap-2">
+                          <span className={`${isDesktop ? 'md:text-[13px] md:font-black' : 'text-xs font-bold'} tracking-tight leading-none ${isMyRow ? 'text-ipl-gold' : 'text-white'}`}>
                             {pred.user.name}
-                            {isMyRow && <span className="ml-2 text-[10px] bg-ipl-gold text-black px-1.5 py-0.5 rounded font-black tracking-tighter uppercase">YOU</span>}
                           </span>
                           {pred.is_auto_predicted && (
-                            <span className="text-[9px] flex items-center gap-1 text-[#7B2FF7] uppercase tracking-tighter font-bold">
-                              <Sparkles className="w-2 h-2" /> AI Auto-Predict
-                            </span>
+                            <Sparkles className={`${isDesktop ? 'md:w-3 md:h-3' : 'w-2 h-2'} text-[#7B2FF7]`} />
                           )}
                         </div>
-                      </td>
-                      <td className="py-4 text-center">
-                        <span
-                          className={`px-2 py-1 text-[10px] uppercase font-bold ${pred.answers.match_winner === '🔒' ? 'bg-white/5 text-gray-500' : ''}`}
+                        <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} text-gray-400 font-mono tracking-tight flex items-center gap-1.5 mt-1 leading-none`}>
+                          {pred.answers.team1_powerplay === '🔒' ? (
+                            <span className="opacity-60">🔒 HIDDEN</span>
+                          ) : (
+                            <>
+                              <span style={{ color: getTeamColor(match.team1) }}>{isDesktop ? match.team1 : team1Short}:<span className="text-white font-bold ml-1">{pred.answers.team1_powerplay}</span></span>
+                              <span style={{ color: getTeamColor(match.team2) }}>{isDesktop ? match.team2 : team2Short}:<span className="text-white font-bold ml-1">{pred.answers.team2_powerplay}</span></span>
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="flex items-center gap-1.5 md:gap-2">
+                        {pred.answers.use_powerup === 'Yes' && (
+                           <div className={`flex items-center bg-ipl-live/10 border border-ipl-live/20 rounded leading-none ${isDesktop ? 'md:px-1.5 md:py-1' : 'px-1 py-0.5'}`}>
+                             <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold text-ipl-live tracking-tighter uppercase`}>⚡ 2X Booster</span>
+                           </div>
+                        )}
+                        <span 
+                          className={`font-bold rounded leading-none uppercase tracking-widest border ${isDesktop ? 'md:text-[10px] md:px-2 md:py-1' : 'text-[9px] px-1.5 py-0.5'} ${pred.answers.match_winner === '🔒' ? 'bg-white/5 border-white/10 text-gray-500' : ''}`}
                           style={pred.answers.match_winner !== '🔒' ? {
-                            backgroundColor: `${getTeamColor(pred.answers.match_winner)}20`,
+                            backgroundColor: `${getTeamColor(pred.answers.match_winner)}15`,
+                            borderColor: `${getTeamColor(pred.answers.match_winner)}40`,
                             color: getTeamColor(pred.answers.match_winner)
                           } : {}}
                         >
-                          {pred.answers.match_winner}
+                          {isDesktop && pred.answers.match_winner !== '🔒' ? getTeamShortName(pred.answers.match_winner) : teamWinnerShort}
                         </span>
-                      </td>
-                      <td className={`py-4 text-center text-[11px] font-mono opacity-90 ${pred.answers.team1_powerplay === '🔒' ? 'text-gray-600' : 'text-gray-300'}`}>
-                        {pred.answers.team1_powerplay === '🔒' ? (
-                          <span className="opacity-40">🔒</span>
-                        ) : (
-                          <div className="flex flex-col items-center leading-tight">
-                            <span className="flex gap-2">
-                              <span className="text-gray-500">{match.team1.split(' ').map((w: string) => w[0]).join('').toUpperCase()}:</span>
-                              <span className="text-white font-bold">{pred.answers.team1_powerplay}</span>
-                            </span>
-                            <span className="flex gap-2">
-                              <span className="text-gray-500">{match.team2.split(' ').map((w: string) => w[0]).join('').toUpperCase()}:</span>
-                              <span className="text-white font-bold">{pred.answers.team2_powerplay}</span>
-                            </span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-4 text-sm opacity-80 uppercase italic text-gray-400">
+                      </div>
+                      
+                      <div className="flex items-center justify-end">
                         {editingId === pred.prediction_id ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 justify-end">
                             <input
                               value={editValue}
                               onChange={(e) => setEditValue(e.target.value)}
-                              className="bg-black/40 border border-white/20 text-white p-1 text-[10px] w-24 focus:border-ipl-gold focus:outline-none"
+                              className="bg-black/60 border border-white/20 text-white p-0.5 text-[8px] md:text-[10px] w-16 md:w-24 focus:border-ipl-gold focus:outline-none font-mono"
                               autoFocus
                             />
-                            <button onClick={() => handleAdminUpdate(pred.prediction_id)} className="text-green-500 hover:text-green-400 p-1">
-                              <Check className="w-3 h-3" />
+                            <button onClick={() => handleAdminUpdate(pred.prediction_id)} className="text-green-500 hover:bg-white/10 rounded p-0.5">
+                              <Check className="w-2.5 h-2.5 md:w-3.5 md:h-3.5" />
                             </button>
-                            <button onClick={() => setEditingId(null)} className="text-red-500 hover:text-red-400 p-1">
-                              <X className="w-3 h-3" />
+                            <button onClick={() => setEditingId(null)} className="text-red-500 hover:bg-white/10 rounded p-0.5">
+                              <X className="w-2.5 h-2.5 md:w-3.5 md:h-3.5" />
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-2">
-                            {pred.answers.player_of_the_match}
+                          <>
+                            {pred.answers.player_of_the_match !== '🔒' && (
+                              <span className={`${isDesktop ? 'md:text-[9px] md:max-w-[150px]' : 'text-[7.5px] max-w-[80px]'} text-gray-500 uppercase tracking-widest truncate italic leading-none`}>
+                                {pred.answers.player_of_the_match}
+                              </span>
+                            )}
                             {currentUser?.is_admin && pred.prediction_id && (
                               <button
                                 onClick={() => {
                                   setEditingId(pred.prediction_id);
                                   setEditValue(pred.answers.player_of_the_match);
                                 }}
-                                className="text-gray-600 hover:text-ipl-gold opacity-0 group-hover:opacity-100 transition-all p-1"
+                                className="text-gray-600 hover:text-ipl-gold transition-colors ml-1.5"
                               >
-                                <Edit2 className="w-3 h-3" />
+                                <Edit2 className={`${isDesktop ? 'md:w-3.5 md:h-3.5' : 'w-2.5 h-2.5'}`} />
                               </button>
                             )}
-                          </div>
+                          </>
                         )}
-                      </td>
-                      <td className="py-4 text-right">
-                        {pred.answers.use_powerup === 'Yes' ? (
-                          <div className="inline-flex items-center gap-1 text-ipl-live">
-                            <span className="text-lg">⚡</span>
-                            <span className="text-[10px] font-bold">2X</span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-600 text-[10px]">{pred.answers.use_powerup === 'No' ? '—' : '🔒'}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              };
+
+              return (
+                <>
+                  {/* MOBILE ONLY: Compact Cards */}
+                  <div className="grid grid-cols-1 md:hidden gap-1.5">
+                    {sortedPredictions.map((pred: any, idx: number) => renderPredictionCard(pred, idx, false))}
+                  </div>
+
+                  {/* DESKTOP ONLY: Side-by-Side Teams */}
+                  <div className="hidden md:grid md:grid-cols-2 gap-6 mt-2">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 mb-2 px-1">
+                        <div className="w-2 h-6 rounded-full" style={{ backgroundColor: getTeamColor(match.team1) }} />
+                        <span className="text-xs font-display uppercase tracking-widest text-white font-black">
+                          {match.team1} SUPPORTERS
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {sortedPredictions.filter(p => p.answers.match_winner === match.team1).map((pred: any, idx: number) => renderPredictionCard(pred, idx, true))}
+                        {sortedPredictions.filter(p => p.answers.match_winner === match.team1).length === 0 && (
+                          <div className="p-8 border border-dashed border-white/10 rounded-lg text-center text-[10px] text-gray-600 uppercase">No supporters yet</div>
                         )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 mb-2 px-1">
+                        <div className="w-2 h-6 rounded-full" style={{ backgroundColor: getTeamColor(match.team2) }} />
+                        <span className="text-xs font-display uppercase tracking-widest text-white font-black">
+                          {match.team2} SUPPORTERS
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {sortedPredictions.filter(p => p.answers.match_winner === match.team2).map((pred: any, idx: number) => renderPredictionCard(pred, idx, true))}
+                        {sortedPredictions.filter(p => p.answers.match_winner === match.team2).length === 0 && (
+                          <div className="p-8 border border-dashed border-white/10 rounded-lg text-center text-[10px] text-gray-600 uppercase">No supporters yet</div>
+                        )}
+                      </div>
+                    </div>
+                    {sortedPredictions.some(p => p.answers.match_winner !== match.team1 && p.answers.match_winner !== match.team2) && (
+                      <div className="col-span-2 mt-8 space-y-4">
+                        <div className="flex items-center gap-2 mb-2 px-1 justify-center border-t border-white/5 pt-8">
+                          <span className="text-[11px] font-display uppercase tracking-widest text-gray-600 font-bold">
+                            OTHER PREDICTIONS
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          {sortedPredictions.filter(p => p.answers.match_winner !== match.team1 && p.answers.match_winner !== match.team2).map((pred: any, idx: number) => renderPredictionCard(pred, idx, true))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
       </div>

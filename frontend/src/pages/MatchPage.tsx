@@ -501,16 +501,22 @@ export default function MatchPage() {
                             <Sparkles className={`${isDesktop ? 'md:w-3 md:h-3' : 'w-2 h-2'} text-[#7B2FF7]`} />
                           )}
                         </div>
-                        <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} text-gray-400 font-mono tracking-tight flex items-center gap-1.5 mt-1 leading-none`}>
+                        <div className={`${isDesktop ? 'md:flex md:items-center md:gap-2 md:mt-2' : 'flex items-center gap-1.5 mt-1'} leading-none`}>
                           {pred.answers.team1_powerplay === '🔒' ? (
-                            <span className="opacity-60">🔒 HIDDEN</span>
+                            <span className="text-[8px] text-gray-500 font-mono tracking-tight opacity-60 italic">🔒 HIDDEN</span>
                           ) : (
                             <>
-                              <span style={{ color: getTeamColor(match.team1) }}>{isDesktop ? match.team1 : team1Short}:<span className="text-white font-bold ml-1">{pred.answers.team1_powerplay}</span></span>
-                              <span style={{ color: getTeamColor(match.team2) }}>{isDesktop ? match.team2 : team2Short}:<span className="text-white font-bold ml-1">{pred.answers.team2_powerplay}</span></span>
+                              <div className={`flex items-center bg-white/5 border border-white/10 rounded px-1.5 py-0.5 leading-none ${isDesktop ? 'md:bg-black/40' : ''}`}>
+                                <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold mr-1.5`} style={{ color: getTeamColor(match.team1) }}>{team1Short}</span>
+                                <span className={`${isDesktop ? 'md:text-[10px]' : 'text-[9px]'} text-white font-mono font-bold`}>{pred.answers.team1_powerplay}</span>
+                              </div>
+                              <div className={`flex items-center bg-white/5 border border-white/10 rounded px-1.5 py-0.5 leading-none ${isDesktop ? 'md:bg-black/40' : ''}`}>
+                                <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold mr-1.5`} style={{ color: getTeamColor(match.team2) }}>{team2Short}</span>
+                                <span className={`${isDesktop ? 'md:text-[10px]' : 'text-[9px]'} text-white font-mono font-bold`}>{pred.answers.team2_powerplay}</span>
+                              </div>
                             </>
                           )}
-                        </span>
+                        </div>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">

@@ -31,7 +31,9 @@ export default function MatchPage() {
     winner: '',
     team1_powerplay_score: 0,
     team2_powerplay_score: 0,
-    player_of_the_match: ''
+    player_of_the_match: '',
+    more_sixes_team: '',
+    more_fours_team: ''
   });
 
   // Predictions are currently always open (toss-lock disabled)
@@ -54,7 +56,9 @@ export default function MatchPage() {
         winner: data.match.winner || '',
         team1_powerplay_score: data.match.team1_powerplay_score || 0,
         team2_powerplay_score: data.match.team2_powerplay_score || 0,
-        player_of_the_match: data.match.player_of_the_match || ''
+        player_of_the_match: data.match.player_of_the_match || '',
+        more_sixes_team: data.match.more_sixes_team || '',
+        more_fours_team: data.match.more_fours_team || ''
       });
     }
   }, [data]);
@@ -86,8 +90,7 @@ export default function MatchPage() {
   const powerupsLeft = totalPowerups - powerupsUsed;
   const hasPredicted = myPredictions && Object.keys(myPredictions).length > 0;
 
-  const matchNoMatch = match.id.match(/ipl-\d{4}-(\d+)/);
-  const matchNumber = matchNoMatch ? matchNoMatch[1] : null;
+  const matchNumber = match.id.split('-').pop() || '0';
 
   // Find specific labels from the questions array
   const team1PPLabel = questions.find((q: any) => q.key === 'team1_powerplay')?.question_text || `${match.team1} Power Play Score`;
@@ -135,6 +138,8 @@ export default function MatchPage() {
       setValue('team1_powerplay', predictedData.team1_powerplay, { shouldValidate: true, shouldDirty: true });
       setValue('team2_powerplay', predictedData.team2_powerplay, { shouldValidate: true, shouldDirty: true });
       setValue('player_of_the_match', predictedData.player_of_the_match, { shouldValidate: true, shouldDirty: true });
+      setValue('more_sixes_team', predictedData.more_sixes_team, { shouldValidate: true, shouldDirty: true });
+      setValue('more_fours_team', predictedData.more_fours_team, { shouldValidate: true, shouldDirty: true });
 
       // Invalidate so hasPredicted flips to true from server
       queryClient.invalidateQueries({ queryKey: ['predictions', 'mine', id || match.id] });
@@ -243,6 +248,20 @@ export default function MatchPage() {
               <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] mb-4">Player of the Match</label>
               <div className="text-2xl font-display text-white tracking-wide uppercase">{match.player_of_the_match}</div>
             </div>
+
+            {match.more_sixes_team && (
+              <div className="bg-white/5 p-6 border border-white/10 relative overflow-hidden group">
+                <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] mb-4">More Sixes</label>
+                <div className="text-2xl font-display text-white tracking-wide uppercase" style={{ color: getTeamColor(match.more_sixes_team) }}>{match.more_sixes_team}</div>
+              </div>
+            )}
+
+            {match.more_fours_team && (
+              <div className="bg-white/5 p-6 border border-white/10 relative overflow-hidden group">
+                <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] mb-4">More Fours</label>
+                <div className="text-2xl font-display text-white tracking-wide uppercase" style={{ color: getTeamColor(match.more_fours_team) }}>{match.more_fours_team}</div>
+              </div>
+            )}
           </div>
 
           {(match.reported_by_name) && (
@@ -385,6 +404,45 @@ export default function MatchPage() {
                 </div>
               </div>
 
+              {Number(matchNumber) >= 39 && (
+                <div className="grid md:grid-cols-2 gap-6 pt-4">
+                  <div className="space-y-4">
+                    <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Team to score more 6s</label>
+                    <div className={`grid grid-cols-2 gap-3 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
+                      <label className="cursor-pointer">
+                        <input type="radio" value={match.team1} {...register('more_sixes_team', { required: Number(matchNumber) >= 39 })} className="peer sr-only" disabled={isLocked} />
+                        <div className="p-3 border-2 text-center font-display text-xs transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold border-white/20 text-gray-400">
+                          {match.team1}
+                        </div>
+                      </label>
+                      <label className="cursor-pointer">
+                        <input type="radio" value={match.team2} {...register('more_sixes_team', { required: Number(matchNumber) >= 39 })} className="peer sr-only" disabled={isLocked} />
+                        <div className="p-3 border-2 text-center font-display text-xs transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold border-white/20 text-gray-400">
+                          {match.team2}
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Team to score more 4s</label>
+                    <div className={`grid grid-cols-2 gap-3 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
+                      <label className="cursor-pointer">
+                        <input type="radio" value={match.team1} {...register('more_fours_team', { required: Number(matchNumber) >= 39 })} className="peer sr-only" disabled={isLocked} />
+                        <div className="p-3 border-2 text-center font-display text-xs transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold border-white/20 text-gray-400">
+                          {match.team1}
+                        </div>
+                      </label>
+                      <label className="cursor-pointer">
+                        <input type="radio" value={match.team2} {...register('more_fours_team', { required: Number(matchNumber) >= 39 })} className="peer sr-only" disabled={isLocked} />
+                        <div className="p-3 border-2 text-center font-display text-xs transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold border-white/20 text-gray-400">
+                          {match.team2}
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Player of the Match</label>
                 <input
@@ -514,6 +572,18 @@ export default function MatchPage() {
                                 <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold mr-1.5`} style={{ color: getTeamColor(match.team2) }}>{team2Short}</span>
                                 <span className={`${isDesktop ? 'md:text-[10px]' : 'text-[9px]'} text-white font-mono font-bold`}>{pred.answers.team2_powerplay}</span>
                               </div>
+                              {pred.answers.more_sixes_team && (
+                                <div className={`flex items-center bg-white/5 border border-white/10 rounded px-1.5 py-0.5 leading-none ${isDesktop ? 'md:bg-black/40' : ''}`}>
+                                  <span className={`${isDesktop ? 'md:text-[8px]' : 'text-[7px]'} text-gray-400 mr-1`}>6s:</span>
+                                  <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold`} style={{ color: getTeamColor(pred.answers.more_sixes_team) }}>{getTeamShortName(pred.answers.more_sixes_team)}</span>
+                                </div>
+                              )}
+                              {pred.answers.more_fours_team && (
+                                <div className={`flex items-center bg-white/5 border border-white/10 rounded px-1.5 py-0.5 leading-none ${isDesktop ? 'md:bg-black/40' : ''}`}>
+                                  <span className={`${isDesktop ? 'md:text-[8px]' : 'text-[7px]'} text-gray-400 mr-1`}>4s:</span>
+                                  <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold`} style={{ color: getTeamColor(pred.answers.more_fours_team) }}>{getTeamShortName(pred.answers.more_fours_team)}</span>
+                                </div>
+                              )}
                             </>
                           )}
                         </div>
@@ -685,9 +755,41 @@ export default function MatchPage() {
                       key={team}
                       type="button"
                       onClick={() => setAdminResults({ ...adminResults, winner: team })}
-                      className={`p-4 border-2 font-display text-sm tracking-widest transition-all ${adminResults.winner === team ? 'border-ipl-gold bg-ipl-gold text-black' : 'border-white/10 text-gray-500 hover:border-white/20'}`}
+                      className={`p-4 border-2 font-display text-[10px] tracking-widest transition-all ${adminResults.winner === team ? 'border-ipl-gold bg-ipl-gold text-black' : 'border-white/10 text-gray-500 hover:border-white/20'}`}
                     >
-                      {team}
+                      {team.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em]">More Sixes</label>
+                <div className="grid grid-cols-3 gap-4">
+                  {[match.team1, match.team2, 'Tie'].map(team => (
+                    <button
+                      key={team}
+                      type="button"
+                      onClick={() => setAdminResults({ ...adminResults, more_sixes_team: team })}
+                      className={`p-4 border-2 font-display text-[10px] tracking-widest transition-all ${adminResults.more_sixes_team === team ? 'border-ipl-gold bg-ipl-gold text-black' : 'border-white/10 text-gray-500 hover:border-white/20'}`}
+                    >
+                      {team.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em]">More Fours</label>
+                <div className="grid grid-cols-3 gap-4">
+                  {[match.team1, match.team2, 'Tie'].map(team => (
+                    <button
+                      key={team}
+                      type="button"
+                      onClick={() => setAdminResults({ ...adminResults, more_fours_team: team })}
+                      className={`p-4 border-2 font-display text-[10px] tracking-widest transition-all ${adminResults.more_fours_team === team ? 'border-ipl-gold bg-ipl-gold text-black' : 'border-white/10 text-gray-500 hover:border-white/20'}`}
+                    >
+                      {team.toUpperCase()}
                     </button>
                   ))}
                 </div>

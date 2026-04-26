@@ -21,6 +21,8 @@ class PredictionInput(BaseModel):
     team1_powerplay: Optional[int] = None
     team2_powerplay: Optional[int] = None
     player_of_the_match: Optional[str] = None
+    more_sixes_team: Optional[str] = None
+    more_fours_team: Optional[str] = None
     use_powerup: Optional[str] = "No"
 
 @router.get("")
@@ -57,7 +59,9 @@ async def list_matches(db: AsyncSession = Depends(get_db)):
             "player_of_the_match": m.player_of_the_match,
             "reported_by_name": m.reporter.name if m.reporter else None,
             "reported_by_email": m.reporter.email if m.reporter else None,
-            "report_method": m.report_method
+            "report_method": m.report_method,
+            "more_sixes_team": m.more_sixes_team,
+            "more_fours_team": m.more_fours_team
         })
     return matches
 
@@ -123,6 +127,20 @@ async def post_autopredict(match_id: str, db: AsyncSession = Depends(get_db), cu
     players = winner_stats["potm"]
     potm = random.choice(players) if players else f"Star Player ({winner})"
 
+    # 4. More Sixes and More Fours (Randomly choose for matches >= 39)
+    match_number = 0
+    if "-" in match_id:
+        try:
+            match_number = int(match_id.split("-")[-1])
+        except ValueError:
+            pass
+            
+    more_sixes_team = None
+    more_fours_team = None
+    if match_number >= 39:
+        more_sixes_team = match_obj.team1 if random.random() > 0.5 else match_obj.team2
+        more_fours_team = match_obj.team1 if random.random() > 0.5 else match_obj.team2
+
     # Persist auto-prediction to DB
     new_pred = Prediction(
         id=str(uuid.uuid4()),
@@ -132,6 +150,8 @@ async def post_autopredict(match_id: str, db: AsyncSession = Depends(get_db), cu
         team1_powerplay=team1_pp,
         team2_powerplay=team2_pp,
         player_of_the_match=potm,
+        more_sixes_team=more_sixes_team,
+        more_fours_team=more_fours_team,
         use_powerup="No",
         is_auto_predicted=True,
     )
@@ -143,7 +163,9 @@ async def post_autopredict(match_id: str, db: AsyncSession = Depends(get_db), cu
         "team1_powerplay": team1_pp,
         "team2_powerplay": team2_pp,
         "player_of_the_match": potm,
-        "is_auto_predicted": True,
+        "more_sixes_team": more_sixes_team,
+        "more_fours_team": more_fours_team,
+        "use_powerup": "No"
     }
 
 @router.get("/{match_id}")
@@ -167,7 +189,9 @@ async def get_match(match_id: str, db: AsyncSession = Depends(get_db), current_u
         "player_of_the_match": m.player_of_the_match,
         "reported_by_name": m.reporter.name if m.reporter else None,
         "reported_by_email": m.reporter.email if m.reporter else None,
-        "report_method": m.report_method
+        "report_method": m.report_method,
+        "more_sixes_team": m.more_sixes_team,
+        "more_fours_team": m.more_fours_team
     }
         
     # Hardcoded question metadata for frontend compatibility
@@ -178,6 +202,19 @@ async def get_match(match_id: str, db: AsyncSession = Depends(get_db), current_u
         {"key": "player_of_the_match", "question_text": "Player of the Match", "answer_type": "player_name"},
         {"key": "use_powerup", "question_text": "Use 2x Powerup for this match?", "answer_type": "text"}
     ]
+    
+    # Add new questions for match 39 onwards
+    match_number = 0
+    if "-" in match_id:
+        try:
+            match_number = int(match_id.split("-")[-1])
+        except ValueError:
+            pass
+            
+    if match_number >= 39:
+        # Insert before use_powerup
+        questions.insert(-1, {"key": "more_sixes_team", "question_text": "Team to score more 6s", "answer_type": "text"})
+        questions.insert(-1, {"key": "more_fours_team", "question_text": "Team to score more 4s", "answer_type": "text"})
     
     # Calculate powerups used across all matches for this user
     p_result = await db.execute(
@@ -230,6 +267,8 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
         existing_pred.team1_powerplay = payload.team1_powerplay
         existing_pred.team2_powerplay = payload.team2_powerplay
         existing_pred.player_of_the_match = payload.player_of_the_match
+        existing_pred.more_sixes_team = payload.more_sixes_team
+        existing_pred.more_fours_team = payload.more_fours_team
         existing_pred.use_powerup = payload.use_powerup
         # Keep is_auto_predicted status if it was already True
         # existing_pred.is_auto_predicted = False (Removed)
@@ -242,6 +281,8 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
             team1_powerplay=payload.team1_powerplay,
             team2_powerplay=payload.team2_powerplay,
             player_of_the_match=payload.player_of_the_match,
+            more_sixes_team=payload.more_sixes_team,
+            more_fours_team=payload.more_fours_team,
             use_powerup=payload.use_powerup,
             is_auto_predicted=False
         )
@@ -252,7 +293,7 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
     # Invalidate prediction status cache
     backend_cache.invalidate(f"user_pred_status:{current_user.id}")
 
-    match_number = match.external_id.split("-")[2]
+    match_number = match.external_id.split("-")[-1] if match.external_id else "0"
     
     # Trigger confirmation email in the background 
     # to avoid slowing down the user's response time
@@ -281,6 +322,8 @@ async def get_my_predictions(match_id: str, db: AsyncSession = Depends(get_db), 
         "team1_powerplay": pred.team1_powerplay or "",
         "team2_powerplay": pred.team2_powerplay or "",
         "player_of_the_match": pred.player_of_the_match or "",
+        "more_sixes_team": pred.more_sixes_team or "",
+        "more_fours_team": pred.more_fours_team or "",
         "use_powerup": pred.use_powerup or "No",
         "is_auto_predicted": pred.is_auto_predicted
     }
@@ -314,6 +357,8 @@ async def get_all_community_predictions(match_id: str, db: AsyncSession = Depend
                 "team1_powerplay": pred.team1_powerplay,
                 "team2_powerplay": pred.team2_powerplay,
                 "player_of_the_match": pred.player_of_the_match,
+                "more_sixes_team": pred.more_sixes_team,
+                "more_fours_team": pred.more_fours_team,
                 "use_powerup": pred.use_powerup
             }
         else:
@@ -323,6 +368,8 @@ async def get_all_community_predictions(match_id: str, db: AsyncSession = Depend
                 "team1_powerplay": "🔒",
                 "team2_powerplay": "🔒",
                 "player_of_the_match": "🔒",
+                "more_sixes_team": "🔒",
+                "more_fours_team": "🔒",
                 "use_powerup": "🔒"
             }
             

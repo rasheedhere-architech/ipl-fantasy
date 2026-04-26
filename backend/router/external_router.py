@@ -176,7 +176,8 @@ async def post_match_results_webhook(
             "DC": "Delhi Capitals",
             "LSG": "Lucknow Super Giants",
             "PBKS": "Punjab Kings",
-            "PK": "Punjab Kings"
+            "PK": "Punjab Kings",
+            "TIE": "Tie"
         }
         
         # Intelligently map scores based on team names defined in the match record
@@ -195,6 +196,14 @@ async def post_match_results_webhook(
         if "winner" in match_data:
             winner_code = str(match_data["winner"])
             match.winner = TEAM_MAP.get(winner_code.upper(), winner_code)
+
+        if "more_sixes_team" in match_data:
+            sixes_code = str(match_data["more_sixes_team"])
+            match.more_sixes_team = TEAM_MAP.get(sixes_code.upper(), sixes_code)
+
+        if "more_fours_team" in match_data:
+            fours_code = str(match_data["more_fours_team"])
+            match.more_fours_team = TEAM_MAP.get(fours_code.upper(), fours_code)
             
         # Save a reference to exactly what n8n sent
         match.raw_result_json = match_data

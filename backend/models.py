@@ -50,6 +50,8 @@ class Match(Base):
     team1_powerplay_score: Mapped[int] = mapped_column(Integer, nullable=True)
     team2_powerplay_score: Mapped[int] = mapped_column(Integer, nullable=True)
     player_of_the_match: Mapped[str] = mapped_column(String, nullable=True)
+    more_sixes_team: Mapped[str] = mapped_column(String, nullable=True)
+    more_fours_team: Mapped[str] = mapped_column(String, nullable=True)
     
     raw_result_json: Mapped[dict] = mapped_column(JSON, nullable=True)
     reported_by: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=True)
@@ -69,6 +71,8 @@ class Prediction(Base):
     team1_powerplay: Mapped[int] = mapped_column(Integer, nullable=True)
     team2_powerplay: Mapped[int] = mapped_column(Integer, nullable=True)
     player_of_the_match: Mapped[str] = mapped_column(String, nullable=True)
+    more_sixes_team: Mapped[str] = mapped_column(String, nullable=True)
+    more_fours_team: Mapped[str] = mapped_column(String, nullable=True)
     use_powerup: Mapped[str] = mapped_column(String, default="No") # "Yes" or "No"
     is_auto_predicted: Mapped[bool] = mapped_column(Boolean, default=False)
     

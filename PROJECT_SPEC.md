@@ -294,6 +294,18 @@ LeaderboardEntry — id, user_id, match_id, points, created_at
 Use async FastAPI patterns throughout (`async def`, `asyncpg`, `AsyncSession`).
 Dockerfile: `python:3.12-slim` base, no unnecessary layers.
 
+### 8. Automation & Webhooks (n8n)
+
+The project supports automated match result reporting via n8n and Telegram.
+
+- **Endpoint**: `PUT /external/match-results` (requires Google OAuth Admin token or Telegram Admin privileges).
+- **Automation Script**: `automation/n8n_telegram_parser.js` (to be used in an n8n Function node).
+- **Workflow**:
+  1. Admin sends a specifically formatted message to a Telegram bot.
+  2. n8n webhook receives the message.
+  3. `n8n_telegram_parser.js` parses the message into match results.
+  4. n8n calls the backend API to update match results and trigger scoring.
+
 ---
 
 ## 💻 CODING TASK — Frontend OPTION A: React + Vite

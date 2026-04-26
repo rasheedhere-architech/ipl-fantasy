@@ -504,6 +504,20 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
                 winners.append({"username": name, "avatar_url": avatar, "value": val})
         return winners
 
+    def get_chase_winners(data_map, date_map):
+        if not data_map: return []
+        max_val = max(data_map.values())
+        if max_val <= 0: return []
+        
+        winners = []
+        for name, val in data_map.items():
+            if val == max_val:
+                avatar = next((u[1] for u in all_users_list if u[0] == name), None)
+                d = date_map.get(name)
+                val_str = f"{val} Ranks (Wk of {d.strftime('%b %d')})" if d else f"{val} Ranks"
+                winners.append({"username": name, "avatar_url": avatar, "value": val_str})
+        return winners
+
     # Impact Player (Russell) - Pts from Powerplay predictions
     impact_res = await db.execute(
         select(User.name, func.sum(Prediction.points_awarded))
@@ -523,20 +537,78 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
     )
     boss_map = {name: pts for name, pts in boss_res.all()}
 
-    # Chase Master (Kohli) - Rank shifts in last week
-    current_ranks = {name: i+1 for i, (name, pts) in enumerate(sorted(lb_data, key=lambda x: x[1], reverse=True))}
-    last_week_start = now - timedelta(days=7)
-    past_lb_res = await db.execute(
-        select(User.name, func.sum(LeaderboardEntry.points))
-        .join(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
-        .join(Match, LeaderboardEntry.match_id == Match.id)
-        .where(Match.toss_time < last_week_start)
+    # Chase Master (Kohli) - Max rank shifts in ANY 7-day window
+    from collections import defaultdict
+    chase_map = defaultdict(int)
+    chase_date_map = {}
+    
+    chase_points_res = await db.execute(
+        select(User.name, Match.toss_time, LeaderboardEntry.points)
+        .join(LeaderboardEntry, Match.id == LeaderboardEntry.match_id)
+        .join(User, LeaderboardEntry.user_id == User.id)
+        .where(Match.status == "completed")
         .where(Match.id.in_(valid_match_ids))
-        .group_by(User.name)
-        .order_by(func.sum(LeaderboardEntry.points).desc())
+        .where(User.is_guest == False)
+        .order_by(Match.toss_time)
     )
-    past_ranks = {name: i+1 for i, (name, pts) in enumerate(past_lb_res.all())}
-    chase_map = {name: past_ranks[name] - curr for name, curr in current_ranks.items() if name in past_ranks and past_ranks[name] > curr}
+    
+    chase_events = chase_points_res.all()
+    if chase_events:
+        users_res = await db.execute(select(User.name).where(User.is_guest == False))
+        
+        user_cumulative_points = {n: 0 for (n,) in users_res.all()}
+        def get_ranks(pts_dict):
+            sorted_items = sorted(pts_dict.items(), key=lambda x: x[1], reverse=True)
+            r_dict = {}
+            curr_r = 1
+            last_p = None
+            for idx, (u, p) in enumerate(sorted_items):
+                if p != last_p:
+                    curr_r = idx + 1
+                r_dict[u] = curr_r
+                last_p = p
+            return r_dict
+
+        initial_ranks = get_ranks(user_cumulative_points)
+        
+        events_by_time = defaultdict(list)
+        for name, t_time, pts in chase_events:
+            events_by_time[t_time].append((name, pts))
+            
+        first_time = min(events_by_time.keys())
+        ancient_time = first_time - timedelta(days=365)
+        history_states = [(ancient_time, initial_ranks)]
+        
+        for t_time in sorted(events_by_time.keys()):
+            for name, pts in events_by_time[t_time]:
+                if name in user_cumulative_points:
+                    user_cumulative_points[name] += pts
+            
+            ranks = get_ranks(user_cumulative_points)
+            history_states.append((t_time, ranks))
+            
+        for i, (current_time, current_ranks) in enumerate(history_states):
+            if i == 0: continue
+            window_start = current_time - timedelta(days=7)
+            
+            past_ranks = None
+            for past_time, p_ranks in reversed(history_states[:i]):
+                if past_time <= window_start:
+                    if past_time != ancient_time:
+                        past_ranks = p_ranks
+                    break
+                    
+            if past_ranks:
+                total_players = len(past_ranks)
+                for name, curr_rank in current_ranks.items():
+                    if name in past_ranks:
+                        past_rank = past_ranks[name]
+                        # Only consider players chasing from the bottom half
+                        if past_rank > total_players / 2:
+                            shift = past_rank - curr_rank
+                            if shift > chase_map[name]:
+                                chase_map[name] = shift
+                                chase_date_map[name] = current_time
 
     # Mystery Spinner (Narine) - Upset match points
     mystery_map = {}
@@ -659,7 +731,7 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
         "hat_trick": get_winners(ht_map),
         "the_big_show": get_winners(maxwell_map),
         "captain_cool": get_winners(dhoni_map),
-        "chase_master": get_winners(chase_map),
+        "chase_master": get_chase_winners(chase_map, chase_date_map),
         "impact_player": get_winners(impact_map),
         "switch_hit": get_winners(switch_map),
         "caught_bowled": get_winners(cb_map),
@@ -699,7 +771,7 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
                     {"type": "malinga", "name": "Hat-Trick", "value": "Triple Threat"} if ht_map.get(name, 0) >= 3 else None,
                     {"type": "sachin", "name": "Master Blaster", "value": "Milestone"} if next((pts for n, pts in lb_data if n == name), 0) >= 500 else None,
                     {"type": "maxwell", "name": "The Big Show", "value": f"{maxwell_map.get(name, 0)} Pts"} if maxwell_map.get(name, 0) >= 40 else None,
-                    {"type": "kohli", "name": "Chase Master", "value": f"Up {chase_map.get(name, 0)} Ranks"} if chase_map.get(name, 0) >= 3 else None,
+                    {"type": "kohli", "name": "Chase Master", "value": f"Up {chase_map.get(name, 0)} ({chase_date_map.get(name).strftime('%b %d') if chase_date_map.get(name) else ''})"} if chase_map.get(name, 0) >= 3 else None,
                     {"type": "russell", "name": "Impact Player", "value": "Powerplay King"} if impact_map.get(name, 0) >= 100 else None,
                 ]
             }

@@ -245,7 +245,7 @@ export default function Analysis() {
                                       award.key === 'hat_trick' ? `${w.value} Matches` :
                                         award.key === 'the_big_show' ? `${w.value} Pts` :
                                           award.key === 'captain_cool' ? `${Math.round(w.value)} Avg` :
-                                            award.key === 'chase_master' ? `+${w.value} Ranks` :
+                                            award.key === 'chase_master' ? `+${w.value}` :
                                               award.key === 'impact_player' ? `${w.value} Pts` :
                                                 award.key === 'switch_hit' ? `${w.value} Doubles` :
                                                   award.key === 'caught_bowled' ? `${w.value} Perfects` :

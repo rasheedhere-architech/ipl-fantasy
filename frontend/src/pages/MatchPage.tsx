@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMatch, useSubmitPrediction, useMyPredictions, useAllMatchPredictions } from '../api/hooks/useMatches';
 import { useUpdateMatchResults, useTriggerAIPredictions } from '../api/hooks/useAdmin';
-import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X, Sparkles, Settings, AlertTriangle, ShieldAlert, Bot, MapPin, Zap } from 'lucide-react';
+import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X, Sparkles, Settings, AlertTriangle, ShieldAlert, Bot, MapPin } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { apiClient } from '../api/client';
 import toast from 'react-hot-toast';
@@ -516,11 +516,11 @@ export default function MatchPage() {
                     <div className="flex flex-col items-end gap-1">
                       <div className="flex items-center gap-1.5 md:gap-2">
                         {pred.answers.use_powerup === 'Yes' && (
-                           <div className={`flex items-center bg-ipl-live/10 border border-ipl-live/20 rounded leading-none ${isDesktop ? 'md:px-1.5 md:py-1' : 'px-1 py-0.5'}`}>
-                             <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold text-ipl-live tracking-tighter uppercase`}>⚡ 2X Booster</span>
-                           </div>
+                          <div className={`flex items-center bg-ipl-live/10 border border-ipl-live/20 rounded leading-none ${isDesktop ? 'md:px-1.5 md:py-1' : 'px-1 py-0.5'}`}>
+                            <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold text-ipl-live tracking-tighter uppercase`}>⚡ 2X Booster</span>
+                          </div>
                         )}
-                        <span 
+                        <span
                           className={`font-bold rounded leading-none uppercase tracking-widest border ${isDesktop ? 'md:text-[10px] md:px-2 md:py-1' : 'text-[9px] px-1.5 py-0.5'} ${pred.answers.match_winner === '🔒' ? 'bg-white/5 border-white/10 text-gray-500' : ''}`}
                           style={pred.answers.match_winner !== '🔒' ? {
                             backgroundColor: `${getTeamColor(pred.answers.match_winner)}15`,
@@ -531,7 +531,7 @@ export default function MatchPage() {
                           {isDesktop && pred.answers.match_winner !== '🔒' ? getTeamShortName(pred.answers.match_winner) : teamWinnerShort}
                         </span>
                       </div>
-                      
+
                       <div className="flex items-center justify-end">
                         {editingId === pred.prediction_id ? (
                           <div className="flex items-center gap-1 justify-end">

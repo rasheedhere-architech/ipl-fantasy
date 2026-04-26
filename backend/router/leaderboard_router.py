@@ -680,6 +680,36 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
     )
     direct_map = {name: count for name, count in direct_res.all()}
 
+    # Sixster - Most correct predictions for more_sixes_team
+    sixster_res = await db.execute(
+        select(User.name, func.count(Prediction.id))
+        .join(User, Prediction.user_id == User.id)
+        .join(Match, Prediction.match_id == Match.id)
+        .where(Match.status == "completed")
+        .where(or_(
+            Prediction.more_sixes_team == Match.more_sixes_team,
+            Match.more_sixes_team == "Tie"
+        ))
+        .where(Prediction.more_sixes_team != None)
+        .group_by(User.name)
+    )
+    sixster_map = {name: count for name, count in sixster_res.all()}
+
+    # Fourster - Most correct predictions for more_fours_team
+    fourster_res = await db.execute(
+        select(User.name, func.count(Prediction.id))
+        .join(User, Prediction.user_id == User.id)
+        .join(Match, Prediction.match_id == Match.id)
+        .where(Match.status == "completed")
+        .where(or_(
+            Prediction.more_fours_team == Match.more_fours_team,
+            Match.more_fours_team == "Tie"
+        ))
+        .where(Prediction.more_fours_team != None)
+        .group_by(User.name)
+    )
+    fourster_map = {name: count for name, count in fourster_res.all()}
+
     # Doosra Spinner - Most incorrect winner predictions
     doosra_res = await db.execute(
         select(User.name, func.count(Prediction.id))
@@ -739,6 +769,8 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
         "direct_hit": get_winners(direct_map),
         "doosra_spinner": get_winners(doosra_map),
         "one_man_army": get_winners(army_map),
+        "sixster": get_winners(sixster_map),
+        "fourster": get_winners(fourster_map),
     }
 
     # 9. Final Response Structure
@@ -773,6 +805,8 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
                     {"type": "maxwell", "name": "The Big Show", "value": f"{maxwell_map.get(name, 0)} Pts"} if maxwell_map.get(name, 0) >= 40 else None,
                     {"type": "kohli", "name": "Chase Master", "value": f"Up {chase_map.get(name, 0)} ({chase_date_map.get(name).strftime('%b %d') if chase_date_map.get(name) else ''})"} if chase_map.get(name, 0) >= 3 else None,
                     {"type": "russell", "name": "Impact Player", "value": "Powerplay King"} if impact_map.get(name, 0) >= 100 else None,
+                    {"type": "sixster", "name": "Sixster", "value": f"{sixster_map.get(name, 0)} Sixes"} if sixster_map.get(name, 0) >= 1 else None,
+                    {"type": "fourster", "name": "Fourster", "value": f"{fourster_map.get(name, 0)} Fours"} if fourster_map.get(name, 0) >= 1 else None,
                 ]
             }
             for name, avatar, base in all_users_list

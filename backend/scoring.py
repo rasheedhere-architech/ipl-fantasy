@@ -137,6 +137,42 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
         if p.use_powerup == "Yes":
             points = points * 2
             
+        # RULE 6: More Sixes (+5 Correct) - NO POWERUP
+        if match.more_sixes_team and p.more_sixes_team:
+            actual_lower = str(match.more_sixes_team).strip().lower()
+            predicted_lower = str(p.more_sixes_team).strip().lower()
+            
+            # If actual is Tie, everyone (who picked team1 or team2) gets points
+            is_correct = (actual_lower == "tie") or (predicted_lower == actual_lower)
+            
+            rule_points = 5 if is_correct else 0
+            points += rule_points
+            breakdown_rules.append({
+                "category": "More Sixes",
+                "status": "correct" if is_correct else "incorrect",
+                "points": rule_points,
+                "predicted": p.more_sixes_team,
+                "actual": match.more_sixes_team
+            })
+
+        # RULE 7: More Fours (+5 Correct) - NO POWERUP
+        if match.more_fours_team and p.more_fours_team:
+            actual_lower = str(match.more_fours_team).strip().lower()
+            predicted_lower = str(p.more_fours_team).strip().lower()
+            
+            # If actual is Tie, everyone gets points
+            is_correct = (actual_lower == "tie") or (predicted_lower == actual_lower)
+            
+            rule_points = 5 if is_correct else 0
+            points += rule_points
+            breakdown_rules.append({
+                "category": "More Fours",
+                "status": "correct" if is_correct else "incorrect",
+                "points": rule_points,
+                "predicted": p.more_fours_team,
+                "actual": match.more_fours_team
+            })
+
         # Build final breakdown
         p.points_breakdown = {
             "rules": breakdown_rules,
@@ -144,7 +180,7 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
                 "used": p.use_powerup == "Yes",
                 "multiplier": 2 if p.use_powerup == "Yes" else 1,
                 "points_before": points_before_powerup,
-                "points_after": points
+                "points_after": points_before_powerup * (2 if p.use_powerup == "Yes" else 1)
             },
             "total": points
         }

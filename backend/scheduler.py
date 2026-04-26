@@ -86,6 +86,20 @@ async def generate_ai_prediction(db, match: Match, ai_user: User):
     players = winner_stats["potm"]
     potm = random.choice(players) if players else f"Star Player ({match_winner})"
     
+    # 4. More Sixes and More Fours (Randomly choose for matches >= 39)
+    match_number = 0
+    if "-" in match.id:
+        try:
+            match_number = int(match.id.split("-")[-1])
+        except ValueError:
+            pass
+            
+    more_sixes_team = None
+    more_fours_team = None
+    if match_number >= 39:
+        more_sixes_team = match.team1 if random.random() > 0.5 else match.team2
+        more_fours_team = match.team1 if random.random() > 0.5 else match.team2
+    
     # Check if prediction already exists
     existing_pred = await db.execute(
         select(Prediction).where(Prediction.user_id == ai_user.id, Prediction.match_id == match.id)
@@ -104,6 +118,8 @@ async def generate_ai_prediction(db, match: Match, ai_user: User):
         team1_powerplay=team1_pp,
         team2_powerplay=team2_pp,
         player_of_the_match=potm,
+        more_sixes_team=more_sixes_team,
+        more_fours_team=more_fours_team,
         use_powerup=use_powerup,
         is_auto_predicted=True
     )
@@ -120,12 +136,12 @@ async def auto_predict_daily_job():
     print(f"[{datetime.now(UTC)}] Running auto_predict_daily_job for AI user...")
     async with async_session() as db:
         async with db.begin():
-            # Find the AI user
-            ai_user_result = await db.execute(select(User).where(User.is_ai == True))
-            ai_user = ai_user_result.scalars().first()
+            # Find all AI users
+            ai_users_result = await db.execute(select(User).where(User.is_ai == True))
+            ai_users = ai_users_result.scalars().all()
             
-            if not ai_user:
-                print("No AI user found. Skipping auto-predict.")
+            if not ai_users:
+                print("No AI users found. Skipping auto-predict.")
                 return
                 
             # Get matches for today (next 24 hours). 
@@ -146,8 +162,9 @@ async def auto_predict_daily_job():
                 print("No upcoming matches in the next 24 hours for the AI.")
                 return
                 
-            for match in upcoming_matches:
-                await generate_ai_prediction(db, match, ai_user)
+            for ai_user in ai_users:
+                for match in upcoming_matches:
+                    await generate_ai_prediction(db, match, ai_user)
             
             # Commit happens automatically due to async with db.begin()
     print("Auto-predict completed successfully.")

@@ -183,6 +183,24 @@ export default function Analysis() {
               winner: hof.doosra_spinner
             },
             {
+              key: 'sixster',
+              label: 'Sixster',
+              icon: <Zap className="w-4 h-4" />,
+              color: 'text-yellow-500',
+              desc: 'Maximum Maximums',
+              info: 'Awarded for correctly predicting the team that hits the most sixes in a match.',
+              winner: hof.sixster
+            },
+            {
+              key: 'fourster',
+              label: 'Fourster',
+              icon: <Star className="w-4 h-4" />,
+              color: 'text-blue-500',
+              desc: 'Boundary Baron',
+              info: 'Awarded for correctly predicting the team that hits the most fours in a match.',
+              winner: hof.fourster
+            },
+            {
               key: 'one_man_army',
               label: 'One Man Army',
               icon: <UserPlus className="w-4 h-4" />,
@@ -253,7 +271,9 @@ export default function Analysis() {
                                                       award.key === 'direct_hit' ? `${w.value} Misses` :
                                                         award.key === 'doosra_spinner' ? `${w.value} Wrongs` :
                                                           award.key === 'one_man_army' ? `${w.value} Solos` :
-                                                            `${w.value} Bullseyes`}
+                                                            award.key === 'sixster' ? `${w.value} Sixes` :
+                                                              award.key === 'fourster' ? `${w.value} Fours` :
+                                                                `${w.value} Bullseyes`}
                             </span>
                           </div>
                         </div>

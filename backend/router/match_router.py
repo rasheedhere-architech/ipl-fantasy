@@ -171,10 +171,51 @@ async def post_autopredict(match_id: str, db: AsyncSession = Depends(get_db), cu
 @router.get("/{match_id}")
 async def get_match(match_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     from sqlalchemy.orm import selectinload
-    result = await db.execute(select(Match).options(selectinload(Match.reporter)).where(Match.id == match_id))
+    from backend.models import MatchStats
+    
+    result = await db.execute(
+        select(Match)
+        .options(selectinload(Match.reporter))
+        .where(Match.id == match_id)
+    )
     m = result.scalars().first()
     if not m:
         raise HTTPException(status_code=404, detail="Match not found")
+        
+    # Fetch stats if available
+    stats_result = await db.execute(select(MatchStats).where(MatchStats.match_id == match_id))
+    ms = stats_result.scalars().first()
+    
+    stats_dict = None
+    if ms:
+        stats_dict = {
+            "head_to_head": ms.head_to_head,
+            "favourite": ms.favourite,
+            "form_team1": ms.form_team1,
+            "form_team2": ms.form_team2,
+            "players_to_watch": ms.players_to_watch,
+            "last_updated": ms.last_updated
+        }
+    elif m.status != "cancelled":
+        try:
+            print(f"Triggering on-demand match stats fetch for {match_id}...")
+            from backend.agents.match_stats_agent import match_stats_agent
+            # Wait for it so the user sees it immediately on first load
+            stats_data = await match_stats_agent.fetch_and_store_stats(match_id, db)
+            if stats_data and stats_data.get("head_to_head"):
+                stats_dict = {
+                    "head_to_head": stats_data.get("head_to_head"),
+                    "favourite": stats_data.get("favourite"),
+                    "form_team1": stats_data.get("form_team1"),
+                    "form_team2": stats_data.get("form_team2"),
+                    "players_to_watch": stats_data.get("players_to_watch"),
+                    "last_updated": datetime.now(UTC)
+                }
+                print(f"Successfully fetched on-demand stats for {match_id}")
+            else:
+                print(f"Agent returned no data for {match_id}")
+        except Exception as e:
+            print(f"Error fetching on-demand match stats for {match_id}: {e}")
         
     match_dict = {
         "id": m.id,
@@ -224,7 +265,13 @@ async def get_match(match_id: str, db: AsyncSession = Depends(get_db), current_u
     )
     powerups_used = len(p_result.scalars().all())
 
-    return {"match": match_dict, "questions": questions, "powerups_used": powerups_used, "total_powerups": current_user.base_powerups}
+    return {
+        "match": match_dict, 
+        "questions": questions, 
+        "powerups_used": powerups_used, 
+        "total_powerups": current_user.base_powerups,
+        "stats": stats_dict
+    }
 
 @router.post("/{match_id}/predictions")
 async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):

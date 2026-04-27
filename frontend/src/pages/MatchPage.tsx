@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMatch, useSubmitPrediction, useMyPredictions, useAllMatchPredictions } from '../api/hooks/useMatches';
 import { useUpdateMatchResults, useTriggerAIPredictions } from '../api/hooks/useAdmin';
-import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X, Sparkles, Settings, AlertTriangle, ShieldAlert, Bot, MapPin } from 'lucide-react';
+import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X, Sparkles, Settings, AlertTriangle, ShieldAlert, Bot, MapPin, History, TrendingUp, Users, Info } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { apiClient } from '../api/client';
 import toast from 'react-hot-toast';
@@ -196,6 +196,162 @@ export default function MatchPage() {
           {match.venue}
         </p>
       </div>
+
+      {/* AI Match Insights Section */}
+      {data.stats ? (
+        <div className="glass-panel p-6 border-l-4 border-l-[#7B2FF7] relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+            <Bot className="w-24 h-24 text-white" />
+          </div>
+          
+          <div className="flex items-center gap-2 mb-6">
+            <Sparkles className="w-5 h-5 text-[#7B2FF7]" />
+            <h2 className="text-xl font-display text-white italic">AI MATCH INSIGHTS</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Left Column: Form & H2H */}
+            <div className="space-y-6">
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <History className="w-4 h-4 text-ipl-gold" />
+                  <span className="text-[10px] font-display text-ipl-gold uppercase tracking-widest">Head to Head</span>
+                </div>
+                {typeof data.stats.head_to_head === 'object' ? (
+                  <div className="bg-white/5 p-4 rounded-lg border border-white/10 space-y-3">
+                    <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                      <span className="text-[10px] text-gray-400 uppercase">Total Matches</span>
+                      <span className="text-lg font-display text-white">{data.stats.head_to_head.total}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="text-center p-2 bg-white/5 rounded">
+                        <span className="text-[8px] text-gray-500 uppercase block mb-1">{match.team1}</span>
+                        <span className="text-xl font-display text-white">{data.stats.head_to_head.team1_wins}</span>
+                      </div>
+                      <div className="text-center p-2 bg-white/5 rounded">
+                        <span className="text-[8px] text-gray-500 uppercase block mb-1">{match.team2}</span>
+                        <span className="text-xl font-display text-white">{data.stats.head_to_head.team2_wins}</span>
+                      </div>
+                    </div>
+                    {data.stats.head_to_head.recent && (
+                      <div className="pt-2">
+                        <span className="text-[8px] text-gray-500 uppercase block mb-2">Recent Encounters</span>
+                        <div className="flex flex-col gap-1">
+                          {data.stats.head_to_head.recent.map((res: string, i: number) => (
+                            <div key={i} className="text-[10px] text-gray-400 flex items-center gap-2">
+                              <div className="w-1 h-1 rounded-full bg-ipl-gold" />
+                              {res}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-300 text-sm leading-relaxed font-sans">{data.stats.head_to_head}</p>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp className="w-4 h-4 text-ipl-gold" />
+                  <span className="text-[10px] font-display text-ipl-gold uppercase tracking-widest">Team Form</span>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="bg-white/5 p-3 border border-white/10 rounded">
+                    <span className="text-[10px] font-display uppercase tracking-wider block mb-1" style={{ color: getTeamColor(match.team1) }}>{match.team1}</span>
+                    {typeof data.stats.form_team1 === 'object' ? (
+                      <div className="space-y-2">
+                        <div className="flex flex-col gap-1.5">
+                          {data.stats.form_team1.last_5.map((res: string, i: number) => (
+                            <div key={i} className={`px-2 py-1 rounded text-[9px] font-bold flex items-center gap-2 ${res.startsWith('W') ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                              <span className="w-4">{res.split(' ')[0]}</span>
+                              <span className="text-gray-400 font-sans font-normal">{res.split(' ').slice(1).join(' ')}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-gray-400 leading-relaxed">{data.stats.form_team1.summary}</p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-400 leading-relaxed">{data.stats.form_team1}</p>
+                    )}
+                  </div>
+                  <div className="bg-white/5 p-3 border border-white/10 rounded">
+                    <span className="text-[10px] font-display uppercase tracking-wider block mb-1" style={{ color: getTeamColor(match.team2) }}>{match.team2}</span>
+                    {typeof data.stats.form_team2 === 'object' ? (
+                      <div className="space-y-2">
+                        <div className="flex flex-col gap-1.5">
+                          {data.stats.form_team2.last_5.map((res: string, i: number) => (
+                            <div key={i} className={`px-2 py-1 rounded text-[9px] font-bold flex items-center gap-2 ${res.startsWith('W') ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                              <span className="w-4">{res.split(' ')[0]}</span>
+                              <span className="text-gray-400 font-sans font-normal">{res.split(' ').slice(1).join(' ')}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-gray-400 leading-relaxed">{data.stats.form_team2.summary}</p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-400 leading-relaxed">{data.stats.form_team2}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Favourite & Players */}
+            <div className="space-y-6">
+              <div className="bg-gradient-to-br from-[#7B2FF7]/10 to-transparent p-5 border border-[#7B2FF7]/20 rounded-xl">
+                <div className="flex items-center gap-2 mb-3">
+                  <Target className="w-4 h-4 text-[#7B2FF7]" />
+                  <span className="text-[10px] font-display text-[#7B2FF7] uppercase tracking-widest">AI Favourite</span>
+                </div>
+                <p className="text-white text-lg font-display tracking-wide italic">{data.stats.favourite}</p>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="w-4 h-4 text-ipl-gold" />
+                  <span className="text-[10px] font-display text-ipl-gold uppercase tracking-widest">Players to Watch</span>
+                </div>
+                <div className="flex flex-col gap-3">
+                  {data.stats.players_to_watch.map((player: any, i: number) => (
+                    <div key={i} className="bg-white/5 border border-white/10 p-3 rounded-lg flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-display text-white">{typeof player === 'string' ? player : player.name}</span>
+                        {player.team && (
+                          <span className="text-[8px] font-display uppercase px-2 py-0.5 rounded bg-white/10 text-gray-400">
+                            {player.team}
+                          </span>
+                        )}
+                      </div>
+                      {player.reason && (
+                        <p className="text-[10px] text-gray-400 font-sans leading-tight italic">
+                          {player.reason}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="pt-4 flex items-center gap-2 text-[8px] font-display uppercase tracking-widest text-gray-600">
+                <Info className="w-3 h-3" />
+                Updated: {new Date(data.stats.last_updated).toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : match.status !== 'completed' && (
+        <div className="glass-panel p-6 border-l-4 border-l-gray-600 opacity-60">
+           <div className="flex items-center gap-3">
+              <Bot className="w-5 h-5 text-gray-400" />
+              <div>
+                <h3 className="text-sm font-display text-white uppercase tracking-wider">AI Insights Pending</h3>
+                <p className="text-[10px] text-gray-400 font-sans">Gemini is currently analyzing match data. Refresh in a few moments.</p>
+              </div>
+           </div>
+        </div>
+      )}
 
       {match.status === 'completed' && (
         <div className="glass-panel p-8 border-t-4 border-t-ipl-gold shadow-[0_20px_50px_rgba(244,196,48,0.1)] animate-in fade-in slide-in-from-top-4 duration-1000">

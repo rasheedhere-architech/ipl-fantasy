@@ -3,8 +3,11 @@ from datetime import datetime, UTC, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select, or_
 from .database import async_session
-from .models import Match, MatchStatus, Prediction, User
+from .models import Match, MatchStatus, Prediction, User, MatchStats
 import random
+from .agents.match_stats_agent import match_stats_agent
+from .agents.match_result_agent import match_result_agent
+from .scoring import calculate_match_scores
 
 scheduler = AsyncIOScheduler()
 
@@ -169,9 +172,58 @@ async def auto_predict_daily_job():
             # Commit happens automatically due to async with db.begin()
     print("Auto-predict completed successfully.")
 
+
+async def fetch_match_stats_nightly():
+    """Nightly cron job to fetch stats for upcoming matches."""
+    print(f"[{datetime.now(UTC)}] Running fetch_match_stats_nightly...")
+    async with async_session() as db:
+        now = datetime.now(UTC)
+        tomorrow = now + timedelta(days=2) # Fetch for the next 48 hours to be safe
+        
+        result = await db.execute(
+            select(Match).where(
+                Match.status == MatchStatus.upcoming,
+                Match.toss_time >= now,
+                Match.toss_time <= tomorrow
+            )
+        )
+        upcoming_matches = result.scalars().all()
+        
+        for match in upcoming_matches:
+            try:
+                await match_stats_agent.fetch_and_store_stats(match.id, db)
+                print(f"Fetched stats for match {match.id}")
+            except Exception as e:
+                print(f"Error fetching stats for match {match.id}: {e}")
+
+async def check_match_results_job():
+    """Job to check for recently completed matches and fetch results if missing."""
+    async with async_session() as db:
+        # Matches that are "completed" (from CricAPI) but don't have a winner yet
+        result = await db.execute(
+            select(Match).where(
+                Match.status == MatchStatus.completed,
+                Match.winner == None
+            )
+        )
+        completed_matches = result.scalars().all()
+        
+        for match in completed_matches:
+            try:
+                print(f"Fetching result for match {match.id} via agent...")
+                await match_result_agent.fetch_match_results(match.id, db)
+                # After result is fetched, trigger scoring
+                await calculate_match_scores(match.id, db)
+                print(f"Scored match {match.id}")
+            except Exception as e:
+                print(f"Error fetching result/scoring for match {match.id}: {e}")
+
 def start_scheduler():
     # Run the job every day at 00:00 UTC
     scheduler.add_job(auto_predict_daily_job, trigger='cron', hour=0, minute=0, timezone='UTC')
+    scheduler.add_job(fetch_match_stats_nightly, trigger='cron', hour=1, minute=0, timezone='UTC')
+    # Check for results every 30 minutes
+    # scheduler.add_job(check_match_results_job, 'interval', minutes=30)
     scheduler.start()
 
 def stop_scheduler():

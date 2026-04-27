@@ -181,3 +181,18 @@ class CampaignAnswer(Base):
 
     response: Mapped["CampaignResponse"] = relationship("CampaignResponse", back_populates="answers")
     question: Mapped["CampaignQuestion"] = relationship("CampaignQuestion", back_populates="answers")
+
+
+class MatchStats(Base):
+    __tablename__ = "match_stats"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    match_id: Mapped[str] = mapped_column(String, ForeignKey("matches.id"), unique=True)
+    head_to_head: Mapped[dict] = mapped_column(JSON, nullable=True)
+    favourite: Mapped[str] = mapped_column(String, nullable=True)
+    form_team1: Mapped[dict] = mapped_column(JSON, nullable=True)
+    form_team2: Mapped[dict] = mapped_column(JSON, nullable=True)
+    players_to_watch: Mapped[dict] = mapped_column(JSON, nullable=True) # list of strings
+    last_updated: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    match: Mapped["Match"] = relationship("Match")

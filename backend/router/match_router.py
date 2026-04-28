@@ -194,6 +194,8 @@ async def get_match(match_id: str, db: AsyncSession = Depends(get_db), current_u
             "form_team1": ms.form_team1,
             "form_team2": ms.form_team2,
             "players_to_watch": ms.players_to_watch,
+            "standings_team1": ms.standings_team1,
+            "standings_team2": ms.standings_team2,
             "last_updated": ms.last_updated
         }
     elif m.status != "cancelled":
@@ -209,6 +211,8 @@ async def get_match(match_id: str, db: AsyncSession = Depends(get_db), current_u
                     "form_team1": stats_data.get("form_team1"),
                     "form_team2": stats_data.get("form_team2"),
                     "players_to_watch": stats_data.get("players_to_watch"),
+                    "standings_team1": stats_data.get("standings_team1"),
+                    "standings_team2": stats_data.get("standings_team2"),
                     "last_updated": datetime.now(UTC)
                 }
                 print(f"Successfully fetched on-demand stats for {match_id}")

@@ -192,7 +192,9 @@ class MatchStats(Base):
     favourite: Mapped[str] = mapped_column(String, nullable=True)
     form_team1: Mapped[dict] = mapped_column(JSON, nullable=True)
     form_team2: Mapped[dict] = mapped_column(JSON, nullable=True)
-    players_to_watch: Mapped[dict] = mapped_column(JSON, nullable=True) # list of strings
+    players_to_watch: Mapped[dict] = mapped_column(JSON, nullable=True) # list of player objects
+    standings_team1: Mapped[dict] = mapped_column(JSON, nullable=True)
+    standings_team2: Mapped[dict] = mapped_column(JSON, nullable=True)
     last_updated: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
     match: Mapped["Match"] = relationship("Match")

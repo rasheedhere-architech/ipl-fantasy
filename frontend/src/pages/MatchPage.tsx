@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMatch, useSubmitPrediction, useMyPredictions, useAllMatchPredictions } from '../api/hooks/useMatches';
 import { useUpdateMatchResults, useTriggerAIPredictions } from '../api/hooks/useAdmin';
-import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X, Sparkles, Settings, AlertTriangle, ShieldAlert, Bot, MapPin, History, TrendingUp, Users, Info } from 'lucide-react';
+import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X, Sparkles, Settings, AlertTriangle, ShieldAlert, Bot, MapPin, History, TrendingUp, Users, Info, BarChart3 } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { apiClient } from '../api/client';
 import toast from 'react-hot-toast';
@@ -198,7 +198,7 @@ export default function MatchPage() {
       </div>
 
       {/* AI Match Insights Section */}
-      {data.stats ? (
+      {data.stats && data.stats.head_to_head ? (
         <div className="glass-panel p-6 border-l-4 border-l-[#7B2FF7] relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
             <Bot className="w-24 h-24 text-white" />
@@ -251,6 +251,50 @@ export default function MatchPage() {
                   <p className="text-gray-300 text-sm leading-relaxed font-sans">{data.stats.head_to_head}</p>
                 )}
               </div>
+
+              {/* Standings */}
+              {(data.stats.standings_team1 || data.stats.standings_team2) && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <BarChart3 className="w-4 h-4 text-ipl-gold" />
+                    <span className="text-[10px] font-display text-ipl-gold uppercase tracking-widest">IPL 2026 Standings</span>
+                  </div>
+                  <div className="bg-white/5 rounded-lg border border-white/10 overflow-hidden">
+                    <table className="w-full text-[10px]">
+                      <thead>
+                        <tr className="border-b border-white/10 text-gray-500 uppercase">
+                          <th className="text-left py-2 px-3">Team</th>
+                          <th className="text-center py-2 px-1">#</th>
+                          <th className="text-center py-2 px-1">P</th>
+                          <th className="text-center py-2 px-1">W</th>
+                          <th className="text-center py-2 px-1">L</th>
+                          <th className="text-center py-2 px-1">Pts</th>
+                          <th className="text-center py-2 px-3">NRR</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { team: match.team1, s: data.stats.standings_team1 },
+                          { team: match.team2, s: data.stats.standings_team2 }
+                        ]
+                          .filter((r: any) => r.s)
+                          .sort((a: any, b: any) => (a.s?.position ?? 99) - (b.s?.position ?? 99))
+                          .map(({ team, s }: any) => (
+                            <tr key={team} className="border-b border-white/5 last:border-0">
+                              <td className="py-2 px-3 font-display text-white" style={{ color: getTeamColor(team) }}>{team}</td>
+                              <td className="text-center py-2 px-1 text-gray-300 font-bold">{s.position}</td>
+                              <td className="text-center py-2 px-1 text-gray-400">{s.played}</td>
+                              <td className="text-center py-2 px-1 text-green-400">{s.won}</td>
+                              <td className="text-center py-2 px-1 text-red-400">{s.lost}</td>
+                              <td className="text-center py-2 px-1 text-white font-bold">{s.points}</td>
+                              <td className="text-center py-2 px-3 text-gray-400">{s.nrr}</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <div className="flex items-center gap-2 mb-3">

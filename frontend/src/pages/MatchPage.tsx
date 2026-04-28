@@ -67,6 +67,14 @@ export default function MatchPage() {
   const sortedPredictions = useMemo(() => {
     if (!allPredictions || !match) return [];
     return [...allPredictions].sort((a, b) => {
+      // Primary sort: Points awarded (if match completed)
+      if (match.status === 'completed') {
+        const pointsA = a.points_awarded ?? -999;
+        const pointsB = b.points_awarded ?? -999;
+        if (pointsA !== pointsB) return pointsB - pointsA;
+      }
+
+      // Secondary/Default sort: Match winner grouping
       const getScore = (p: any) => {
         const w = p.answers?.match_winner;
         if (w === match.team1) return 1;
@@ -75,6 +83,8 @@ export default function MatchPage() {
       };
       const scoreDiff = getScore(a) - getScore(b);
       if (scoreDiff !== 0) return scoreDiff;
+
+      // Tertiary sort: Name
       const nameA = a.user?.name || '';
       const nameB = b.user?.name || '';
       return nameA.localeCompare(nameB);
@@ -555,6 +565,55 @@ export default function MatchPage() {
                           <span className={`${isDesktop ? 'md:text-[13px] md:font-black' : 'text-xs font-bold'} tracking-tight leading-none ${isMyRow ? 'text-ipl-gold' : 'text-white'}`}>
                             {pred.user.name}
                           </span>
+                          {match.status === 'completed' && pred.points_awarded !== undefined && pred.points_awarded !== null && (
+                            <div className="group/score relative">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] md:text-[10px] font-bold font-mono cursor-help transition-all group-hover/score:bg-white/20 ${pred.points_awarded > 0 ? 'bg-green-500/20 text-green-400 border border-green-500/30' : pred.points_awarded < 0 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-white/10 text-gray-400 border border-white/20'}`}>
+                                {pred.points_awarded > 0 ? '+' : ''}{pred.points_awarded} PTS
+                              </span>
+                              
+                              {/* Breakdown Tooltip */}
+                              {pred.points_breakdown?.rules && (
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-[#0f172a] border border-white/10 rounded-lg shadow-2xl p-3 opacity-0 group-hover/score:opacity-100 pointer-events-none transition-all z-50">
+                                  <div className="space-y-1.5">
+                                    {/* Boostable Core Rules */}
+                                    {pred.points_breakdown.rules.filter((r: any) => !['More Sixes', 'More Fours'].includes(r.category)).map((rule: any, ri: number) => (
+                                      <div key={ri} className="flex justify-between items-center text-[8px] uppercase tracking-wider">
+                                        <span className="text-gray-500 truncate mr-2">{rule.category}</span>
+                                        <span className={rule.points > 0 ? 'text-green-400' : rule.points < 0 ? 'text-red-400' : 'text-gray-400'}>
+                                          {rule.points > 0 ? '+' : ''}{rule.points}
+                                        </span>
+                                      </div>
+                                    ))}
+
+                                    {/* Multiplier Indicator */}
+                                    {pred.points_breakdown.powerup?.used && (
+                                      <div className="py-1 my-1 border-y border-white/5 flex justify-between items-center text-[8px] uppercase tracking-widest font-bold text-ipl-gold">
+                                        <span className="flex items-center gap-1">⚡ 2X Booster Applied</span>
+                                        <span className="bg-ipl-gold text-black px-1 rounded-sm">x2</span>
+                                      </div>
+                                    )}
+
+                                    {/* Non-Boostable Bonuses */}
+                                    {pred.points_breakdown.rules.some((r: any) => ['More Sixes', 'More Fours'].includes(r.category)) && (
+                                      <div className="pt-1.5 space-y-1.5">
+                                        <div className="text-[7px] text-gray-600 font-bold tracking-tighter uppercase mb-1">Match Bonuses (No 2x)</div>
+                                        {pred.points_breakdown.rules.filter((r: any) => ['More Sixes', 'More Fours'].includes(r.category)).map((rule: any, ri: number) => (
+                                          <div key={ri} className="flex justify-between items-center text-[8px] uppercase tracking-wider">
+                                            <span className="text-gray-500 truncate mr-2">{rule.category}</span>
+                                            <span className={rule.points > 0 ? 'text-green-400' : 'text-gray-400'}>
+                                              {rule.points > 0 ? '+' : ''}{rule.points}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {/* Pointer Arrow */}
+                                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0f172a] border-r border-b border-white/10 rotate-45" />
+                                </div>
+                              )}
+                            </div>
+                          )}
                           {pred.is_auto_predicted && (
                             <Sparkles className={`${isDesktop ? 'md:w-3 md:h-3' : 'w-2 h-2'} text-[#7B2FF7]`} />
                           )}

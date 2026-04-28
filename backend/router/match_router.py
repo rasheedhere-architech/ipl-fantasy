@@ -377,7 +377,9 @@ async def get_all_community_predictions(match_id: str, db: AsyncSession = Depend
             "prediction_id": pred.id,
             "user": {"id": user.id, "name": user.name, "avatar_url": user.avatar_url},
             "answers": answers,
-            "is_auto_predicted": pred.is_auto_predicted
+            "is_auto_predicted": pred.is_auto_predicted,
+            "points_awarded": pred.points_awarded,
+            "points_breakdown": pred.points_breakdown
         })
         
     return results

@@ -21,8 +21,9 @@ class MatchStatsAgent:
         prompt = f"""
         You are a cricket data analyst. Today is April 2026. The IPL 2026 season is currently underway.
         
-        IMPORTANT: You MUST use Google Search to find CURRENT, REAL-TIME IPL 2026 data. 
+        IMPORTANT: You MUST use the provided Google Search tool to find CURRENT, REAL-TIME IPL 2026 data. 
         Your training data is OUTDATED for the 2026 season. Do NOT guess or use old data.
+        The search tool is enabled for you to find the latest standings, rosters, and match results.
         
         Search queries to use:
         - "{match.team1} vs {match.team2} IPL 2026 head to head"

@@ -18,10 +18,12 @@ class MatchResultAgent:
             return None
 
         prompt = f"""
-        Fetch the final results for the following IPL match:
+        Fetch the final results for the following IPL 2026 match using the provided Google Search tool:
         Teams: {match.team1} vs {match.team2}
         Venue: {match.venue}
         Date: {match.toss_time.strftime('%Y-%m-%d')}
+
+        IMPORTANT: Use the Google Search tool to verify the ACTUAL results for this match in 2026.
 
         Provide the following specific data points:
         1. Winner (Team name)

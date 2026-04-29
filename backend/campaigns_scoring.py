@@ -1,12 +1,17 @@
+import uuid as _uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-from backend.models import Campaign, CampaignQuestion, CampaignResponse, CampaignAnswer, QuestionType, User
+from backend.models import (
+    Campaign, CampaignQuestion, CampaignResponse, CampaignAnswer, 
+    QuestionType, User, CampaignMatchResult, LeagueUserMapping
+)
 
 
-def score_answer(question: CampaignQuestion, answer_value) -> int:
+def score_answer(question: CampaignQuestion, answer_value, correct_answer_override=None) -> int:
     rules = question.scoring_rules or {}
-    correct = question.correct_answer
+    # Use override if provided (from CampaignMatchResult), else fall back to question default
+    correct = correct_answer_override if correct_answer_override is not None else question.correct_answer
     q_type = question.question_type
 
     if correct is None:
@@ -59,6 +64,20 @@ async def calculate_campaign_scores(campaign_id: str, db: AsyncSession) -> None:
     if not campaign:
         return
 
+    # Check for match-specific correct answer overrides
+    match_id = campaign.match_id
+    overrides = {}
+    if match_id:
+        res = await db.execute(
+            select(CampaignMatchResult).where(
+                CampaignMatchResult.campaign_id == campaign_id,
+                CampaignMatchResult.match_id == match_id
+            )
+        )
+        match_result = res.scalars().first()
+        if match_result:
+            overrides = match_result.correct_answers or {}
+
     result = await db.execute(
         select(CampaignResponse)
         .where(CampaignResponse.campaign_id == campaign_id)
@@ -71,28 +90,41 @@ async def calculate_campaign_scores(campaign_id: str, db: AsyncSession) -> None:
     for response in responses:
         total = 0
         for answer in response.answers:
-            pts = score_answer(answer.question, answer.answer_value)
+            # Pass the override for this question if it exists
+            override = overrides.get(answer.question_id)
+            pts = score_answer(answer.question, answer.answer_value, correct_answer_override=override)
             answer.points_awarded = pts
             total += pts
         response.total_points = total
         responded_user_ids.add(response.user_id)
 
-    # Apply non-participation penalty: create penalty responses for users who didn't respond
+    # Apply non-participation penalty
     penalty = campaign.non_participation_penalty
     if penalty != 0:
-        users_result = await db.execute(
-            select(User).where(User.is_ai == False, User.is_guest == False)
-        )
-        all_users = users_result.scalars().all()
-        import uuid as _uuid
+        # If league-specific, only penalize members of that league
+        if campaign.league_id:
+            users_stmt = select(User).join(LeagueUserMapping).where(
+                LeagueUserMapping.league_id == campaign.league_id,
+                User.is_ai == False, User.is_guest == False
+            )
+        else:
+            users_stmt = select(User).where(User.is_ai == False, User.is_guest == False)
+            
+        all_users = (await db.execute(users_stmt)).scalars().all()
         for user in all_users:
             if user.id not in responded_user_ids:
-                penalty_response = CampaignResponse(
-                    id=str(_uuid.uuid4()),
-                    campaign_id=campaign_id,
-                    user_id=user.id,
-                    total_points=penalty,
+                # Check for existing penalty response to avoid duplicates
+                existing_stmt = select(CampaignResponse).where(
+                    CampaignResponse.campaign_id == campaign_id,
+                    CampaignResponse.user_id == user.id
                 )
-                db.add(penalty_response)
+                if not (await db.execute(existing_stmt)).scalars().first():
+                    penalty_response = CampaignResponse(
+                        id=str(_uuid.uuid4()),
+                        campaign_id=campaign_id,
+                        user_id=user.id,
+                        total_points=penalty,
+                    )
+                    db.add(penalty_response)
 
     await db.commit()

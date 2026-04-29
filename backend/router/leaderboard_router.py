@@ -5,9 +5,10 @@ from sqlalchemy import func, or_, case, text
 
 from backend.database import get_db
 from backend.models import User, LeaderboardEntry, AllowlistedEmail, Match, Prediction
+from backend.dependencies import get_current_user
 from backend.utils.cache import backend_cache
 
-router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
+router = APIRouter(prefix="/api/leaderboard", tags=["leaderboard"])
 START_MATCH_NO = 12
 
 def match_filter_clause():
@@ -25,84 +26,88 @@ async def get_valid_match_ids(db: AsyncSession):
     return [mid for mid in all_ids if "-" in mid and mid.split("-")[-1].isdigit() and int(mid.split("-")[-1]) >= START_MATCH_NO]
 
 @router.get("")
-async def get_global_leaderboard(db: AsyncSession = Depends(get_db)):
-    cache_key = "global_leaderboard"
+async def get_league_leaderboard(league_id: str = "ipl-2026-global", db: AsyncSession = Depends(get_db)):
+    cache_key = f"leaderboard_{league_id}"
     cached = backend_cache.get(cache_key)
     if cached:
         return cached
 
     valid_match_ids = await get_valid_match_ids(db)
 
-    # Group by user summing all points from valid matches
+    from backend.models import LeaderboardCache, LeagueUserMapping, Match, Prediction, LeaderboardEntry
+
+    # Get leaderboard entries reading directly from LeaderboardCache
     result = await db.execute(
         select(
             User.id,
             User.name,
             User.avatar_url,
-            (func.coalesce(func.sum(case((LeaderboardEntry.match_id.in_(valid_match_ids), LeaderboardEntry.points), else_=0)), 0) + User.base_points).label("total_points"),
-            func.count(case((LeaderboardEntry.match_id.in_(valid_match_ids), LeaderboardEntry.match_id), else_=None)).label("matches_played"),
-            User.base_points,
-            User.base_powerups
+            func.coalesce(LeaderboardCache.total_points, 0).label("total_points"),
+            LeagueUserMapping.remaining_powerups,
+            LeagueUserMapping.joined_at
         )
         .outerjoin(AllowlistedEmail, User.email == AllowlistedEmail.email)
+        .join(LeagueUserMapping, (User.id == LeagueUserMapping.user_id) & (LeagueUserMapping.league_id == league_id))
+        .outerjoin(LeaderboardCache, (User.id == LeaderboardCache.user_id) & (LeaderboardCache.league_id == league_id))
         .where(User.is_guest == False)
         .where(or_(AllowlistedEmail.email != None, User.is_ai == True))
-        .outerjoin(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
-        .group_by(User.id, User.base_points, User.base_powerups)
-        .order_by((func.coalesce(func.sum(case((LeaderboardEntry.match_id.in_(valid_match_ids), LeaderboardEntry.points), else_=0)), 0) + User.base_points).desc())
+        .order_by(func.coalesce(LeaderboardCache.total_points, 0).desc())
     )
     
     users_data = result.all()
     
-    from backend.models import Prediction
-    p_res = await db.execute(
-        select(Prediction.user_id, func.count(Prediction.id))
-        .where(Prediction.use_powerup == "Yes")
-        .group_by(Prediction.user_id)
-    )
-    powerups_used_map = {row[0]: row[1] for row in p_res.all()}
-
+    # We will compute matches_played dynamically based on joined_at
+    # by fetching match counts per user
+    user_match_counts = {}
+    user_progression = {}
     
-    entries = []
-    for rank, (uid, name, avatar, points, played, bp, total_powerups) in enumerate(users_data, start=1):
-        # Fetch detailed per-match progression for this user
-        from backend.models import Match, Prediction
+    # Pre-fetch all match progressions for the valid matches for these users
+    user_ids = [u.id for u in users_data]
+    if user_ids:
         prog_res = await db.execute(
-            select(LeaderboardEntry.points, Match.team1, Match.team2, Match.id, Prediction.points_breakdown)
+            select(LeaderboardEntry.user_id, LeaderboardEntry.points, Match.team1, Match.team2, Match.id, Match.toss_time, Prediction.points_breakdown)
             .join(Match, LeaderboardEntry.match_id == Match.id)
             .outerjoin(Prediction, (LeaderboardEntry.user_id == Prediction.user_id) & (LeaderboardEntry.match_id == Prediction.match_id))
-            .where(LeaderboardEntry.user_id == uid)
+            .where(LeaderboardEntry.user_id.in_(user_ids))
+            .where(LeaderboardEntry.match_id.in_(valid_match_ids))
             .order_by(Match.toss_time.desc())
         )
-        detailed_progression = []
-        for p, t1, t2, mid, breakdown in prog_res.all():
+        for uid, p, t1, t2, mid, toss_time, breakdown in prog_res.all():
+            if uid not in user_progression:
+                user_progression[uid] = []
             m_no = mid.split("-")[2] if "-" in mid else mid
-            detailed_progression.append({
+            user_progression[uid].append({
                 "match_number": m_no,
                 "teams": f"{t1} vs {t2}",
                 "points": p,
-                "breakdown": breakdown
+                "breakdown": breakdown,
+                "toss_time": toss_time
             })
-        progression = detailed_progression # Now an array of objects!
-        # Filter progression to only show matches from START_MATCH_NO onwards if desired, 
-        # but usually history is okay to show. The USER said "Calculate points from 12", 
-        # so we'll keep the history but the TOTAL is filtered.
-        # Actually, let's filter history too for consistency with "points from 12".
-        progression = [p for p in detailed_progression if int(p["match_number"]) >= START_MATCH_NO][:10]
 
-        
-        used = powerups_used_map.get(uid, 0)
-        remaining_powerups = max(0, (total_powerups or 10) - used)
+
+    entries = []
+    for rank, (uid, name, avatar, points, remaining_powerups, joined_at) in enumerate(users_data, start=1):
+        # Use pre-fetched progression data; filter to matches after joined_at
+        raw_progression = user_progression.get(uid, [])
+        # Filter to matches after the user joined the league
+        if joined_at:
+            raw_progression = [p for p in raw_progression if p["toss_time"] >= joined_at]
+        # Filter to start match number, take last 10
+        progression = [
+            {"match_number": p["match_number"], "teams": p["teams"], "points": p["points"], "breakdown": p["breakdown"]}
+            for p in raw_progression if p["match_number"].isdigit() and int(p["match_number"]) >= START_MATCH_NO
+        ][:10]
+
+        matches_played = len(raw_progression)
         
         entries.append({
             "rank": rank,
             "username": name,
             "avatar_url": avatar,
             "total_points": points,
-            "matches_played": played,
-            "base_points": bp,
-            "remaining_powerups": remaining_powerups,
-            "progression": progression, # Array of [25, 10, -20...]
+            "matches_played": matches_played,
+            "remaining_powerups": remaining_powerups or 0,
+            "progression": progression,
             "accuracy_pct": 0
         })
     
@@ -391,19 +396,18 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
                 user_wins_map[winner_name] = []
             user_wins_map[winner_name].append(m_no)
 
-    # 6. Standing & Percentile Calculation (Based on Total Points)
-    # We'll use the global leaderboard logic here
+    # 6. Standing & Percentile Calculation (Based on LeaderboardCache for Global League)
+    from backend.models import LeaderboardCache
     lb_result = await db.execute(
         select(
             User.name,
-            (func.coalesce(func.sum(case((LeaderboardEntry.match_id.in_(valid_match_ids), LeaderboardEntry.points), else_=0)), 0) + User.base_points).label("total_points")
+            func.coalesce(LeaderboardCache.total_points, 0).label("total_points")
         )
         .outerjoin(AllowlistedEmail, User.email == AllowlistedEmail.email)
         .where(User.is_guest == False)
         .where(or_(AllowlistedEmail.email != None, User.is_ai == True))
-        .outerjoin(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
-        .group_by(User.id, User.base_points)
-        .order_by(text("total_points DESC"))
+        .outerjoin(LeaderboardCache, (User.id == LeaderboardCache.user_id) & (LeaderboardCache.league_id == "ipl-2026-global"))
+        .order_by(func.coalesce(LeaderboardCache.total_points, 0).desc())
     )
     
     lb_data = lb_result.all()
@@ -411,8 +415,6 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
     percentile_map = {}
     for rank, (name, pts) in enumerate(lb_data, start=1):
         if total_players > 0:
-            # Formula: (Total - Rank + 1) / Total * 100
-            # Rank 1 in 10 players = (10 - 1 + 1) / 10 * 100 = 100%
             percentile = round(((total_players - rank + 1) / total_players) * 100, 1)
             percentile_map[name] = percentile
 
@@ -820,3 +822,43 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
     backend_cache.set(cache_key, analysis_data)
     return analysis_data
 
+
+@router.get("/my-leagues")
+async def get_my_leagues(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Returns all leagues the current user belongs to with their current cached points."""
+    from backend.models import League, LeagueUserMapping, LeaderboardCache, Tournament
+
+    result = await db.execute(
+        select(
+            League.id,
+            League.name,
+            League.join_code,
+            Tournament.name.label("tournament_name"),
+            LeagueUserMapping.joined_at,
+            LeagueUserMapping.remaining_powerups,
+            func.coalesce(LeaderboardCache.total_points, 0).label("my_points")
+        )
+        .join(LeagueUserMapping, (League.id == LeagueUserMapping.league_id) & (LeagueUserMapping.user_id == current_user.id))
+        .join(Tournament, League.tournament_id == Tournament.id)
+        .outerjoin(LeaderboardCache, (LeaderboardCache.league_id == League.id) & (LeaderboardCache.user_id == current_user.id))
+        .order_by(League.created_at)
+    )
+
+    leagues = []
+    for lid, lname, jcode, tname, joined_at, rem_pu, my_pts in result.all():
+        count_res = await db.execute(
+            select(func.count(LeagueUserMapping.user_id)).where(LeagueUserMapping.league_id == lid)
+        )
+        member_count = count_res.scalar() or 0
+        leagues.append({
+            "id": lid,
+            "name": lname,
+            "join_code": jcode,
+            "tournament_name": tname,
+            "joined_at": joined_at,
+            "remaining_powerups": rem_pu or 0,
+            "my_points": my_pts,
+            "member_count": member_count
+        })
+
+    return leagues

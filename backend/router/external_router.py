@@ -13,7 +13,7 @@ from backend.models import User, Match
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 
-router = APIRouter(prefix="/external", tags=["external"])
+router = APIRouter(prefix="/api/external", tags=["external"])
 
 @router.post("/match-results")
 async def post_match_results_webhook(

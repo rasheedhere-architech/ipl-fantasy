@@ -10,14 +10,15 @@ This plan outlines the steps to implement a hierarchical system based on **Tourn
 - **Leaderboards**: 
   - The **Global Leaderboard** ranks all users based on their global match and global campaign points for a given Tournament. A user has exactly 1 entry here.
   - A **League Leaderboard** ranks only the members of that league. Their points are based on their global predictions PLUS any private campaigns specific to that league. A user has 1 entry here.
+- **Legacy Fields**: `User` model `base_points` and `base_powerups` are **legacy fields** used only for the Global League migration. New users default to 0.
 
 ## 2. Database Schema Enhancements (SQLAlchemy)
 
 ### New Models
 - `Tournament`: `id`, `name` (e.g., "IPL 2026"), `status` (upcoming, active, completed), `starts_at`, `ends_at`.
-- `League`: `id`, `name`, `tournament_id`, `join_code` (unique invite string).
+- `League`: `id`, `name`, `tournament_id`, `join_code` (unique invite string), `starting_powerups` (int).
 - `LeagueAdminMapping`: M2M relationship allowing users to manage a league.
-- `LeagueUserMapping`: M2M relationship for user participation. Stores `joined_at`.
+- `LeagueUserMapping`: M2M relationship for user participation. Stores `joined_at`, `remaining_powerups`.
 - `LeagueCampaignMapping`: Association of specific private campaigns to a league.
 - `CampaignMatchResult`: Stores the "Ground Truth" (correct answers) for a specific Campaign + Match pair.
 - `LeaderboardCache`: Caches aggregated scores to prevent slow dynamic SUM() queries. Fields: `user_id`, `tournament_id` (nullable), `league_id` (nullable), `total_points`.
@@ -130,7 +131,12 @@ A powerful feature of leagues is the ability to **extend** Global Match Campaign
         *   Create a **"Global League"** tied to this tournament.
         *   Create a **"Master Match Campaign"** with 6 questions representing the current hardcoded match predictions (Winner, Powerplay Scores, POM, etc.).
         *   Associate all existing matches with the new Tournament.
-        *   Automatically join all existing users to the "Global League" so they see it on their dashboard.
+        *   **User Migration**:
+            *   Automatically join all existing users to the "Global League".
+            *   **Legacy Data Porting**: Base points and base powerups are ONLY for existing data. 
+            *   Copy `User.points` to the Global League's `LeaderboardCache` for each user.
+            *   Copy `User.base_powerups` to `LeagueUserMapping.remaining_powerups` for the Global League entries.
+            *   **Reset Global Trackers**: Set `User.points = 0` and `User.base_powerups = 0` for all users post-migration. Going forward, every user starts with 0 points and powerups are configured purely on a league-by-league basis by League Admins.
 2.  **Phase 2: League & Admin Foundation**
     *   **Schema**: Implement `LeagueAdminMapping` and `LeagueUserMapping`.
     *   **Backend**: Develop `league_router.py` for creation, joining, and kicking.

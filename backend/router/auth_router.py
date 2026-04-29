@@ -38,11 +38,10 @@ async def auth_callback(request: Request, db: AsyncSession = Depends(get_db)):
             
         email = user_info.get("email")
         
-        # 1. Check Allowlist
+        # 1. Check Allowlist or Existing User
         allowlisted_entry = None
         cached_allowlist = backend_cache.get("allowlist")
         if cached_allowlist:
-            # find entry in cache
             for entry in cached_allowlist:
                 if entry.email == email:
                     allowlisted_entry = entry
@@ -51,11 +50,15 @@ async def auth_callback(request: Request, db: AsyncSession = Depends(get_db)):
             result = await db.execute(select(AllowlistedEmail).where(AllowlistedEmail.email == email))
             allowlisted_entry = result.scalars().first()
             
-        if not allowlisted_entry:
-            # If email is not on allowlist
+        # Check if user already exists in the database (Implicit Whitelist)
+        user_result = await db.execute(select(User).where(User.email == email))
+        existing_user = user_result.scalars().first()
+
+        if not allowlisted_entry and not existing_user:
+            # If email is not on allowlist AND user does not exist
             return RedirectResponse(url=f"{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}/login?error=not_invited")
             
-        is_guest_allowed = allowlisted_entry.is_guest
+        is_guest_allowed = allowlisted_entry.is_guest if allowlisted_entry else (existing_user.is_guest if existing_user else False)
             
         # 2. Upsert User using google_id
         google_id = user_info.get("sub")

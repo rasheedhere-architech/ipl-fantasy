@@ -9,12 +9,12 @@ from sqlalchemy import or_
 
 from backend.database import get_db
 from backend.dependencies import get_current_user, get_current_user_optional
-from backend.models import User, Match, Prediction, MatchStatus
+from backend.models import User, Match, Prediction, MatchStatus, Tournament
 from backend.utils.email import send_prediction_confirmation
 from backend.utils.cache import backend_cache
 import asyncio
 
-router = APIRouter(prefix="/matches", tags=["matches"])
+router = APIRouter(prefix="/api/matches", tags=["matches"])
 
 class PredictionInput(BaseModel):
     match_winner: Optional[str] = None
@@ -24,23 +24,34 @@ class PredictionInput(BaseModel):
     more_sixes_team: Optional[str] = None
     more_fours_team: Optional[str] = None
     use_powerup: Optional[str] = "No"
+    extra_answers: Optional[Dict[str, str]] = {}
+
+class MatchCreate(BaseModel):
+    id: str
+    team1: str
+    team2: str
+    venue: str
+    toss_time: datetime
+    tournament_id: str
 
 @router.get("")
-async def list_matches(db: AsyncSession = Depends(get_db)):
+async def list_matches(tournament_id: Optional[str] = None, db: AsyncSession = Depends(get_db)):
     now = datetime.now(UTC)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     cutoff = today_start + timedelta(days=3)
     
     from sqlalchemy.orm import selectinload
-    result = await db.execute(
-        select(Match)
-        .options(selectinload(Match.reporter))
-        .where(
+    query = select(Match).options(selectinload(Match.reporter))
+    
+    if tournament_id:
+        query = query.where(Match.tournament_id == tournament_id)
+    else:
+        query = query.where(
             ((Match.toss_time >= today_start) & (Match.toss_time <= cutoff)) & 
             ((Match.status == MatchStatus.upcoming) | (Match.status == MatchStatus.completed))
         )
-        .order_by(Match.toss_time.asc())
-    )
+        
+    result = await db.execute(query.order_by(Match.toss_time.asc()))
     matches_objs = result.scalars().all()
     
     # Force dictionary conversion to ensure all fields (including ground truth) are serialized
@@ -224,6 +235,38 @@ async def get_match(match_id: str, db: AsyncSession = Depends(get_db), current_u
     )
     powerups_used = len(p_result.scalars().all())
 
+    # Fetch League-specific Campaign Questions
+    from backend.models import Campaign, CampaignQuestion, LeagueUserMapping
+    # 1. Find the Master Campaign for this tournament
+    master_result = await db.execute(select(Campaign).where(Campaign.tournament_id == m.tournament_id, Campaign.is_master == True, Campaign.type == "match"))
+    master_campaign = master_result.scalars().first()
+    
+    if master_campaign and not current_user.is_guest:
+        # 2. Find League Campaigns that have this Master Campaign as parent
+        # AND belong to a league the user is in.
+        league_c_result = await db.execute(
+            select(Campaign)
+            .join(LeagueUserMapping, LeagueUserMapping.league_id == Campaign.league_id)
+            .options(selectinload(Campaign.questions))
+            .where(Campaign.parent_campaign_id == master_campaign.id)
+            .where(LeagueUserMapping.user_id == current_user.id)
+            .where(Campaign.status == "active")
+        )
+        league_campaigns = league_c_result.scalars().all()
+        
+        for c in league_campaigns:
+            for q in c.questions:
+                # Add to questions array as dynamic questions
+                questions.append({
+                    "key": f"league_{c.id}_{q.id}",
+                    "question_id": q.id,
+                    "campaign_id": c.id,
+                    "question_text": q.question_text,
+                    "answer_type": q.question_type,
+                    "options": q.options if hasattr(q, 'options') else None,
+                    "league_id": c.league_id
+                })
+
     return {"match": match_dict, "questions": questions, "powerups_used": powerups_used, "total_powerups": current_user.base_powerups}
 
 @router.post("/{match_id}/predictions")
@@ -288,6 +331,48 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
         )
         db.add(new_pred)
             
+    if payload.extra_answers:
+        from backend.models import CampaignResponse, CampaignAnswer
+        
+        # extra_answers structure from frontend: { "league_{campaign_id}_{question_id}": "answer_value" }
+        campaign_answers_map = {}
+        for key, value in payload.extra_answers.items():
+            if key.startswith("league_"):
+                parts = key.split("_")
+                if len(parts) >= 3:
+                    c_id = parts[1]
+                    q_id = "_".join(parts[2:])
+                    if c_id not in campaign_answers_map:
+                        campaign_answers_map[c_id] = {}
+                    campaign_answers_map[c_id][q_id] = value
+                    
+        for c_id, q_answers in campaign_answers_map.items():
+            resp_stmt = select(CampaignResponse).where(CampaignResponse.campaign_id == c_id, CampaignResponse.user_id == current_user.id, CampaignResponse.match_id == match_id)
+            c_resp = (await db.execute(resp_stmt)).scalars().first()
+            
+            if not c_resp:
+                c_resp = CampaignResponse(
+                    id=str(uuid.uuid4()),
+                    campaign_id=c_id,
+                    user_id=current_user.id,
+                    match_id=match_id
+                )
+                db.add(c_resp)
+                await db.flush()
+                
+            for q_id, a_val in q_answers.items():
+                ans_stmt = select(CampaignAnswer).where(CampaignAnswer.response_id == c_resp.id, CampaignAnswer.question_id == q_id)
+                ans = (await db.execute(ans_stmt)).scalars().first()
+                if ans:
+                    ans.answer_value = a_val
+                else:
+                    new_ans = CampaignAnswer(
+                        id=str(uuid.uuid4()),
+                        response_id=c_resp.id,
+                        question_id=q_id,
+                        answer_value=a_val
+                    )
+                    db.add(new_ans)
     await db.commit()
     
     # Invalidate prediction status cache
@@ -316,8 +401,23 @@ async def get_my_predictions(match_id: str, db: AsyncSession = Depends(get_db), 
     
     if not pred:
         return {}
+        
+    from backend.models import CampaignResponse
+    from sqlalchemy.orm import selectinload
+    
+    # Fetch extra answers
+    extra_answers = {}
+    cr_result = await db.execute(
+        select(CampaignResponse)
+        .options(selectinload(CampaignResponse.answers))
+        .where(CampaignResponse.user_id == current_user.id, CampaignResponse.match_id == match_id)
+    )
+    campaign_responses = cr_result.scalars().all()
+    for cr in campaign_responses:
+        for ans in cr.answers:
+            extra_answers[f"league_{cr.campaign_id}_{ans.question_id}"] = ans.answer_value
             
-    return {
+    response_data = {
         "match_winner": pred.match_winner or "",
         "team1_powerplay": pred.team1_powerplay or "",
         "team2_powerplay": pred.team2_powerplay or "",
@@ -327,6 +427,11 @@ async def get_my_predictions(match_id: str, db: AsyncSession = Depends(get_db), 
         "use_powerup": pred.use_powerup or "No",
         "is_auto_predicted": pred.is_auto_predicted
     }
+    
+    if extra_answers:
+        response_data["extra_answers"] = extra_answers
+        
+    return response_data
 
 @router.get("/{match_id}/predictions/all")
 async def get_all_community_predictions(match_id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -339,7 +444,7 @@ async def get_all_community_predictions(match_id: str, db: AsyncSession = Depend
     # Reveal WHOM but hide WHAT until 30 minutes before toss
     is_locked = datetime.now(UTC) >= (match.toss_time - timedelta(minutes=30))
         
-    from backend.models import AllowlistedEmail
+    from backend.models import AllowlistedEmail, CampaignResponse
     pred_result = await db.execute(
         select(Prediction, User)
         .join(User, Prediction.user_id == User.id)
@@ -349,8 +454,25 @@ async def get_all_community_predictions(match_id: str, db: AsyncSession = Depend
         .where(or_(AllowlistedEmail.email != None, User.is_ai == True))
     )
     
+    # Fetch all campaign responses for this match
+    cr_result = await db.execute(
+        select(CampaignResponse)
+        .options(selectinload(CampaignResponse.answers))
+        .where(CampaignResponse.match_id == match_id)
+    )
+    all_crs = cr_result.scalars().all()
+    
+    # Map user_id -> extra_answers
+    user_extra_answers = {}
+    for cr in all_crs:
+        if cr.user_id not in user_extra_answers:
+            user_extra_answers[cr.user_id] = {}
+        for ans in cr.answers:
+            user_extra_answers[cr.user_id][f"league_{cr.campaign_id}_{ans.question_id}"] = ans.answer_value
+    
     results = []
     for pred, user in pred_result.all():
+        extra = user_extra_answers.get(user.id, {})
         if is_locked:
             answers = {
                 "match_winner": pred.match_winner,
@@ -361,6 +483,8 @@ async def get_all_community_predictions(match_id: str, db: AsyncSession = Depend
                 "more_fours_team": pred.more_fours_team,
                 "use_powerup": pred.use_powerup
             }
+            if extra:
+                answers.update(extra)
         else:
             # Mask the data
             answers = {
@@ -372,6 +496,9 @@ async def get_all_community_predictions(match_id: str, db: AsyncSession = Depend
                 "more_fours_team": "🔒",
                 "use_powerup": "🔒"
             }
+            if extra:
+                for k in extra.keys():
+                    answers[k] = "🔒"
             
         results.append({
             "prediction_id": pred.id,
@@ -403,3 +530,30 @@ async def get_my_prediction_status(db: AsyncSession = Depends(get_db), current_u
     
     backend_cache.set(cache_key, match_ids)
     return match_ids
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+async def create_match(
+    req: MatchCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    # Verify tournament exists
+    t_res = await db.execute(select(Tournament).where(Tournament.id == req.tournament_id))
+    if not t_res.scalars().first():
+        raise HTTPException(status_code=400, detail="Tournament not found")
+
+    new_match = Match(
+        id=req.id,
+        team1=req.team1,
+        team2=req.team2,
+        venue=req.venue,
+        toss_time=req.toss_time,
+        tournament_id=req.tournament_id,
+        status=MatchStatus.upcoming
+    )
+    db.add(new_match)
+    await db.commit()
+    return {"message": "Match created successfully", "id": new_match.id}

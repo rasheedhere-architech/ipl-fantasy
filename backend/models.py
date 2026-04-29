@@ -8,6 +8,12 @@ class MatchStatus(str, enum.Enum):
     upcoming = "upcoming"
     live = "live"
     completed = "completed"
+    cancelled = "cancelled"
+
+class TournamentStatus(str, enum.Enum):
+    upcoming = "upcoming"
+    active = "active"
+    completed = "completed"
 
 class User(Base):
     __tablename__ = "users"
@@ -25,6 +31,10 @@ class User(Base):
     base_points: Mapped[int] = mapped_column(Integer, default=0)
     base_powerups: Mapped[int] = mapped_column(Integer, default=10)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    # League Relationships
+    joined_leagues: Mapped[list["League"]] = relationship("League", secondary="league_user_mappings", back_populates="participants")
+    managed_leagues: Mapped[list["League"]] = relationship("League", secondary="league_admin_mappings", back_populates="admins")
 
 class AllowlistedEmail(Base):
     __tablename__ = "allowlisted_emails"
@@ -44,6 +54,7 @@ class Match(Base):
     venue: Mapped[str] = mapped_column(String)
     toss_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[MatchStatus] = mapped_column(SAEnum(MatchStatus))
+    tournament_id: Mapped[str] = mapped_column(String, ForeignKey("tournaments.id"), nullable=True) # Temporarily nullable for migration
     
     # Ground Truth Results (for scoring)
     winner: Mapped[str] = mapped_column(String, nullable=True)
@@ -58,6 +69,7 @@ class Match(Base):
     report_method: Mapped[str] = mapped_column(String, nullable=True) # "telegram", "manual", "api", "agent"
     
     reporter: Mapped["User"] = relationship("User", foreign_keys=[reported_by])
+    tournament: Mapped["Tournament"] = relationship("Tournament", back_populates="matches")
 
 class Prediction(Base):
     __tablename__ = "predictions"
@@ -129,6 +141,10 @@ class Campaign(Base):
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     non_participation_penalty: Mapped[int] = mapped_column(Integer, default=0)
+    tournament_id: Mapped[str] = mapped_column(String, ForeignKey("tournaments.id"), nullable=True) # Temporarily nullable
+    league_id: Mapped[str] = mapped_column(String, ForeignKey("leagues.id"), nullable=True)
+    match_id: Mapped[str] = mapped_column(String, ForeignKey("matches.id"), nullable=True)
+    parent_campaign_id: Mapped[str] = mapped_column(String, ForeignKey("campaigns.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
@@ -162,6 +178,7 @@ class CampaignResponse(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     campaign_id: Mapped[str] = mapped_column(String, ForeignKey("campaigns.id"))
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"))
+    match_id: Mapped[str] = mapped_column(String, ForeignKey("matches.id"), nullable=True)
     total_points: Mapped[int] = mapped_column(Integer, nullable=True)
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
@@ -181,3 +198,78 @@ class CampaignAnswer(Base):
 
     response: Mapped["CampaignResponse"] = relationship("CampaignResponse", back_populates="answers")
     question: Mapped["CampaignQuestion"] = relationship("CampaignQuestion", back_populates="answers")
+
+
+class Tournament(Base):
+    __tablename__ = "tournaments"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    status: Mapped[TournamentStatus] = mapped_column(SAEnum(TournamentStatus), default=TournamentStatus.upcoming)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    leagues: Mapped[list["League"]] = relationship("League", back_populates="tournament")
+    matches: Mapped[list["Match"]] = relationship("Match", back_populates="tournament")
+
+
+class LeagueAdminMapping(Base):
+    __tablename__ = "league_admin_mappings"
+    league_id: Mapped[str] = mapped_column(String, ForeignKey("leagues.id"), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), primary_key=True)
+
+
+class LeagueUserMapping(Base):
+    __tablename__ = "league_user_mappings"
+    league_id: Mapped[str] = mapped_column(String, ForeignKey("leagues.id"), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), primary_key=True)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    remaining_powerups: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class LeagueCampaignMapping(Base):
+    __tablename__ = "league_campaign_mappings"
+    league_id: Mapped[str] = mapped_column(String, ForeignKey("leagues.id"), primary_key=True)
+    campaign_id: Mapped[str] = mapped_column(String, ForeignKey("campaigns.id"), primary_key=True)
+
+
+class League(Base):
+    __tablename__ = "leagues"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    tournament_id: Mapped[str] = mapped_column(String, ForeignKey("tournaments.id"))
+    join_code: Mapped[str] = mapped_column(String, unique=True, index=True)
+    starting_powerups: Mapped[int] = mapped_column(Integer, default=0)
+    settings: Mapped[dict] = mapped_column(JSON, nullable=True)
+    created_by: Mapped[str] = mapped_column(String, ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    tournament: Mapped["Tournament"] = relationship("Tournament", back_populates="leagues")
+
+    participants: Mapped[list["User"]] = relationship("User", secondary="league_user_mappings", back_populates="joined_leagues")
+    admins: Mapped[list["User"]] = relationship("User", secondary="league_admin_mappings", back_populates="managed_leagues")
+    mapped_campaigns: Mapped[list["Campaign"]] = relationship("Campaign", secondary="league_campaign_mappings")
+
+
+class CampaignMatchResult(Base):
+    __tablename__ = "campaign_match_results"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    campaign_id: Mapped[str] = mapped_column(String, ForeignKey("campaigns.id"))
+    match_id: Mapped[str] = mapped_column(String, ForeignKey("matches.id"))
+    # Stores correct answer(s) for the campaign questions in the context of this match
+    correct_answers: Mapped[dict] = mapped_column(JSON) # {question_id: answer_value}
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+
+
+class LeaderboardCache(Base):
+    __tablename__ = "leaderboard_cache"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"))
+    tournament_id: Mapped[str] = mapped_column(String, ForeignKey("tournaments.id"), nullable=True)
+    league_id: Mapped[str] = mapped_column(String, ForeignKey("leagues.id"), nullable=True)
+    total_points: Mapped[int] = mapped_column(Integer, default=0)
+    last_updated: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))

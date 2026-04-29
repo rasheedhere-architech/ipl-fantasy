@@ -1,4 +1,4 @@
-import { useLeaderboard } from '../api/hooks/useMatches';
+import { useLeaderboard, useMyLeagues } from '../api/hooks/useMatches';
 import { useAuthStore } from '../store/auth';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -6,9 +6,13 @@ import { Trophy, History, X, Info, TrendingUp, ChevronDown, ChevronUp, Zap, Targ
 
 export default function Leaderboard() {
   const { user: currentUser } = useAuthStore();
-  const { data: leaderboard, isLoading } = useLeaderboard();
+  const [selectedLeagueId, setSelectedLeagueId] = useState<string>("ipl-2026-global");
+  const { data: leagues } = useMyLeagues();
+  const { data: leaderboard, isLoading } = useLeaderboard(selectedLeagueId);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
+
+  const selectedLeague = leagues?.find((l: any) => l.id === selectedLeagueId);
 
   const handleRowClick = (entry: any) => {
     setSelectedUser(entry);
@@ -23,15 +27,38 @@ export default function Leaderboard() {
 
   return (
     <div className="space-y-8">
-      <header className="flex justify-between items-end border-b-2 border-white/10 pb-4">
+      <header className="flex flex-col md:flex-row md:justify-between md:items-end border-b-2 border-white/10 pb-4 gap-4">
         <div>
-          <h1 className="text-3xl font-display text-white">Global Leaderboard</h1>
-          <p className="text-gray-400 mt-1 italic tracking-widest text-xs uppercase opacity-60">Top players of the season</p>
+          <h1 className="text-3xl font-display text-white">{selectedLeague?.name || "Global Leaderboard"}</h1>
+          <p className="text-gray-400 mt-1 italic tracking-widest text-xs uppercase opacity-60">
+            {selectedLeague?.tournament_name || "IPL 2026"} Standings
+          </p>
         </div>
-        <Link to="/analysis" className="flex items-center gap-2 px-4 py-2 bg-ipl-gold/10 hover:bg-ipl-gold/20 border border-ipl-gold/30 text-ipl-gold text-[10px] font-display uppercase tracking-widest transition-all">
-          <TrendingUp className="w-4 h-4" />
-          View Analytics
-        </Link>
+        
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <select 
+              value={selectedLeagueId}
+              onChange={(e) => {
+                setSelectedLeagueId(e.target.value);
+                setSelectedUser(null);
+              }}
+              className="appearance-none bg-white/5 border border-white/10 text-white font-display text-[10px] uppercase tracking-widest px-4 py-2 pr-10 hover:bg-white/10 focus:outline-none focus:border-ipl-gold transition-all cursor-pointer min-w-[200px]"
+            >
+              {leagues?.map((league: any) => (
+                <option key={league.id} value={league.id} className="bg-[#0b101a] text-white">
+                  {league.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-4 h-4 text-gray-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          <Link to="/analysis" className="flex items-center gap-2 px-4 py-2 bg-ipl-gold/10 hover:bg-ipl-gold/20 border border-ipl-gold/30 text-ipl-gold text-[10px] font-display uppercase tracking-widest transition-all">
+            <TrendingUp className="w-4 h-4" />
+            View Analytics
+          </Link>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">

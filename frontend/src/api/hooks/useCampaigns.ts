@@ -43,6 +43,8 @@ export interface Campaign {
   non_participation_penalty: number;
   created_at: string;
   updated_at: string;
+  league_id: string | null;
+  match_id: string | null;
   questions: CampaignQuestion[];
   my_response?: CampaignResponseSummary;
 }
@@ -66,6 +68,8 @@ export interface CampaignCreate {
   starts_at?: string | null;
   ends_at?: string | null;
   non_participation_penalty?: number;
+  league_id?: string | null;
+  match_id?: string | null;
   questions: QuestionCreate[];
 }
 

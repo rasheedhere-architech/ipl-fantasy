@@ -28,11 +28,13 @@ export function useMyPredictionStatus() {
   });
 }
 
-export function useMatches() {
+export function useMatches(tournamentId?: string) {
   return useQuery({
-    queryKey: ['matches'],
+    queryKey: ['matches', tournamentId],
     queryFn: async () => {
-      const response = await apiClient.get<Match[]>('/matches');
+      const response = await apiClient.get<Match[]>('/matches', {
+        params: { tournament_id: tournamentId }
+      });
       return response.data.map(match => ({
         ...match,
         tossTime: (match as any).toss_time
@@ -95,11 +97,22 @@ export function useAllMatchPredictions(matchId: string) {
   });
 }
 
-export function useLeaderboard() {
+export function useLeaderboard(leagueId?: string) {
   return useQuery({
-    queryKey: ['leaderboard'],
+    queryKey: ['leaderboard', leagueId],
     queryFn: async () => {
-      const response = await apiClient.get(`/leaderboard`);
+      const url = leagueId ? `/leaderboard?league_id=${leagueId}` : '/leaderboard';
+      const response = await apiClient.get(url);
+      return response.data;
+    },
+  });
+}
+
+export function useMyLeagues() {
+  return useQuery({
+    queryKey: ['my-leagues'],
+    queryFn: async () => {
+      const response = await apiClient.get('/leaderboard/my-leagues');
       return response.data;
     },
   });

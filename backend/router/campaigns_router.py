@@ -16,7 +16,7 @@ from backend.dependencies import get_current_user, get_current_admin
 from backend.campaigns_scoring import calculate_campaign_scores
 from backend.utils.cache import backend_cache
 
-router = APIRouter(prefix="/campaigns", tags=["campaigns"])
+router = APIRouter(prefix="/api/campaigns", tags=["campaigns"])
 
 
 class ScoringRulesSchema(BaseModel):
@@ -46,6 +46,8 @@ class CampaignCreate(BaseModel):
     starts_at: Optional[datetime] = None
     ends_at: Optional[datetime] = None
     non_participation_penalty: int = 0
+    league_id: Optional[str] = None
+    match_id: Optional[str] = None
     questions: list[QuestionCreate] = []
 
 
@@ -55,6 +57,8 @@ class CampaignUpdate(BaseModel):
     starts_at: Optional[datetime] = None
     ends_at: Optional[datetime] = None
     non_participation_penalty: Optional[int] = None
+    league_id: Optional[str] = None
+    match_id: Optional[str] = None
     questions: Optional[list[QuestionCreate]] = None
 
 
@@ -109,6 +113,8 @@ def _serialize_campaign(campaign: Campaign, my_response: CampaignResponse | None
         "starts_at": campaign.starts_at,
         "ends_at": campaign.ends_at,
         "non_participation_penalty": campaign.non_participation_penalty,
+        "league_id": campaign.league_id,
+        "match_id": campaign.match_id,
         "created_at": campaign.created_at,
         "updated_at": campaign.updated_at,
         "questions": questions,
@@ -150,6 +156,8 @@ def _serialize_campaign_admin(campaign: Campaign) -> dict:
         "starts_at": campaign.starts_at,
         "ends_at": campaign.ends_at,
         "non_participation_penalty": campaign.non_participation_penalty,
+        "league_id": campaign.league_id,
+        "match_id": campaign.match_id,
         "created_at": campaign.created_at,
         "updated_at": campaign.updated_at,
         "questions": questions,
@@ -184,6 +192,8 @@ async def create_campaign(
         starts_at=payload.starts_at,
         ends_at=payload.ends_at,
         non_participation_penalty=payload.non_participation_penalty,
+        league_id=payload.league_id,
+        match_id=payload.match_id,
     )
     db.add(campaign)
     await db.flush()
@@ -236,6 +246,10 @@ async def update_campaign(
         campaign.ends_at = payload.ends_at
     if "non_participation_penalty" in fields_set and payload.non_participation_penalty is not None:
         campaign.non_participation_penalty = payload.non_participation_penalty
+    if "league_id" in fields_set:
+        campaign.league_id = payload.league_id
+    if "match_id" in fields_set:
+        campaign.match_id = payload.match_id
 
     if payload.questions is not None:
         for q in payload.questions:
@@ -248,38 +262,23 @@ async def update_campaign(
         # Enforce: every existing mandatory question must appear in the payload
         missing_mandatory = mandatory_ids - payload_ids
         if missing_mandatory:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Cannot remove {len(missing_mandatory)} mandatory question(s) inherited from master campaign",
-            )
+            raise HTTPException(status_code=400, detail=f"Cannot remove mandatory questions: {missing_mandatory}")
 
-        # Master campaigns: every question is mandatory
-        force_mandatory = campaign.is_master
-
-        # Remove questions that were dropped from payload (non-mandatory only, guaranteed above)
-        for old_q in campaign.questions:
-            if old_q.id not in payload_ids:
-                await db.delete(old_q)
-        await db.flush()
-
+        # Sync questions
+        new_questions = []
         for q in payload.questions:
             if q.id and q.id in existing_by_id:
-                existing = existing_by_id[q.id]
-                # Mandatory questions are locked — admin may only reorder and update answers
-                if existing.is_mandatory and not campaign.is_master:
-                    existing.order_index = q.order_index
-                    existing.correct_answer = q.correct_answer
-                    continue
-                existing.question_text = q.question_text
-                existing.question_type = q.question_type
-                existing.options = q.options
-                existing.correct_answer = q.correct_answer
-                existing.scoring_rules = q.scoring_rules.model_dump()
-                existing.order_index = q.order_index
-                if force_mandatory:
-                    existing.is_mandatory = True
+                cq = existing_by_id[q.id]
+                cq.question_text = q.question_text
+                cq.question_type = q.question_type
+                cq.options = q.options
+                cq.correct_answer = q.correct_answer
+                cq.scoring_rules = q.scoring_rules.model_dump()
+                cq.order_index = q.order_index
+                cq.is_mandatory = q.is_mandatory
+                new_questions.append(cq)
             else:
-                db.add(CampaignQuestion(
+                new_cq = CampaignQuestion(
                     id=str(uuid.uuid4()),
                     campaign_id=campaign.id,
                     question_text=q.question_text,
@@ -288,13 +287,39 @@ async def update_campaign(
                     correct_answer=q.correct_answer,
                     scoring_rules=q.scoring_rules.model_dump(),
                     order_index=q.order_index,
-                    is_mandatory=True if force_mandatory else q.is_mandatory,
-                ))
+                    is_mandatory=q.is_mandatory,
+                )
+                db.add(new_cq)
+                new_questions.append(new_cq)
+
+        # Delete removed questions
+        for q in campaign.questions:
+            if q not in new_questions:
+                await db.delete(q)
+
+        campaign.questions = new_questions
 
     await db.commit()
     backend_cache.invalidate("campaigns_list")
     backend_cache.invalidate(f"campaign_{campaign_id}")
     return {"message": "Campaign updated"}
+
+
+@router.delete("/{campaign_id}")
+async def delete_campaign(
+    campaign_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_admin: User = Depends(get_current_admin),
+):
+    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+    campaign = result.scalars().first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    await db.delete(campaign)
+    await db.commit()
+    backend_cache.invalidate("campaigns_list")
+    backend_cache.invalidate(f"campaign_{campaign_id}")
+    return {"message": "Campaign deleted"}
 
 
 @router.put("/{campaign_id}/status")
@@ -308,10 +333,6 @@ async def update_campaign_status(
     campaign = result.scalars().first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
-
-    if campaign.is_master and payload.status != CampaignStatus.draft:
-        raise HTTPException(status_code=400, detail="Master campaigns are templates and cannot be activated. Clone it first.")
-
     campaign.status = payload.status
     await db.commit()
     backend_cache.invalidate("campaigns_list")
@@ -319,77 +340,7 @@ async def update_campaign_status(
     return {"message": f"Campaign status updated to {payload.status}"}
 
 
-@router.delete("/{campaign_id}")
-async def delete_campaign(
-    campaign_id: str,
-    db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(get_current_admin),
-):
-    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
-    campaign = result.scalars().first()
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-
-    await db.delete(campaign)
-    await db.commit()
-    backend_cache.invalidate("campaigns_list")
-    backend_cache.invalidate(f"campaign_{campaign_id}")
-    return {"message": "Campaign deleted"}
-
-
-@router.post("/{campaign_id}/clone", status_code=status.HTTP_201_CREATED)
-async def clone_campaign(
-    campaign_id: str,
-    db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(get_current_admin),
-):
-    """Duplicate a campaign (and its questions) as a new Draft. Useful for reusing
-    the same question set across multiple matches."""
-    result = await db.execute(
-        select(Campaign).where(Campaign.id == campaign_id)
-        .options(selectinload(Campaign.questions))
-    )
-    source = result.scalars().first()
-    if not source:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-
-    clone = Campaign(
-        id=str(uuid.uuid4()),
-        title=f"{source.title} (Copy)",
-        description=source.description,
-        type=source.type,
-        is_master=False,  # clones are never masters
-        status=CampaignStatus.draft,
-        created_by=current_admin.id,
-        # Fresh timestamps — admin sets per-instance
-        starts_at=None,
-        ends_at=None,
-        non_participation_penalty=source.non_participation_penalty,
-    )
-    db.add(clone)
-    await db.flush()
-
-    # When cloning a master, every question becomes a locked mandatory question.
-    # When cloning a non-master, preserve the existing is_mandatory flags.
-    for q in source.questions:
-        db.add(CampaignQuestion(
-            id=str(uuid.uuid4()),
-            campaign_id=clone.id,
-            question_text=q.question_text,
-            question_type=q.question_type,
-            options=q.options,
-            correct_answer=q.correct_answer,
-            scoring_rules=q.scoring_rules,
-            order_index=q.order_index,
-            is_mandatory=True if source.is_master else q.is_mandatory,
-        ))
-
-    await db.commit()
-    backend_cache.invalidate("campaigns_list")
-    return {"id": clone.id, "message": "Campaign cloned"}
-
-
-@router.post("/{campaign_id}/score")
+@router.post("/{campaign_id}/calculate-scores")
 async def trigger_campaign_scoring(
     campaign_id: str,
     db: AsyncSession = Depends(get_db),
@@ -448,50 +399,52 @@ async def admin_get_campaign_responses(
         .order_by(CampaignResponse.total_points.desc().nullslast(), CampaignResponse.submitted_at)
     )
     rows = result.all()
-    return [
-        {
-            "id": r.id,
-            "user_id": r.user_id,
-            "user_name": u_name,
-            "user_email": u_email,
-            "total_points": r.total_points,
-            "submitted_at": r.submitted_at,
+    results = []
+    for response, name, email in rows:
+        results.append({
+            "id": response.id,
+            "user_name": name,
+            "user_email": email,
+            "total_points": response.total_points,
+            "submitted_at": response.submitted_at,
             "answers": [
-                {"question_id": a.question_id, "answer_value": a.answer_value, "points_awarded": a.points_awarded}
-                for a in r.answers
-            ],
-        }
-        for (r, u_name, u_email) in rows
-    ]
+                {
+                    "question_id": a.question_id,
+                    "answer_value": a.answer_value,
+                    "points_awarded": a.points_awarded,
+                }
+                for a in response.answers
+            ]
+        })
+    return results
 
 
-# ── User endpoints ───────────────────────────────────────────────────────────
+# ── User endpoints ──────────────────────────────────────────────────────────
 
 @router.get("")
 async def list_campaigns(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Only show active/closed campaigns. Exclude drafts.
     result = await db.execute(
         select(Campaign)
-        .where(
-            Campaign.status.in_([CampaignStatus.active, CampaignStatus.closed]),
-            Campaign.is_master == False,
-        )
+        .where(Campaign.status != CampaignStatus.draft)
         .options(selectinload(Campaign.questions))
-        .order_by(Campaign.created_at.desc())
+        .order_by(Campaign.ends_at.desc().nullslast(), Campaign.created_at.desc())
     )
     campaigns = result.scalars().all()
-
-    # Fetch user responses for all campaigns in the list
+    
+    # Pre-fetch user's responses for all these campaigns
+    campaign_ids = [c.id for c in campaigns]
     resp_result = await db.execute(
         select(CampaignResponse)
-        .where(CampaignResponse.user_id == current_user.id)
+        .where(CampaignResponse.campaign_id.in_(campaign_ids), CampaignResponse.user_id == current_user.id)
         .options(selectinload(CampaignResponse.answers))
     )
-    my_responses = {r.campaign_id: r for r in resp_result.scalars().all()}
-
-    return [_serialize_campaign(c, my_responses.get(c.id)) for c in campaigns]
+    responses_map = {r.campaign_id: r for r in resp_result.scalars().all()}
+    
+    return [_serialize_campaign(c, responses_map.get(c.id)) for c in campaigns]
 
 
 @router.get("/{campaign_id}")

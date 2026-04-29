@@ -12,6 +12,8 @@ import {
 } from '../api/hooks/useCampaigns';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth';
+import { useMyLeagues } from '../api/hooks/useLeagues';
+import { useMatches } from '../api/hooks/useMatches';
 import { Navigate } from 'react-router-dom';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -353,8 +355,13 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
   const [penalty, setPenalty] = useState(0);
+  const [leagueId, setLeagueId] = useState<string | null>(null);
+  const [matchId, setMatchId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<QuestionCreate[]>([emptyQuestion(0)]);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
+
+  const { data: leagues } = useMyLeagues();
+  const { data: matches } = useMatches();
 
   useEffect(() => {
     if (existing) {
@@ -365,6 +372,8 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
       setStartsAt(existing.starts_at ? existing.starts_at.slice(0, 16) : '');
       setEndsAt(existing.ends_at ? existing.ends_at.slice(0, 16) : '');
       setPenalty(existing.non_participation_penalty ?? 0);
+      setLeagueId(existing.league_id);
+      setMatchId(existing.match_id);
       setQuestions(existing.questions.map(q => ({
         id: q.id,
         question_text: q.question_text,
@@ -424,6 +433,8 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
       starts_at: startsAt ? new Date(startsAt).toISOString() : null,
       ends_at: endsAt ? new Date(endsAt).toISOString() : null,
       non_participation_penalty: penalty,
+      league_id: leagueId,
+      match_id: matchId,
       questions: orderedQs,
     };
 
@@ -505,6 +516,31 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
             placeholder="0"
             className="w-full bg-black/40 border-2 border-white/10 py-2.5 px-4 text-white font-display text-sm focus:outline-none focus:border-ipl-gold transition-all" />
           <p className="text-gray-600 text-[10px] font-display mt-1">Applied to users who don't respond when scoring is triggered. Use a negative number for a penalty.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6">
+        <div>
+          <label className="text-gray-500 text-[10px] font-display uppercase tracking-widest block mb-1.5">Target League (Optional)</label>
+          <select value={leagueId || ''} onChange={e => setLeagueId(e.target.value || null)}
+            className="w-full bg-black/40 border-2 border-white/10 py-2.5 px-4 text-white font-display text-sm focus:outline-none focus:border-ipl-gold transition-all appearance-none cursor-pointer">
+            <option value="">Global / All Leagues</option>
+            {leagues?.map(l => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
+          <p className="text-gray-600 text-[10px] font-display mt-1">If set, only members of this league can see this campaign.</p>
+        </div>
+        <div>
+          <label className="text-gray-500 text-[10px] font-display uppercase tracking-widest block mb-1.5">Associated Match (Optional)</label>
+          <select value={matchId || ''} onChange={e => setMatchId(e.target.value || null)}
+            className="w-full bg-black/40 border-2 border-white/10 py-2.5 px-4 text-white font-display text-sm focus:outline-none focus:border-ipl-gold transition-all appearance-none cursor-pointer">
+            <option value="">No specific match</option>
+            {matches?.map(m => (
+              <option key={m.id} value={m.id}>{m.team1} vs {m.team2}</option>
+            ))}
+          </select>
+          <p className="text-gray-600 text-[10px] font-display mt-1">Used for match-specific master templates and grading results.</p>
         </div>
       </div>
 

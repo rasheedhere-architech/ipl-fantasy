@@ -8,6 +8,9 @@ import Admin from './pages/Admin';
 import Campaigns from './pages/Campaigns';
 import CampaignPage from './pages/CampaignPage';
 import CampaignBuilderRoute, { CampaignBuilderNewRoute, CampaignBuilderEditRoute } from './pages/CampaignBuilder';
+import Leagues from './pages/Leagues';
+import LeagueDetails from './pages/LeagueDetails';
+import LeagueAdmin from './pages/LeagueAdmin';
 import Layout from './components/Layout';
 
 import AuthCallback from './pages/AuthCallback';
@@ -62,6 +65,9 @@ function App() {
           <Route path="admin/campaigns" element={<CampaignBuilderRoute />} />
           <Route path="admin/campaigns/new" element={<CampaignBuilderNewRoute />} />
           <Route path="admin/campaigns/:id/edit" element={<CampaignBuilderEditRoute />} />
+          <Route path="leagues" element={<Leagues />} />
+          <Route path="leagues/:id" element={<LeagueDetails />} />
+          <Route path="leagues/:id/admin" element={<LeagueAdmin />} />
         </Route>
       </Routes>
     </BrowserRouter>

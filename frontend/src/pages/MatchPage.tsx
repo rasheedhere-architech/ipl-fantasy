@@ -490,6 +490,47 @@ export default function MatchPage() {
                 )}
               </div>
 
+              {/* Dynamic League Questions */}
+              {questions.filter((q: any) => q.key?.startsWith('league_')).map((q: any) => (
+                <div key={q.key} className="space-y-2 pt-4 border-t border-white/5">
+                  <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
+                    {q.question_text}
+                    {(errors.extra_answers as any)?.[q.key] && <span className="ml-2 text-red-500 text-[10px]">*</span>}
+                  </label>
+                  {q.answer_type === 'dropdown' ? (
+                    <select
+                      {...register(`extra_answers.${q.key}`, { required: true })}
+                      disabled={isLocked}
+                      className="w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all border-white/20 appearance-none disabled:opacity-50"
+                    >
+                      <option value="">Select Option</option>
+                      {q.options?.map((opt: string) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  ) : q.answer_type === 'multiple_choice' ? (
+                    <div className={`grid grid-cols-2 gap-3 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
+                      {q.options?.map((opt: string) => (
+                        <label key={opt} className="cursor-pointer">
+                          <input type="radio" value={opt} {...register(`extra_answers.${q.key}`, { required: true })} className="peer sr-only" disabled={isLocked} />
+                          <div className="p-3 border-2 text-center font-display text-xs transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold border-white/20 text-gray-400">
+                            {opt}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <input
+                      {...register(`extra_answers.${q.key}`, { required: true, valueAsNumber: q.answer_type === 'free_number' })}
+                      type={q.answer_type === 'free_number' ? 'number' : 'text'}
+                      disabled={isLocked}
+                      placeholder={q.answer_type === 'free_number' ? '0' : 'Type your answer'}
+                      className="w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all border-white/20 disabled:opacity-50"
+                    />
+                  )}
+                </div>
+              ))}
+
               <div className="pt-8">
                 <button
                   type="submit"
@@ -643,6 +684,13 @@ export default function MatchPage() {
                                   <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold`} style={{ color: getTeamColor(pred.answers.more_fours_team) }}>{getTeamShortName(pred.answers.more_fours_team)}</span>
                                 </div>
                               )}
+                              
+                              {/* Dynamic League Answers */}
+                              {Object.keys(pred.answers).filter(k => k.startsWith('league_')).map(k => (
+                                <div key={k} className={`flex items-center bg-white/5 border border-white/10 rounded px-1.5 py-0.5 leading-none ${isDesktop ? 'md:bg-black/40' : ''}`}>
+                                  <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} text-white font-mono font-bold truncate max-w-[80px]`}>{pred.answers[k]}</span>
+                                </div>
+                              ))}
                             </>
                           )}
                         </div>

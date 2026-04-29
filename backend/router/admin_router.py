@@ -10,7 +10,7 @@ from backend.dependencies import get_current_admin
 from backend.scoring import calculate_match_scores
 from backend.utils.cache import backend_cache
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 class MatchResultUpdate(BaseModel):
     answers: dict

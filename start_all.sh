@@ -16,13 +16,19 @@ docker-compose up -d --build
 echo "Starting frontend development server..."
 cd frontend
 
+# Switch to node version 23
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" # This loads nvm
+nvm use 23
+
 # Install dependencies if node_modules doesn't exist
 if [ ! -d "node_modules" ]; then
-    # Switch to node version 23
-    nvm use 23
     echo "Node modules not found. Installing dependencies..."
     npm install
 fi
+
+# Build the frontend
+npm run build
 
 # Run the development server in the background
 npm run dev &

@@ -1,154 +1,195 @@
-# Implementation Plan: Tournament & League Management System
+# IPL Fantasy — League Management System
 
-This plan outlines the steps to implement a hierarchical system based on **Tournaments** (e.g., IPL 2026, T20 World Cup 2027) which encapsulate global matches, global campaigns, and user-created private leagues.
+Status of the multi-league, multi-tournament architecture implementation.
 
-## 1. Core Architecture & Concepts
+---
 
-- **Tournaments**: The overarching entity. Matches and Global Campaigns are tied to a specific Tournament. Tournaments have start and end dates.
-- **Global Matches & Predictions**: Users make **exactly ONE prediction** per match. This prediction is global. A user cannot make different submissions for the same match across different leagues.
-- **Leagues**: Users create or join private Leagues within a specific Tournament to compete against a smaller subset of friends or colleagues. A League "ends" when its parent Tournament ends.
-- **Leaderboards**: 
-  - The **Global Leaderboard** ranks all users based on their global match and global campaign points for a given Tournament. A user has exactly 1 entry here.
-  - A **League Leaderboard** ranks only the members of that league. Their points are based on their global predictions PLUS any private campaigns specific to that league. A user has 1 entry here.
-- **Legacy Fields**: `User` model `base_points` and `base_powerups` are **legacy fields** used only for the Global League migration. New users default to 0.
+## Architecture Overview
 
-## 2. Database Schema Enhancements (SQLAlchemy)
+```
+Tournament (e.g., IPL 2026)
+  ├── Matches (start_time, status, venue, teams)
+  ├── Global League  ← all users auto-joined
+  │     └── Master Campaign (global questions for every match)
+  └── Private League(s)  ← invite-only via join_code
+        └── League Campaign(s) (extend or supplement global questions)
+```
 
-### New Models
-- `Tournament`: `id`, `name` (e.g., "IPL 2026"), `status` (upcoming, active, completed), `starts_at`, `ends_at`.
-- `League`: `id`, `name`, `tournament_id`, `join_code` (unique invite string), `starting_powerups` (int).
-- `LeagueAdminMapping`: M2M relationship allowing users to manage a league.
-- `LeagueUserMapping`: M2M relationship for user participation. Stores `joined_at`, `remaining_powerups`.
-- `LeagueCampaignMapping`: Association of specific private campaigns to a league.
-- `CampaignMatchResult`: Stores the "Ground Truth" (correct answers) for a specific Campaign + Match pair.
-- `LeaderboardCache`: Caches aggregated scores to prevent slow dynamic SUM() queries. Fields: `user_id`, `tournament_id` (nullable), `league_id` (nullable), `total_points`.
+### Core Concepts
 
+| Concept | Description |
+|---|---|
+| **Tournament** | Top-level entity. Matches and global campaigns are scoped to it. |
+| **Global League** | Auto-created per tournament. Every user is a member. Powers the global leaderboard. |
+| **Private League** | Friend groups compete here. Members see league-specific campaigns and leaderboard. |
+| **Master Campaign** | `is_master=True` campaign. Single source of truth for correct answers and scoring. |
+| **League Campaign** | Additional questions scoped to a specific league. Scoring applies only to that league's leaderboard. |
+| **CampaignMatchResult** | Stores the correct answers for a Campaign + Match pair. Drives the scoring engine. |
+| **LeaderboardCache** | Pre-aggregated scores. `league_id=None` = global; specific `league_id` = league total. |
 
+---
 
-### Modifications to Existing Models
-- `Match`: Add `tournament_id` (ForeignKey).
-- `Campaign`: Add `tournament_id` (ForeignKey) for global campaigns. Add `league_id` (ForeignKey, nullable) for private campaigns created within a league.
+## Database Models
 
-### Relationships
-- `Tournament` ↔ `Match`: One-to-Many.
-- `Tournament` ↔ `League`: One-to-Many.
-- `Tournament` ↔ `Campaign`: One-to-Many.
-- `User` ↔ `League` (as Admin/Participant): Many-to-Many.
+### Key Tables
 
-## 3. API Design (FastAPI)
+```
+Tournament          id, name, status, starts_at, ends_at, master_campaign_id
+League              id, name, tournament_id, join_code, starting_powerups, is_global
+LeagueAdminMapping  user_id, league_id
+LeagueUserMapping   user_id, league_id, joined_at, remaining_powerups
+Match               id, team1, team2, venue, start_time, status, tournament_id
+Campaign            id, name, tournament_id, league_id (nullable), is_master
+CampaignQuestion    id, campaign_id, key, question_text, answer_type, options, scoring_rules, order
+CampaignResponse    id, user_id, campaign_id, match_id, answers (JSON)
+CampaignMatchResult id, campaign_id, match_id, correct_answers (JSON)
+LeaderboardCache    user_id, tournament_id, league_id (nullable), total_points
+LeaderboardEntry    user_id, match_id, points, points_breakdown (JSON), league_id (nullable)
+MatchStats          match_id, stats_json (Gemini-generated head-to-head, form, players to watch)
+```
 
-### Global Admin Routes (`/api/admin`)
-- **Leagues**: `POST /leagues` (Create new league), `POST /leagues/{id}/admins` (Assign league admins).
-- **Tournaments**: `POST /tournaments` (Create tournaments), `POST /tournaments/{id}/matches` (Add matches).
-- **Grading**: `POST /campaigns/{id}/matches/{mid}/grade` (Grade global match campaigns).
+---
 
-### Tournament Routes (`/api/tournaments`)
-- `GET /`: List all tournaments (active, past).
-- `GET /{tournament_id}/matches`: List matches for a tournament.
-- `GET /{tournament_id}/leaderboard`: Global leaderboard for the tournament.
+## Implementation Status
 
-### League Routes (`/api/tournaments/{tournament_id}/leagues`)
-- `POST /`: Create a new league for this tournament.
-- `GET /`: List public leagues or leagues the user is in.
-- `POST /join`: Join a league using a `join_code`.
+### ✅ Phase 1: Tournament & Global League Migration
+- `Tournament`, `League`, `LeagueAdminMapping`, `LeagueUserMapping` models created.
+- All existing matches migrated to "IPL 2026" tournament.
+- All existing users auto-joined to the Global League.
+- Master Match Campaign created with questions matching the legacy hardcoded fields.
 
-### League Admin Routes (`/api/leagues/{league_id}/manage`)
-- `POST /campaigns`: Create a private campaign specifically for this league.
-- `POST /campaigns/{campaign_id}/matches/{match_id}/grade`: Post correct answers for a custom campaign for a specific match.
-- `GET /members`: View participants.
-- `DELETE /members/{user_id}`: Kick a user from the league.
-- `POST /invite`: Generate/reset join code.
+### ✅ Phase 2: League & Admin Foundation
+- `league_router.py`: Create, join, kick, list leagues.
+- `LeagueAdmin.tsx`: Member management and campaign grading for league admins.
+- `Leagues.tsx`: User-facing leagues list with metadata and join flow.
+- `is_league_admin` flag on User model; league admin permissions enforced via `permissions.py`.
 
-### User Context
-- `GET /api/users/me/leagues`: List all active leagues the user is part of, grouped by Tournament.
+### ✅ Phase 3: Campaign Extensions & Dynamic Scoring
+- `CampaignMatchResult` table stores per-campaign correct answers.
+- Prediction form merges Master + League-specific questions dynamically.
+- Scoring engine is fully polymorphic — no hardcoded question IDs.
+- Backend substitutes `{{Team1}}` / `{{Team2}}` placeholders at question-fetch time.
 
-## 4. Leaderboard & Scoring Logic
+### ✅ Phase 4: Leaderboard & Caching
+- `LeaderboardCache` table with `league_id=None` (global) and per-league entries.
+- Scoring engine upserts cache on every match completion or campaign grading event.
+- `recalculate_leaderboards.py` backfill script for historical data.
 
-1. **Global Scoring Flow**: 
-   - A Match is completed. Points are calculated and saved in `leaderboard_entries` for every user who predicted.
-   - These points automatically apply to the Tournament's Global Leaderboard.
-2. **League Scoring Flow**:
-   - **Time-Bound Scoring**: A user's League Points only aggregate points from matches and campaigns that locked *after* their `LeagueUserMapping.joined_at` timestamp.
-   - **Penalty Overrides**: A global match campaign might have a -5 point non-participation penalty. A League Campaign extending it can override this value (e.g., set to 0). The scoring engine uses the overriding penalty exclusively for that league's cached score.
-    - **Background Caching [COMPLETED]**: When a match is marked completed, or a campaign is scored, the system computes these totals and upserts them directly into the `LeaderboardCache` table. The `LeaderboardCache` stores entries for both `league_id=None` (Global) and specific `league_id`.
+### ✅ Phase 5: User & League Admin UX
+- `Leaderboard.tsx` renders one `LeaderboardSection` per league the user belongs to.
+- `MatchPage.tsx` community reveal groups predictions by league — users only see predictions from their shared leagues (or a Global fallback).
+- Admin panel scoped: League admins only see their own league's campaigns.
 
-## 5. Frontend Architecture (React/Vite)
+### ✅ Phase 6: Dynamic Frontend Rendering
+- `renderPredictionCard` in `MatchPage.tsx` is fully dynamic — iterates over `pred.answers` keys, no hardcoded question IDs.
+- Match official results section also dynamic — renders all `match.results` keys.
+- `getTeamColor` / `getTeamShortName` in `teamColors.ts` accept `any` type (safe against numeric or undefined values).
 
-### Navigation & Context
-- Introduce a **Tournament Selector** (e.g., dropdown in navbar) to switch context between "IPL 2026" and "T20 World Cup 2027".
-- The active Tournament dictates which matches, campaigns, and leaderboards are displayed.
+### ✅ Phase 7: Match Column Rename
+- `toss_time` renamed to `start_time` in the DB and all Python/TypeScript code.
+- API returns `tossTime` (ISO string, used by frontend for lock/countdown) AND `start_time` (raw value).
+- Frontend uses `tossTime` consistently for the 30-minute lock calculation.
 
-### New Pages
-- `TournamentDashboard`: Landing page showing active matches and user's active leagues for the selected tournament.
-- `MyLeagues`: List of the user's leagues with quick stats.
-- `LeagueDetails`: Shows the league's private leaderboard, members, and any private campaigns.
+### ✅ Phase 8: Bulk Match Import
+- Admin panel includes a CSV import tool for bulk match creation under the Tournament section.
+- Accepts sequential IDs (1, 2, 3) and auto-formats to `tournament-year-number`.
+- Required CSV columns: `id, team1, team2, venue, toss_time`
 
-### Component Updates
-- `Leaderboard`: Update to accept `tournamentId` and optionally `leagueId` props to fetch the correct data scope.
+---
 
-## 6. Campaign Extensions & Inheritances
+## Scoring Logic
 
-A powerful feature of leagues is the ability to **extend** Global Match Campaigns with League-Specific questions.
+### Global (Master Campaign)
 
-### The Scenario
-- A Global Match Campaign for Match X has questions 1, 2, 3, 4, 5.
-- League 1 wants to add two custom questions (6, 7) for this match.
-- League 2 wants to add different custom questions (8, 9) for this match.
+| Rule | Detail |
+|---|---|
+| Match Winner | +10 correct, −5 incorrect |
+| Player of the Match | +25 correct |
+| Powerplay (exact) | +15 |
+| Powerplay (±5 range) | +5 |
+| Sixes / Fours team | +5 correct |
+| Non-participation | −5 from Match 12 onwards |
+| AI Assassin penalty | Starts from Match 25 |
 
-### Database & API Design
-- **Campaign Model Update**: Add a `parent_campaign_id` (ForeignKey, nullable). If a league campaign extends a global one, it links to it here.
-- **Fetching the Form**: When the user requests the prediction form for Match X within the context of League 1 (e.g., `GET /api/leagues/{league_id}/matches/{match_id}/campaign`), the API returns:
-  1. The Global Campaign questions (Q1-Q5).
-  2. The League 1 Campaign extension questions (Q6-Q7).
-  3. The user's existing responses to the Global Campaign.
-  4. The user's existing responses to the League 1 Campaign.
+### Powerup (2× Booster)
+- Multiplies: Winner, POM, Powerplay
+- Does **not** multiply: Sixes, Fours
 
-### User Experience (UX) Flow
-1. **Initial Submission (League 1)**: User1 views Match X in League 1. They see questions 1-7. They fill them out and hit submit.
-   - *Backend Action*: The system saves the answers for Q1-Q5 to the **Global Campaign Response** table, and Q6-Q7 to the **League 1 Campaign Response** table.
-2. **Subsequent Submission (League 2)**: Later, User1 goes to League 2 and views Match X. They see questions 1-5, plus 8-9. 
-   - *Auto-Population*: Because they already submitted Q1-Q5 globally, those fields are **auto-populated** with their previous answers.
-   - *Updating*: If they change the answer to Q1 while in League 2, it updates the *single global source of truth*. That means their answer for Q1 is now updated for the Global Leaderboard, League 1, and League 2 simultaneously.
-   - They fill out Q8-Q9 and submit. The global response is updated, and the new answers are saved to the League 2 Campaign Response table.
+### League Campaign
+- Points computed per-league using `CampaignMatchResult` for that league's campaign.
+- Aggregated into `LeaderboardCache` with the specific `league_id`.
 
-### Per-Match Grading Responsibility
-- **Global Admin**: Responsible for posting the ground truth for Q1-Q5 after the match ends. This triggers a score update for **all users** across the Global Leaderboard and all Leagues.
-- **League Admin**: Responsible for posting the ground truth for their specific questions (e.g., Q6-Q7 for League 1) for each match. This triggers a score update **only for that league's** members and leaderboard cache.
+---
 
-## 7. Edge Cases Handled
+## Community Reveal Logic
 
-- **Multiple Leagues, Different Global Predictions?**: Prevented by design. Because global questions are single-source-of-truth, changing a global question in *any* league updates it everywhere.
-- **End of Season**: The `Tournament` model handles this. Once `status = completed`, the Tournament and all its child Leagues are archived and become read-only historical records.
-- **Global Campaigns**: Campaigns created by Super Admins tied to the `Tournament` apply to everyone.
-- **Private Campaigns**: Campaigns created by League Admins tied to a `League` apply ONLY to that league's members and leaderboard.
+1. `GET /matches/{id}/predictions/all` returns HTTP 403 until `start_time - 30 minutes`.
+2. After lock, the endpoint:
+   - Identifies all leagues the requesting user shares with other predictors.
+   - Groups predictions into league sections (e.g., "League 1 | Community Reveal", "IPL Global").
+   - Each section includes `league.id`, `league.name`, and the list of predictions.
+3. Frontend renders one reveal block per section. Desktop view splits into Team 1 / Team 2 supporter columns.
+4. Answer cards render all `pred.answers` keys dynamically — question label pulled from `questionMap` lookup.
 
-## 8. Implementation & Migration Steps
+---
 
-1.  **Phase 1: Tournament & Global League Migration [COMPLETED]**
-    *   **Schema**: Create `Tournament` and `League` models. Add `tournament_id` to `Match`/`Campaign`.
-    *   **Data Migration**:
-        *   Create a "Default IPL 2026" `Tournament`.
-        *   Create a **"Global League"** tied to this tournament.
-        *   Create a **"Master Match Campaign"** with questions representing the current hardcoded match predictions.
-        *   Associate all existing matches with the new Tournament.
-        *   **User Migration**:
-            *   Automatically join all existing users to the "Global League".
-            *   **Legacy Data Porting**: Base points and base powerups are ONLY for existing data. 
-            *   **Reset Global Trackers**: Set `User.points = 0` and `User.base_powerups = 0` post-migration.
-2.  **Phase 2: League & Admin Foundation [IN PROGRESS]**
-    *   **Schema**: Implement `LeagueAdminMapping` and `LeagueUserMapping`.
-    *   **Backend**: Develop `league_router.py` for creation, joining, and kicking.
-    *   **Frontend**: Add a "Leagues" tab and ensure "Global League" is prominently displayed.
-3.  **Phase 3: Campaign Extensions & Dynamic Results [COMPLETED]**
-    *   **Schema**: Add `parent_campaign_id` to `Campaign`. Create `CampaignMatchResult` table.
-    *   **Logic**: Update prediction logic to merge Master questions with League-specific questions.
-    *   **Polymorphic Engine**: Migration from hardcoded Match fields to dynamic Question/Result mapping.
-4. - [x] Phase 4: Leaderboard & Caching [COMPLETED]
-    *   **Schema**: Implement `LeaderboardCache` and added `league_id` to `LeaderboardEntry`.
-    *   **Logic**: Aggregation logic handles `league_id=None` for global standings and combined scores for leagues.
-    *   **Backfill**: Scripted recalculation of cache for all users in the tournament.
-5. - [x] Phase 5: User & League Admin UX [COMPLETED]
-    *   **Tournament Context Switcher**: Integrated into `Leaderboard.tsx` using the `selectedLeagueId` state and `/my-leagues` metadata.
-    *   **League List**: `/leagues` shows all joined leagues with metadata.
-    *   **Admin Dashboard**: `LeagueAdmin.tsx` implements member management and campaign grading.
-    *   **Data Isolation**: `list_campaigns` filtered by user's league membership.
+## API Surface (Current)
+
+```
+# Auth
+GET  /auth/google
+GET  /auth/callback
+GET  /auth/me
+POST /auth/logout
+
+# Matches
+GET  /matches                              list all (filtered by tournament_id)
+GET  /matches/{id}                         match detail + questions + my prediction
+POST /matches/{id}/predictions             submit (locked 30 min before start_time)
+PUT  /matches/{id}/predictions             update (same lock)
+GET  /matches/{id}/predictions/mine        current user's prediction
+GET  /matches/{id}/predictions/all         community reveal (403 if not locked yet)
+POST /matches/{id}/autopredict             AI auto-predict for current user
+
+# Tournaments
+GET  /tournaments                          list tournaments
+POST /tournaments                          create (admin)
+GET  /tournaments/{id}/matches             matches for tournament
+POST /tournaments/{id}/bulk-import-matches CSV bulk import (admin)
+
+# Leagues
+GET  /leagues/my                           user's leagues
+POST /leagues                              create league (admin)
+POST /leagues/join                         join via join_code
+GET  /leagues/{id}                         league detail
+GET  /leagues/{id}/members                 members list
+DELETE /leagues/{id}/members/{uid}         kick member
+
+# Campaigns
+GET  /campaigns                            list campaigns for user
+GET  /campaigns/{id}                       campaign detail + questions
+POST /campaigns/{id}/respond               submit/update response
+GET  /campaigns/{id}/matches/{mid}/results correct answers
+
+# Leaderboard
+GET  /leaderboard                          global or league standings (league_id param)
+GET  /leaderboard/analysis                 performance analytics + elite splits
+GET  /leaderboard/hall-of-fame             badges (Sixster, Fourster, etc.)
+
+# Admin
+GET  /admin/users                          all users
+PUT  /admin/users/{id}                     update user (is_admin, is_guest, etc.)
+GET  /admin/allowlist                      allowlisted emails
+POST /admin/allowlist                      add emails
+DELETE /admin/allowlist/{email}            remove email
+PUT  /admin/matches/{id}/results           set correct answers + trigger scoring
+POST /admin/campaigns/{id}/grade/{mid}     grade campaign for a match
+POST /admin/trigger-ai-predictions/{id}    trigger AI competitor for a match
+
+# External / Webhooks
+PUT  /external/match-results               n8n webhook for Telegram-parsed results
+```
+
+---
+
+*Last Updated: 2026-04-30*

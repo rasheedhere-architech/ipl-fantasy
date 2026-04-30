@@ -3,11 +3,12 @@
 This document provides essential context for AI assistants working on the IPL Fantasy codebase. It outlines the architecture, critical business rules, and patterns used in this project.
 
 ## 🚀 Project Overview
-A private IPL Fantasy prediction platform for a group of friends. Users sign in via Google, predict match outcomes, and compete on a global leaderboard.
+A private IPL Fantasy prediction platform for a group of friends. Users sign in via Google, predict match outcomes, and compete on global and league-specific leaderboards.
 
-- **Frontend**: React 18 + Vite + TypeScript + Tailwind CSS
-- **Backend**: Python + FastAPI (Async) + SQLAlchemy + Alembic
-- **Database**: PostgreSQL (Neon Serverless)
+- **Frontend**: React 18 + Vite + TypeScript + Tailwind CSS v4
+- **Backend**: Python 3.12 + FastAPI (Async) + SQLAlchemy 2.0 + Alembic
+- **Database**: SQLite (dev) / PostgreSQL Neon (prod)
+- **AI**: Gemini 2.0 Flash with Google Search Grounding (stats + result agents)
 - **Automation**: n8n + Telegram for match result reporting
 
 ---
@@ -16,66 +17,115 @@ A private IPL Fantasy prediction platform for a group of friends. Users sign in 
 
 ### Backend (Python/FastAPI)
 - **Async Throughout**: Use `async def` and `await` for all DB and external I/O.
-- **Models**: Located in `backend/models.py`.
-- **Routers**: Organized by domain (`admin_router`, `match_router`, `external_router`).
-- **Scoring Engine**: `backend/scoring.py` handles point calculations and leaderboard updates.
+- **Models**: `backend/models.py` — all SQLAlchemy models in one file.
+- **Routers**: `auth_router`, `match_router`, `admin_router`, `campaigns_router`, `leaderboard_router`, `tournament_router`, `league_router`, `external_router`.
+- **Scoring Engine**: `backend/scoring.py` (match scoring) + `backend/campaigns_scoring.py` (campaign-specific scoring).
+- **Agents**: `backend/agents/match_stats_agent.py` (nightly) and `backend/agents/match_result_agent.py` (post-match).
+- **Permissions**: `backend/utils/permissions.py` — RBAC helpers for league admin checks.
 
 ### Frontend (React/TS)
-- **Tailwind CSS**: Strict adherence to the "bold & sporty" theme.
-- **Team Themes**: Centralized in `frontend/src/utils/teamColours.ts`. Use these for dynamic UI styling (headers, badges).
-- **State Management**: Zustand for auth; TanStack Query for server state.
-- **Components**: Functional components with hooks.
+- **Tailwind CSS**: "Bold & sporty" IPL theme with custom tokens (`ipl-navy`, `ipl-gold`, `ipl-live`).
+- **Team Colors**: `frontend/src/utils/teamColors.ts` (note: `teamColors.ts` not `teamColours.ts`). **Both `getTeamColor(val)` and `getTeamShortName(val)` accept `any` type** — safe against numbers or undefined values passed from dynamic answer maps.
+- **State**: Zustand for auth (`src/store/auth.ts`); TanStack Query v5 for all server state.
+- **Layout**: `Layout.tsx` main wrapper uses `max-w-[1280px]`. Individual pages should use `w-full max-w-full` — never add inner `max-w` constraints that reduce the available width.
+- **Dynamic Rendering**: `renderPredictionCard` in `MatchPage.tsx` iterates over `pred.answers` keys — **never hardcode question IDs** (`winnerQId` is the only retained special case for the team-split view).
 
 ---
 
 ## ⚖️ Critical Business Rules
 
 ### 1. Match Prediction Locking
-- Predictions **lock 30 minutes before the start time** (UTC).
-- Server-side enforcement: `lock_time = start_time - 30 minutes`.
+- Predictions **lock 30 minutes before `start_time`** (UTC).
+- Server-side enforcement: `lock_time = match.start_time - timedelta(minutes=30)`.
 - Users cannot submit or update predictions after this time.
-- **Community Reveal**: `GET /matches/{id}/predictions/all` is HTTP 403 until the match is locked.
+- **Community Reveal**: `GET /matches/{id}/predictions/all` returns HTTP 403 until the match is locked.
+- **Community Reveal Segmentation**: Results are grouped by the leagues the requesting user shares with other predictors. Users only see predictions from their shared leagues (or a fallback `IPL Global` block).
 
-### 2. Scoring System (2026 Rules)
-- **Match Winner**: +10 for correct, -5 for incorrect.
-- **Player of the Match**: +25 for correct, 0 for incorrect.
-- **Powerplay Scores**: Bingo (exact) = 15 pts, Range (±5) = 5 pts.
-- **Sixes/Fours**: +5 for correct (Ties award points to everyone who picked a team).
-- **Powerups**: 2x multiplier applied to Winner, POM, and Powerplay scores. Sixes/Fours are NOT NOT multiplied.
-- **Penalties**: 
-    - **Match 12 onwards**: -5 points for non-participation.
-    - **AI Bot (ai_assassin)**: Penalty starts only from **Match 25** onwards.
+### 2. Match Time Field
+- The DB column is **`start_time`** (renamed from `toss_time`).
+- The API returns **`tossTime`** (ISO string, used by frontend for lock/countdown) AND `start_time` (raw value).
+- **Frontend always uses `match.tossTime`** for the 30-minute lock calculation and countdown timers.
 
-### 3. Campaigns
-- Admins can create custom "Campaigns" with multiple-choice questions.
-- Questions support an `order` field for manual reordering.
-- Support for "Multiple Choice" with configurable selection caps and point tiers.
+### 3. Scoring System (2026 Rules)
+- **Match Winner**: +10 correct, −5 incorrect.
+- **Player of the Match**: +25 correct, 0 incorrect.
+- **Powerplay Scores**: Exact = +15, Within ±5 = +5.
+- **Sixes / Fours**: +5 correct (ties award points to all who picked either team).
+- **Powerup (2× Booster)**: Multiplies Winner, POM, and Powerplay. **Does NOT multiply Sixes/Fours**.
+- **Non-participation penalty**: −5 from **Match 12 onwards**.
+- **AI Assassin penalty**: Starts from **Match 25 onwards**.
+
+### 4. Dynamic Question System
+- All questions are fetched from the backend (`CampaignQuestion` table). No hardcoded question types on the frontend.
+- The prediction form merges Global (Master Campaign) questions + League-specific questions.
+- Backend substitutes `{{Team1}}` / `{{Team2}}` placeholders with actual team names at fetch time.
+- Correct answers are stored in `CampaignMatchResult.correct_answers` (JSON keyed by `question.key`).
+
+### 5. Campaigns
+- **Master Campaign** (`is_master=True`): Global questions applied to every match. One per tournament. All users answer these.
+- **League Campaigns**: Questions created by league admins. Only that league's members see and are scored on them.
+- Questions support `order` field for manual reordering. Options can be sorted alphabetically via admin UI.
+- `CampaignResponse.answers` is a JSON dict keyed by `question.key`.
+
+### 6. Multi-League Architecture
+- `Tournament` → `League` → `LeagueUserMapping` (M2M with `joined_at`, `remaining_powerups`).
+- **Global League**: auto-created per tournament, all users auto-joined.
+- **Private Leagues**: invite-only via `join_code`.
+- **Leaderboard**: `LeaderboardCache` stores `league_id=None` (global) and per-league totals.
+- **Time-Bound Scoring**: League points only count from matches/campaigns that locked after the user's `joined_at` timestamp.
 
 ---
 
 ## 🤖 Special Users & Bots
-- **AI Assassin**: `ai_assassin@ipl.fantasy` (is_ai=True). This bot needs special handling in scoring (Match 25 threshold).
-- **Experts**: High-performing bots/users used for comparison in "Elite Performance Splits".
-- **Guests**: `is_guest=True` users are excluded from the main leaderboard.
-- **AI Agents**: 
-    - **Match Stats Agent**: Fetches nightly head-to-head, team form, and "players to watch" using **Gemini 2.0 Flash with Search Grounding**. Stores data in `MatchStats` table.
-    - **Match Result Agent**: Automatically fetches ground truth (winner, POM, scores) using **Gemini 2.0 Flash with Search Grounding** after a match status changes to `completed`.
+- **AI Assassin**: `ai_assassin@ipl.fantasy` (`is_ai=True`). Non-participation penalty starts from Match 25 (not Match 12).
+- **Experts**: High-performing users for comparison in "Elite Performance Splits" analytics.
+- **Guests**: `is_guest=True` — can view but cannot submit predictions. Excluded from leaderboards.
+- **League Admins**: `is_league_admin=True` — can manage leagues they own. Admin panel shows only their leagues.
+- **Telegram Admins**: `is_telegram_admin=True` — can submit match results via n8n webhook.
 
 ---
 
 ## 🛠️ Development & Deployment
-- **Match IDs**: Follow the format `ipl-2026-{number}` (e.g., `ipl-2026-12`).
-- **Webhooks**: `POST /external/match-results` is used by n8n to push Telegram-parsed results.
-- **Environment**: `.env` requires `GOOGLE_CLIENT_ID`, `DATABASE_URL`, and `CRICAPI_KEY`.
-- **Migrations**: Always use `alembic revision --autogenerate` for schema changes.
+
+- **Match IDs**: Format `{tournament}-{year}-{number}` (e.g., `ipl-2026-42`). Bulk import accepts sequential integers (1, 2, 3) and auto-formats.
+- **Webhooks**: `PUT /external/match-results` — n8n pushes Telegram-parsed results here.
+- **Environment**: `.env` requires `GOOGLE_CLIENT_ID`, `DATABASE_URL`, `GEMINI_API_KEY`. `CRICAPI_KEY` is optional.
+- **Migrations**: Always use `alembic revision --autogenerate -m "description"` for schema changes. Run via `docker compose exec backend alembic upgrade head`.
+- **Dev Startup**: `./start_all.sh` — builds Docker backend + starts Vite frontend.
+- **SQLite Note**: Dev database is at `backend/database_dev.db`. `ALTER TABLE ... RENAME COLUMN` requires SQLite 3.25+.
 
 ---
 
-## 📝 Recent Context
-- **League Management**: Transitioning to a multi-league architecture (see `league_management_plan.md`).
-- **Hall of Fame**: Adding "Sixster" and "Fourster" badges based on prediction accuracy.
-- **Admin**: Campaign questions can be sorted alphabetically or manually reordered.
+## 📁 Key File Locations
+
+| File | Purpose |
+|---|---|
+| `backend/models.py` | All SQLAlchemy models |
+| `backend/scoring.py` | Core match scoring engine |
+| `backend/campaigns_scoring.py` | Campaign-specific scoring |
+| `backend/scheduler.py` | APScheduler background jobs |
+| `backend/utils/permissions.py` | RBAC helpers |
+| `backend/agents/match_stats_agent.py` | Gemini nightly stats fetcher |
+| `backend/agents/match_result_agent.py` | Gemini post-match result fetcher |
+| `frontend/src/utils/teamColors.ts` | IPL team color map & helpers |
+| `frontend/src/store/auth.ts` | Zustand auth store |
+| `frontend/src/api/client.ts` | Axios instance with auth interceptors |
+| `frontend/src/pages/MatchPage.tsx` | Prediction form + community reveal |
+| `frontend/src/components/Layout.tsx` | App shell, nav, main width constraint |
+| `migrations/versions/` | All Alembic migration files |
 
 ---
 
-*Last Updated: 2026-04-26*
+## 📝 Current State (as of 2026-04-30)
+
+- **Multi-league architecture**: Fully implemented. All phases complete.
+- **Dynamic frontend**: `renderPredictionCard` and match results section are fully dynamic — no hardcoded question IDs.
+- **`toss_time` → `start_time`**: DB column renamed. API returns both `tossTime` (for frontend) and `start_time`.
+- **Layout**: All page containers use `w-full max-w-full`. Layout.tsx caps at `max-w-[1280px]`.
+- **Hall of Fame**: Sixster and Fourster badges implemented.
+- **Bulk Match Import**: Admin can upload CSV to create matches in bulk under a tournament.
+- **All MD docs updated**: README.md, PROJECT_SPEC.md, league_management_plan.md, frontend/README.md.
+
+---
+
+*Last Updated: 2026-04-30*

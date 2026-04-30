@@ -11,16 +11,17 @@ export const teamColors: Record<string, string> = {
   LSG: '#00ADEF',
 };
 
-export const getTeamColor = (teamName: string) => {
-  if (!teamName) return '#ffffff';
+export const getTeamColor = (teamName: any) => {
+  if (teamName === undefined || teamName === null) return '#ffffff';
+  const teamStr = String(teamName);
   
-  const normalized = teamName.trim().toUpperCase();
+  const normalized = teamStr.trim().toUpperCase();
   
   // 1. Direct lookup (MI, CSK, etc)
   if (teamColors[normalized]) return teamColors[normalized];
   
   // 2. Initials lookup (Mumbai Indians -> MI)
-  const words = teamName.trim().split(/\s+/);
+  const words = teamStr.trim().split(/\s+/);
   if (words.length > 1) {
     const initials = words.map(w => w[0]).join('').toUpperCase();
     if (teamColors[initials]) return teamColors[initials];
@@ -48,12 +49,13 @@ export const getTeamColor = (teamName: string) => {
   return '#ffffff';
 };
 
-export const getTeamShortName = (teamName: string) => {
-  if (!teamName) return '';
-  const normalized = teamName.trim().toUpperCase();
+export const getTeamShortName = (teamName: any) => {
+  if (teamName === undefined || teamName === null) return '';
+  const teamStr = String(teamName);
+  const normalized = teamStr.trim().toUpperCase();
   if (teamColors[normalized]) return normalized;
   
-  const words = teamName.trim().split(/\s+/);
+  const words = teamStr.trim().split(/\s+/);
   if (words.length > 1) {
     const initials = words.map(w => w[0]).join('').toUpperCase();
     if (teamColors[initials]) return initials;

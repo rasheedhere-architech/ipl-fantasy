@@ -53,7 +53,7 @@ async def seed_manual_matches():
                 team1=home,
                 team2=away,
                 venue=venue,
-                toss_time=utc_time,
+                start_time=utc_time,
                 status=MatchStatus.upcoming
             )
             db.add(new_match)

@@ -1,6 +1,6 @@
 import { Trophy, TerminalSquare } from 'lucide-react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { apiClient } from '../api/client';
+import axios from 'axios';
 import { useAuthStore } from '../store/auth';
 import toast from 'react-hot-toast';
 
@@ -19,13 +19,14 @@ export default function Login() {
 
   const handleLogin = () => {
     localStorage.setItem('redirect_after_login', targetUrl);
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
     window.location.href = `${API_URL}/auth/google`;
   };
 
-  const handleDevLogin = async (role: 'admin' | 'user' | 'guest') => {
+  const handleDevLogin = async (role: 'admin' | 'user' | 'guest' | 'league-admin') => {
     try {
-      const { data } = await apiClient.post('/auth/dev-login', null, { params: { role } });
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+      const { data } = await axios.post(`${API_URL}/auth/dev-login`, null, { params: { role } });
       setUser(data.user, data.token);
       toast.success(`Logged in as ${role}`);
       navigate(targetUrl);
@@ -74,8 +75,8 @@ export default function Login() {
                 <TerminalSquare className="w-4 h-4 text-ipl-gold" />
                 <p className="text-ipl-gold font-display text-[10px] uppercase tracking-widest">Dev Bypass</p>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {(['admin', 'user', 'guest'] as const).map(role => (
+              <div className="grid grid-cols-4 gap-2">
+                {(['admin', 'league-admin', 'user', 'guest'] as const).map(role => (
                   <button
                     key={role}
                     onClick={() => handleDevLogin(role)}

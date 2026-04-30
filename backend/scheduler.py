@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 from datetime import datetime, UTC, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select, or_
@@ -100,32 +101,89 @@ async def generate_ai_prediction(db, match: Match, ai_user: User):
         more_sixes_team = match.team1 if random.random() > 0.5 else match.team2
         more_fours_team = match.team1 if random.random() > 0.5 else match.team2
     
-    # Check if prediction already exists
-    existing_pred = await db.execute(
-        select(Prediction).where(Prediction.user_id == ai_user.id, Prediction.match_id == match.id)
+    # 5. Save to CampaignResponse & CampaignAnswer
+    from .models import Campaign, CampaignResponse, CampaignAnswer, CampaignQuestion
+    from sqlalchemy.orm import selectinload
+
+    # Find master campaign for this match
+    cam_res = await db.execute(
+        select(Campaign).options(selectinload(Campaign.questions))
+        .where(Campaign.match_id == match.id, Campaign.is_master == True)
     )
-    existing_pred = existing_pred.scalars().first()
-    
-    if existing_pred:
-        # Don't overwrite if it already exists (admin might have triggered it)
-        return
-        
-    new_prediction = Prediction(
-        id=f"ai_{match.id}",
-        user_id=ai_user.id,
-        match_id=match.id,
-        match_winner=match_winner,
-        team1_powerplay=team1_pp,
-        team2_powerplay=team2_pp,
-        player_of_the_match=potm,
-        more_sixes_team=more_sixes_team,
-        more_fours_team=more_fours_team,
-        use_powerup=use_powerup,
-        is_auto_predicted=True
+    master_cam = cam_res.scalars().first()
+    if not master_cam:
+        return # No campaign to predict for
+
+    # Create or get response
+    resp_res = await db.execute(
+        select(CampaignResponse).where(CampaignResponse.user_id == ai_user.id, CampaignResponse.campaign_id == master_cam.id)
     )
-    
-    db.add(new_prediction)
-    
+    response = resp_res.scalars().first()
+    if not response:
+        response = CampaignResponse(
+            id=str(uuid.uuid4()),
+            user_id=ai_user.id,
+            campaign_id=master_cam.id,
+            match_id=match.id
+        )
+        db.add(response)
+
+    # Predict answers for each question
+    for q in master_cam.questions:
+        text = (q.question_text or "").lower()
+        opts = q.options or []
+        qtype = q.question_type
+        ans_val = None
+
+        # Match Winner
+        if set(opts) == {match.team1, match.team2}:
+            ans_val = match_winner
+        # Powerplay
+        elif qtype == "free_number" and "powerplay" in text:
+            if match.team1.lower() in text or "team1" in text or "{{team1}}" in text:
+                ans_val = team1_pp
+            elif match.team2.lower() in text or "team2" in text or "{{team2}}" in text:
+                ans_val = team2_pp
+        # Player of the Match
+        elif qtype == "free_text" and ("player" in text or "potm" in text):
+            ans_val = potm
+        # Sixes/Fours
+        elif qtype == "dropdown":
+            if "six" in text: ans_val = more_sixes_team
+            elif "four" in text: ans_val = more_fours_team
+
+        if ans_val is not None:
+            # Check for existing answer
+            ans_res = await db.execute(
+                select(CampaignAnswer).where(CampaignAnswer.response_id == response.id, CampaignAnswer.question_id == q.id)
+            )
+            existing_ans = ans_res.scalars().first()
+            if existing_ans:
+                existing_ans.answer_value = ans_val
+            else:
+                db.add(CampaignAnswer(
+                    id=str(uuid.uuid4()),
+                    response_id=response.id,
+                    question_id=q.id,
+                    answer_value=ans_val
+                ))
+
+    # Also create/update the legacy Prediction entry (for points summary)
+    pred_res = await db.execute(select(Prediction).where(Prediction.user_id == ai_user.id, Prediction.match_id == match.id))
+    prediction = pred_res.scalars().first()
+    if not prediction:
+        prediction = Prediction(
+            id=f"ai_{match.id}_{ai_user.id[:8]}", # Unique ID
+            user_id=ai_user.id,
+            match_id=match.id,
+            use_powerup=use_powerup,
+            is_auto_predicted=True
+        )
+        db.add(prediction)
+    else:
+        prediction.use_powerup = use_powerup
+        prediction.is_auto_predicted = True
+
     # Deduct powerup if used
     if use_powerup == "Yes":
         ai_user.base_powerups -= 1
@@ -145,15 +203,15 @@ async def auto_predict_daily_job():
                 return
                 
             # Get matches for today (next 24 hours). 
-            # Or just matches that are "upcoming" and toss_time is within the next 24 hours.
+            # Or just matches that are "upcoming" and start_time is within the next 24 hours.
             now = datetime.now(UTC)
             tomorrow = now + timedelta(days=1)
             
             matches_result = await db.execute(
                 select(Match).where(
                     Match.status == MatchStatus.upcoming,
-                    Match.toss_time >= now,
-                    Match.toss_time <= tomorrow
+                    Match.start_time >= now,
+                    Match.start_time <= tomorrow
                 )
             )
             upcoming_matches = matches_result.scalars().all()

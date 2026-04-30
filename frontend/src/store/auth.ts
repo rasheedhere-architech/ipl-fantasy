@@ -9,6 +9,7 @@ interface User {
   is_admin: boolean;
   is_guest?: boolean;
   is_telegram_admin?: boolean;
+  is_league_admin?: boolean;
 }
 
 interface AuthState {

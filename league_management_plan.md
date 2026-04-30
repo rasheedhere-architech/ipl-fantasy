@@ -70,7 +70,7 @@ This plan outlines the steps to implement a hierarchical system based on **Tourn
 2. **League Scoring Flow**:
    - **Time-Bound Scoring**: A user's League Points only aggregate points from matches and campaigns that locked *after* their `LeagueUserMapping.joined_at` timestamp.
    - **Penalty Overrides**: A global match campaign might have a -5 point non-participation penalty. A League Campaign extending it can override this value (e.g., set to 0). The scoring engine uses the overriding penalty exclusively for that league's cached score.
-   - **Background Caching (Best Practice)**: When a match is marked completed, a background worker computes these totals and upserts them directly into the `LeaderboardCache` table. The frontend fetches from this fast cache instead of running live SUM() queries.
+    - **Background Caching [COMPLETED]**: When a match is marked completed, or a campaign is scored, the system computes these totals and upserts them directly into the `LeaderboardCache` table. The `LeaderboardCache` stores entries for both `league_id=None` (Global) and specific `league_id`.
 
 ## 5. Frontend Architecture (React/Vite)
 
@@ -124,31 +124,31 @@ A powerful feature of leagues is the ability to **extend** Global Match Campaign
 
 ## 8. Implementation & Migration Steps
 
-1.  **Phase 1: Tournament & Global League Migration**
+1.  **Phase 1: Tournament & Global League Migration [COMPLETED]**
     *   **Schema**: Create `Tournament` and `League` models. Add `tournament_id` to `Match`/`Campaign`.
     *   **Data Migration**:
         *   Create a "Default IPL 2026" `Tournament`.
         *   Create a **"Global League"** tied to this tournament.
-        *   Create a **"Master Match Campaign"** with 6 questions representing the current hardcoded match predictions (Winner, Powerplay Scores, POM, etc.).
+        *   Create a **"Master Match Campaign"** with questions representing the current hardcoded match predictions.
         *   Associate all existing matches with the new Tournament.
         *   **User Migration**:
             *   Automatically join all existing users to the "Global League".
             *   **Legacy Data Porting**: Base points and base powerups are ONLY for existing data. 
-            *   Copy `User.points` to the Global League's `LeaderboardCache` for each user.
-            *   Copy `User.base_powerups` to `LeagueUserMapping.remaining_powerups` for the Global League entries.
-            *   **Reset Global Trackers**: Set `User.points = 0` and `User.base_powerups = 0` for all users post-migration. Going forward, every user starts with 0 points and powerups are configured purely on a league-by-league basis by League Admins.
-2.  **Phase 2: League & Admin Foundation**
+            *   **Reset Global Trackers**: Set `User.points = 0` and `User.base_powerups = 0` post-migration.
+2.  **Phase 2: League & Admin Foundation [IN PROGRESS]**
     *   **Schema**: Implement `LeagueAdminMapping` and `LeagueUserMapping`.
     *   **Backend**: Develop `league_router.py` for creation, joining, and kicking.
-    *   **Frontend**: Add a "Leagues" tab and ensure "Global League" is prominently displayed as their starting league.
-3.  **Phase 3: Campaign Extensions**
+    *   **Frontend**: Add a "Leagues" tab and ensure "Global League" is prominently displayed.
+3.  **Phase 3: Campaign Extensions & Dynamic Results [COMPLETED]**
     *   **Schema**: Add `parent_campaign_id` to `Campaign`. Create `CampaignMatchResult` table.
     *   **Logic**: Update prediction logic to merge Master questions with League-specific questions.
-4.  **Phase 4: Leaderboard & Caching**
-    *   **Schema**: Implement `LeaderboardCache`.
-    *   **Logic**: Respect `joined_at` and `non_participation_penalty` overrides.
-    *   **Backfill**: Pre-calculate and populate the cache for all users in the Global League for matches already completed.
-5.  **Phase 5: Frontend Experience**
-    *   Build Tournament context switcher.
-    *   Update MatchPage to render merged campaigns (Master + League Extensions).
-    *   Build the League Admin Dashboard for grading and member management.
+    *   **Polymorphic Engine**: Migration from hardcoded Match fields to dynamic Question/Result mapping.
+4. - [x] Phase 4: Leaderboard & Caching [COMPLETED]
+    *   **Schema**: Implement `LeaderboardCache` and added `league_id` to `LeaderboardEntry`.
+    *   **Logic**: Aggregation logic handles `league_id=None` for global standings and combined scores for leagues.
+    *   **Backfill**: Scripted recalculation of cache for all users in the tournament.
+5. - [x] Phase 5: User & League Admin UX [COMPLETED]
+    *   **Tournament Context Switcher**: Integrated into `Leaderboard.tsx` using the `selectedLeagueId` state and `/my-leagues` metadata.
+    *   **League List**: `/leagues` shows all joined leagues with metadata.
+    *   **Admin Dashboard**: `LeagueAdmin.tsx` implements member management and campaign grading.
+    *   **Data Isolation**: `list_campaigns` filtered by user's league membership.

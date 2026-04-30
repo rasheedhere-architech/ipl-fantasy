@@ -2,6 +2,7 @@ from datetime import datetime, UTC
 import enum
 from sqlalchemy import String, Integer, DateTime, Boolean, JSON, ForeignKey, Enum as SAEnum
 from sqlalchemy.orm import relationship, Mapped, mapped_column
+from typing import Any, Optional, List
 from .database import Base
 
 class MatchStatus(str, enum.Enum):
@@ -52,17 +53,9 @@ class Match(Base):
     team1: Mapped[str] = mapped_column(String)
     team2: Mapped[str] = mapped_column(String)
     venue: Mapped[str] = mapped_column(String)
-    toss_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[MatchStatus] = mapped_column(SAEnum(MatchStatus))
     tournament_id: Mapped[str] = mapped_column(String, ForeignKey("tournaments.id"), nullable=True) # Temporarily nullable for migration
-    
-    # Ground Truth Results (for scoring)
-    winner: Mapped[str] = mapped_column(String, nullable=True)
-    team1_powerplay_score: Mapped[int] = mapped_column(Integer, nullable=True)
-    team2_powerplay_score: Mapped[int] = mapped_column(Integer, nullable=True)
-    player_of_the_match: Mapped[str] = mapped_column(String, nullable=True)
-    more_sixes_team: Mapped[str] = mapped_column(String, nullable=True)
-    more_fours_team: Mapped[str] = mapped_column(String, nullable=True)
     
     raw_result_json: Mapped[dict] = mapped_column(JSON, nullable=True)
     reported_by: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=True)
@@ -70,6 +63,7 @@ class Match(Base):
     
     reporter: Mapped["User"] = relationship("User", foreign_keys=[reported_by])
     tournament: Mapped["Tournament"] = relationship("Tournament", back_populates="matches")
+    results: Mapped[list["CampaignMatchResult"]] = relationship("CampaignMatchResult", back_populates="match", cascade="all, delete-orphan")
 
 class Prediction(Base):
     __tablename__ = "predictions"
@@ -78,13 +72,7 @@ class Prediction(Base):
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"))
     match_id: Mapped[str] = mapped_column(String, ForeignKey("matches.id"))
     
-    # Flattened Prediction Fields
-    match_winner: Mapped[str] = mapped_column(String, nullable=True)
-    team1_powerplay: Mapped[int] = mapped_column(Integer, nullable=True)
-    team2_powerplay: Mapped[int] = mapped_column(Integer, nullable=True)
-    player_of_the_match: Mapped[str] = mapped_column(String, nullable=True)
-    more_sixes_team: Mapped[str] = mapped_column(String, nullable=True)
-    more_fours_team: Mapped[str] = mapped_column(String, nullable=True)
+    # Prediction Metadata (Points and Powerups)
     use_powerup: Mapped[str] = mapped_column(String, default="No") # "Yes" or "No"
     is_auto_predicted: Mapped[bool] = mapped_column(Boolean, default=False)
     
@@ -105,6 +93,7 @@ class LeaderboardEntry(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"))
     match_id: Mapped[str] = mapped_column(String, ForeignKey("matches.id"))
+    league_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("leagues.id"), nullable=True)
     points: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
@@ -162,7 +151,7 @@ class CampaignQuestion(Base):
     # For toggle/multiple_choice/dropdown: list of option strings
     options: Mapped[dict] = mapped_column(JSON, nullable=True)
     # Correct answer(s): string, list, or number depending on type
-    correct_answer: Mapped[dict] = mapped_column(JSON, nullable=True)
+    correct_answer: Mapped[Any] = mapped_column(JSON, nullable=True)
     # Scoring: exact_match_points, wrong_answer_points, within_range_points (free_number only)
     scoring_rules: Mapped[dict] = mapped_column(JSON)
     order_index: Mapped[int] = mapped_column(Integer, default=0)
@@ -193,7 +182,7 @@ class CampaignAnswer(Base):
     response_id: Mapped[str] = mapped_column(String, ForeignKey("campaign_responses.id"))
     question_id: Mapped[str] = mapped_column(String, ForeignKey("campaign_questions.id"))
     # Stores string, list, or number depending on question type
-    answer_value: Mapped[dict] = mapped_column(JSON)
+    answer_value: Mapped[Any] = mapped_column(JSON)
     points_awarded: Mapped[int] = mapped_column(Integer, nullable=True)
 
     response: Mapped["CampaignResponse"] = relationship("CampaignResponse", back_populates="answers")
@@ -262,6 +251,9 @@ class CampaignMatchResult(Base):
     # Stores correct answer(s) for the campaign questions in the context of this match
     correct_answers: Mapped[dict] = mapped_column(JSON) # {question_id: answer_value}
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+
+    match: Mapped["Match"] = relationship("Match", back_populates="results")
+    campaign: Mapped["Campaign"] = relationship("Campaign")
 
 
 class LeaderboardCache(Base):

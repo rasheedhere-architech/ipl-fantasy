@@ -9,12 +9,14 @@ import { useLeagueDetails, useKickMember } from '../api/hooks/useLeagues';
 import { useAdminCampaigns } from '../api/hooks/useCampaigns';
 import { useCampaignMatchResult, useUpdateCampaignMatchResult } from '../api/hooks/useCampaignResults';
 import { useMatches } from '../api/hooks/useMatches';
+import { useAllUsers, useAddLeagueMember } from '../api/hooks/useAdmin';
+import { AdminCampaignList } from './CampaignBuilder';
 import toast from 'react-hot-toast';
 
 export default function LeagueAdmin() {
   const { id: leagueId } = useParams<{ id: string }>();
-  const { data: league, isLoading: isLeagueLoading } = useLeagueDetails(leagueId!);
-  const [activeTab, setActiveTab] = useState<'members' | 'grading' | 'settings'>('members');
+  const { data: league, isLoading: isLeagueLoading, refetch: refetchLeague } = useLeagueDetails(leagueId!);
+  const [activeTab, setActiveTab] = useState<'members' | 'grading' | 'campaigns' | 'settings'>('members');
 
   if (isLeagueLoading) return <div className="p-20 text-center animate-pulse font-display text-gray-500 uppercase tracking-widest">Initialising Command...</div>;
   if (!league) return <div className="p-20 text-center font-display text-ipl-live uppercase tracking-widest">League Not Found</div>;
@@ -34,7 +36,7 @@ export default function LeagueAdmin() {
           </h1>
         </div>
         <div className="flex gap-2">
-          {['members', 'grading', 'settings'].map((tab) => (
+          {['members', 'campaigns', 'grading', 'settings'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as any)}
@@ -49,16 +51,21 @@ export default function LeagueAdmin() {
         </div>
       </header>
 
-      {activeTab === 'members' && <MemberManagement league={league} />}
+      {activeTab === 'members' && <MemberManagement league={league} onUpdate={refetchLeague} />}
+      {activeTab === 'campaigns' && <AdminCampaignList leagueId={leagueId} />}
       {activeTab === 'grading' && <CampaignGrading leagueId={leagueId!} />}
       {activeTab === 'settings' && <div className="glass-panel p-12 text-center opacity-30 font-display uppercase tracking-widest italic">League configuration coming soon</div>}
     </div>
   );
 }
 
-function MemberManagement({ league }: { league: any }) {
+function MemberManagement({ league, onUpdate }: { league: any, onUpdate: () => void }) {
   const { mutate: kickMember } = useKickMember(league.id);
+  const { mutateAsync: addMember, isPending: isAdding } = useAddLeagueMember();
+  const { data: allUsers } = useAllUsers();
+  
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState('');
 
   const filteredParticipants = league.participants.filter((p: any) =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -67,10 +74,25 @@ function MemberManagement({ league }: { league: any }) {
   const handleKick = (userId: string, name: string) => {
     if (!confirm(`Are you sure you want to remove ${name} from the league?`)) return;
     kickMember(userId, {
-      onSuccess: () => toast.success(`${name} removed`),
+      onSuccess: () => { toast.success(`${name} removed`); onUpdate(); },
       onError: () => toast.error('Action failed')
     });
   };
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUserId) return;
+    try {
+      await addMember({ leagueId: league.id, userId: selectedUserId });
+      toast.success('User added to league');
+      setSelectedUserId('');
+      onUpdate();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to add user');
+    }
+  };
+
+  const availableUsers = allUsers?.filter(u => !league.participants.find((p: any) => p.id === u.id)) || [];
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -85,8 +107,30 @@ function MemberManagement({ league }: { league: any }) {
             className="w-full bg-black/40 border-2 border-white/10 py-2.5 pl-10 pr-4 text-white font-display text-xs placeholder:text-gray-600 focus:outline-none focus:border-ipl-gold transition-all"
           />
         </div>
+        <form onSubmit={handleAddMember} className="flex gap-2 w-full max-w-lg">
+          <div className="relative flex-1">
+            <select
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              className="w-full bg-black/40 border-2 border-white/10 py-2.5 px-4 text-white font-display text-xs appearance-none focus:outline-none focus:border-ipl-gold transition-all"
+            >
+              <option value="">Select user to add...</option>
+              {availableUsers.map(u => (
+                <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+              ))}
+            </select>
+            <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 rotate-90 pointer-events-none" />
+          </div>
+          <button
+            type="submit"
+            disabled={!selectedUserId || isAdding}
+            className="px-6 py-2.5 bg-ipl-gold text-black font-display text-[10px] uppercase tracking-widest hover:bg-white transition-all disabled:opacity-50 whitespace-nowrap"
+          >
+            {isAdding ? 'Adding...' : 'Add Member'}
+          </button>
+        </form>
         <div className="flex items-center gap-6">
-          <div className="text-right">
+          <div className="text-right whitespace-nowrap">
             <span className="block text-[10px] text-gray-500 uppercase tracking-widest">Active Roster</span>
             <span className="text-2xl font-display text-white">{league.participants.length} / 50</span>
           </div>
@@ -148,7 +192,7 @@ function MemberManagement({ league }: { league: any }) {
 
 function CampaignGrading({ leagueId }: { leagueId: string }) {
   const { data: allCampaigns } = useAdminCampaigns();
-  const leagueCampaigns = allCampaigns?.filter(c => c.league_id === leagueId || c.is_master);
+  const leagueCampaigns = allCampaigns?.filter(c => c.league_id === leagueId);
   const { data: matches } = useMatches();
 
   const [selectedCampaign, setSelectedCampaign] = useState<string>('');

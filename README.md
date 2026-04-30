@@ -126,7 +126,7 @@ Use the provided shell scripts for convenience:
 
 - **Allowlist Gate**: Only pre-approved emails can log in.
 - **Telegram Admin**: Manage authorization status for remote automation tools.
-- **Prediction Locking**: Strict server-side enforcement 30 minutes before the toss.
+- **Prediction Locking**: Strict server-side enforcement 30 minutes before the start time.
 
 ---
 

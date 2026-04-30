@@ -13,7 +13,7 @@ def score_answer(question: CampaignQuestion, answer_value, correct_answer_overri
     # Use override if provided (from CampaignMatchResult), else fall back to question default
     correct = correct_answer_override if correct_answer_override is not None else question.correct_answer
     q_type = question.question_type
-
+    
     if correct is None:
         return 0
 
@@ -51,8 +51,9 @@ def score_answer(question: CampaignQuestion, answer_value, correct_answer_overri
         return exact_points if user_set == correct_set else wrong_points
 
     # toggle, dropdown, free_text: string comparison
-    user_str = str(answer_value).strip().lower() if answer_value is not None else ""
-    correct_str = str(correct).strip().lower() if correct is not None else ""
+    user_str = str(answer_value).strip().strip('"').strip("'").lower() if answer_value is not None else ""
+    correct_str = str(correct).strip().strip('"').strip("'").lower() if correct is not None else ""
+    
     return exact_points if user_str == correct_str else wrong_points
 
 
@@ -65,18 +66,15 @@ async def calculate_campaign_scores(campaign_id: str, db: AsyncSession) -> None:
         return
 
     # Check for match-specific correct answer overrides
-    match_id = campaign.match_id
-    overrides = {}
-    if match_id:
-        res = await db.execute(
-            select(CampaignMatchResult).where(
-                CampaignMatchResult.campaign_id == campaign_id,
-                CampaignMatchResult.match_id == match_id
-            )
+    res = await db.execute(
+        select(CampaignMatchResult).where(
+            CampaignMatchResult.campaign_id == campaign_id
         )
-        match_result = res.scalars().first()
-        if match_result:
-            overrides = match_result.correct_answers or {}
+    )
+    match_results = res.scalars().all()
+    overrides_by_match = {mr.match_id: (mr.correct_answers or {}) for mr in match_results}
+    # Also support general overrides if match_id is somehow None in the result
+    general_overrides = overrides_by_match.get(None, {})
 
     result = await db.execute(
         select(CampaignResponse)
@@ -89,42 +87,84 @@ async def calculate_campaign_scores(campaign_id: str, db: AsyncSession) -> None:
     responded_user_ids = set()
     for response in responses:
         total = 0
+        
+        # Determine the correct match_id context for this response
+        m_id = response.match_id or campaign.match_id
+        overrides = overrides_by_match.get(m_id, general_overrides)
+        
         for answer in response.answers:
             # Pass the override for this question if it exists
-            override = overrides.get(answer.question_id)
+            override = overrides.get(str(answer.question_id))
             pts = score_answer(answer.question, answer.answer_value, correct_answer_override=override)
             answer.points_awarded = pts
             total += pts
         response.total_points = total
         responded_user_ids.add(response.user_id)
+        
+        # PERSIST to LeaderboardEntry for match-wise progression
+        if response.match_id and campaign.league_id:
+            from backend.models import LeaderboardEntry
+            lb_res = await db.execute(
+                select(LeaderboardEntry).where(
+                    LeaderboardEntry.user_id == response.user_id,
+                    LeaderboardEntry.match_id == response.match_id,
+                    LeaderboardEntry.league_id == campaign.league_id
+                )
+            )
+            lb_entry = lb_res.scalars().first()
+            if not lb_entry:
+                lb_entry = LeaderboardEntry(
+                    user_id=response.user_id,
+                    match_id=response.match_id,
+                    league_id=campaign.league_id,
+                    points=total,
+                    type="campaign"
+                )
+                db.add(lb_entry)
+            else:
+                lb_entry.points = total
+                lb_entry.type = "campaign"
 
-    # Apply non-participation penalty
-    penalty = campaign.non_participation_penalty
-    if penalty != 0:
-        # If league-specific, only penalize members of that league
+    # Non-participation penalty
+    if campaign.non_participation_penalty != 0:
+        # Get all users in this league (or global) who didn't respond
         if campaign.league_id:
-            users_stmt = select(User).join(LeagueUserMapping).where(
-                LeagueUserMapping.league_id == campaign.league_id,
-                User.is_ai == False, User.is_guest == False
+            all_users_res = await db.execute(
+                select(User.id).join(LeagueUserMapping, User.id == LeagueUserMapping.user_id)
+                .where(LeagueUserMapping.league_id == campaign.league_id)
             )
         else:
-            users_stmt = select(User).where(User.is_ai == False, User.is_guest == False)
-            
-        all_users = (await db.execute(users_stmt)).scalars().all()
-        for user in all_users:
-            if user.id not in responded_user_ids:
-                # Check for existing penalty response to avoid duplicates
-                existing_stmt = select(CampaignResponse).where(
-                    CampaignResponse.campaign_id == campaign_id,
-                    CampaignResponse.user_id == user.id
-                )
-                if not (await db.execute(existing_stmt)).scalars().first():
-                    penalty_response = CampaignResponse(
-                        id=str(_uuid.uuid4()),
-                        campaign_id=campaign_id,
-                        user_id=user.id,
-                        total_points=penalty,
+            all_users_res = await db.execute(select(User.id))
+        
+        all_user_ids = [u_id for (u_id,) in all_users_res.all()]
+        missing_user_ids = [uid for uid in all_user_ids if uid not in responded_user_ids]
+        
+        for uid in missing_user_ids:
+            if campaign.match_id and campaign.league_id:
+                from backend.models import LeaderboardEntry
+                lb_res = await db.execute(
+                    select(LeaderboardEntry).where(
+                        LeaderboardEntry.user_id == uid,
+                        LeaderboardEntry.match_id == campaign.match_id,
+                        LeaderboardEntry.league_id == campaign.league_id
                     )
-                    db.add(penalty_response)
+                )
+                lb_entry = lb_res.scalars().first()
+                if not lb_entry:
+                    lb_entry = LeaderboardEntry(
+                        user_id=uid,
+                        match_id=campaign.match_id,
+                        league_id=campaign.league_id,
+                        points=campaign.non_participation_penalty,
+                        type="campaign"
+                    )
+                    db.add(lb_entry)
+                else:
+                    # Don't override if they already have match points? 
+                    # Actually, if they didn't respond to the campaign, we add the penalty
+                    # but if they have match points from predictions, we should BE CAREFUL.
+                    # LeaderboardEntry for predictions has league_id=None.
+                    # So this is safe since it's league-specific.
+                    lb_entry.points = campaign.non_participation_penalty
 
     await db.commit()

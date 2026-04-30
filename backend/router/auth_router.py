@@ -6,19 +6,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from backend.database import get_db
-from backend.models import User, AllowlistedEmail
+from backend.models import User, AllowlistedEmail, League, LeagueAdminMapping, LeagueUserMapping
 from backend.auth import oauth, create_access_token
 from backend.dependencies import get_current_user
 from backend.utils.cache import backend_cache
 
-router = APIRouter()
+router = APIRouter(prefix="/api", tags=["auth"])
 
 @router.get("/auth/google")
 async def login_via_google(request: Request):
     # Clear any old piled-up session states so we don't blow past the 4096 Byte Browser Cookie Limit.
     request.session.clear()
     
-    redirect_uri = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/callback")
+    redirect_uri = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/callback")
     print("--- LOGIN VIA GOOGLE ---")
     print("Pre-Session:", request.session)
     response = await oauth.google.authorize_redirect(request, redirect_uri)
@@ -102,8 +102,9 @@ async def auth_callback(request: Request, db: AsyncSession = Depends(get_db)):
         traceback.print_exc()
         return RedirectResponse(url=f"{os.environ.get('FRONTEND_URL', 'http://localhost:5173')}/login?error=auth_failed")
 
+@router.get("/auth/dev-login")
 @router.post("/auth/dev-login")
-async def dev_login(role: str = "user", db: AsyncSession = Depends(get_db)):
+async def dev_login(request: Request, role: str = "user", db: AsyncSession = Depends(get_db)):
     """Dev-only login bypass. Enable with DEV_LOGIN_ENABLED=true.
 
     Creates or reuses a local test user and returns a JWT, skipping OAuth + allowlist checks.
@@ -111,8 +112,8 @@ async def dev_login(role: str = "user", db: AsyncSession = Depends(get_db)):
     if os.environ.get("DEV_LOGIN_ENABLED", "false").lower() != "true":
         raise HTTPException(status_code=404, detail="Not found")
 
-    if role not in ("admin", "user", "guest"):
-        raise HTTPException(status_code=400, detail="role must be admin, user, or guest")
+    if role not in ("admin", "user", "guest", "league-admin"):
+        raise HTTPException(status_code=400, detail="role must be admin, user, guest, or league-admin")
 
     email = f"dev-{role}@local.test"
     result = await db.execute(select(User).where(User.email == email))
@@ -129,10 +130,34 @@ async def dev_login(role: str = "user", db: AsyncSession = Depends(get_db)):
             is_guest=(role == "guest"),
         )
         db.add(user)
+        
+        if role == "league-admin":
+            league = League(
+                id=str(uuid.uuid4()),
+                name="Test Dev League",
+                invite_code="DEV123",
+                created_by=user.id,
+            )
+            db.add(league)
+            db.add(LeagueAdminMapping(user_id=user.id, league_id=league.id))
+            db.add(LeagueUserMapping(user_id=user.id, league_id=league.id))
+            
         await db.commit()
         await db.refresh(user)
 
     jwt_token = create_access_token(data={"sub": user.id})
+    
+    # If GET (browser URL), redirect to frontend
+    if request.method == "GET":
+        frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+        return RedirectResponse(url=f"{frontend_url}/auth/callback?token={jwt_token}")
+    
+    # If POST (frontend AJAX), return JSON
+    is_league_admin = False
+    if not user.is_admin:
+        res = await db.execute(select(LeagueAdminMapping).where(LeagueAdminMapping.user_id == user.id))
+        is_league_admin = res.scalars().first() is not None
+
     return {
         "token": jwt_token,
         "user": {
@@ -143,12 +168,18 @@ async def dev_login(role: str = "user", db: AsyncSession = Depends(get_db)):
             "is_admin": user.is_admin,
             "is_guest": user.is_guest,
             "is_telegram_admin": user.is_telegram_admin,
+            "is_league_admin": is_league_admin or user.is_admin,
         },
     }
 
 
 @router.get("/auth/me")
-async def get_me(user: User = Depends(get_current_user)):
+async def get_me(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    is_league_admin = False
+    if not user.is_admin:
+        res = await db.execute(select(LeagueAdminMapping).where(LeagueAdminMapping.user_id == user.id))
+        is_league_admin = res.scalars().first() is not None
+
     return {
         "id": user.id,
         "email": user.email,
@@ -156,5 +187,6 @@ async def get_me(user: User = Depends(get_current_user)):
         "avatar": user.avatar_url,
         "is_admin": user.is_admin,
         "is_guest": user.is_guest,
-        "is_telegram_admin": user.is_telegram_admin
+        "is_telegram_admin": user.is_telegram_admin,
+        "is_league_admin": is_league_admin or user.is_admin
     }

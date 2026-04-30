@@ -35,6 +35,8 @@ async def create_league(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only global admins can create leagues")
     # Verify tournament exists
     tournament = await db.get(Tournament, req.tournament_id)
     if not tournament:
@@ -74,13 +76,19 @@ async def get_my_leagues(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # Get leagues where the user is a participant
-    result = await db.execute(
-        select(League)
-        .join(LeagueUserMapping, League.id == LeagueUserMapping.league_id)
-        .where(LeagueUserMapping.user_id == current_user.id)
-        .options(selectinload(League.admins))
-    )
+    # Get leagues where the user is a participant, or all if global admin
+    if current_user.is_admin:
+        result = await db.execute(
+            select(League)
+            .options(selectinload(League.admins))
+        )
+    else:
+        result = await db.execute(
+            select(League)
+            .join(LeagueUserMapping, League.id == LeagueUserMapping.league_id)
+            .where(LeagueUserMapping.user_id == current_user.id)
+            .options(selectinload(League.admins))
+        )
     leagues = result.scalars().all()
     
     response = []
@@ -153,6 +161,8 @@ async def get_league_details(
         
     is_admin = any(a.id == current_user.id for a in league.admins)
     
+    admin_ids = {a.id for a in league.admins}
+    
     participants = []
     # Optionally load remaining_powerups for members if needed
     for p in league.participants:
@@ -162,7 +172,8 @@ async def get_league_details(
             "name": p.name,
             "avatar_url": p.avatar_url,
             "joined_at": p_mapping.joined_at if p_mapping else None,
-            "remaining_powerups": p_mapping.remaining_powerups if p_mapping else 0
+            "remaining_powerups": p_mapping.remaining_powerups if p_mapping else 0,
+            "is_league_admin": p.id in admin_ids
         })
         
     return {
@@ -204,6 +215,38 @@ async def kick_member(
     await db.commit()
     return {"message": "User removed from league"}
 
+class ToggleAdminReq(BaseModel):
+    is_admin: bool
+
+@router.put("/{league_id}/members/{user_id}/admin")
+async def toggle_league_admin(
+    league_id: str,
+    user_id: str,
+    req: ToggleAdminReq,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # Verify current user is league admin or global admin
+    admin_check = await db.get(LeagueAdminMapping, (league_id, current_user.id))
+    if not admin_check and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to manage this league")
+        
+    # Check if user is actually in the league
+    mapping = await db.get(LeagueUserMapping, (league_id, user_id))
+    if not mapping:
+        raise HTTPException(status_code=404, detail="User not in league")
+        
+    admin_map = await db.get(LeagueAdminMapping, (league_id, user_id))
+    
+    if req.is_admin and not admin_map:
+        new_admin = LeagueAdminMapping(league_id=league_id, user_id=user_id)
+        db.add(new_admin)
+    elif not req.is_admin and admin_map:
+        await db.delete(admin_map)
+        
+    await db.commit()
+    return {"message": "Admin status updated"}
+
 @router.post("/{league_id}/refresh_code")
 async def refresh_join_code(
     league_id: str,
@@ -229,9 +272,10 @@ async def add_member(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # Only Global Admin can manually add members for now
     if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Not authorized")
+        admin_map = await db.get(LeagueAdminMapping, (league_id, current_user.id))
+        if not admin_map:
+            raise HTTPException(status_code=403, detail="Not authorized")
         
     league = await db.get(League, league_id)
     if not league:

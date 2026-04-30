@@ -159,52 +159,6 @@ async def post_match_results_webhook(
             
         # Map fields from the payload
         # payload structure: {"winner": "...", "scores": {"TeamA": 60, "TeamB": 55}, "potm": "..."}
-        scores = match_data.get("scores", {})
-        
-        if "winner" in match_data:
-            match.winner = str(match_data["winner"])
-        
-        # Mapping of short codes to full database names
-        TEAM_MAP = {
-            "MI": "Mumbai Indians",
-            "CSK": "Chennai Super Kings",
-            "RCB": "Royal Challengers Bengaluru",
-            "KKR": "Kolkata Knight Riders",
-            "SRH": "Sunrisers Hyderabad",
-            "RR": "Rajasthan Royals",
-            "GT": "Gujarat Titans",
-            "DC": "Delhi Capitals",
-            "LSG": "Lucknow Super Giants",
-            "PBKS": "Punjab Kings",
-            "PK": "Punjab Kings",
-            "TIE": "Tie"
-        }
-        
-        # Intelligently map scores based on team names defined in the match record
-        # We check both the code and the full name
-        for team_code, score in scores.items():
-            full_name = TEAM_MAP.get(team_code.upper(), team_code)
-            
-            if match.team1 == full_name or match.team1 == team_code:
-                match.team1_powerplay_score = int(score)
-            elif match.team2 == full_name or match.team2 == team_code:
-                match.team2_powerplay_score = int(score)
-            
-        if "potm" in match_data:
-            match.player_of_the_match = str(match_data["potm"])
-            
-        if "winner" in match_data:
-            winner_code = str(match_data["winner"])
-            match.winner = TEAM_MAP.get(winner_code.upper(), winner_code)
-
-        if "more_sixes_team" in match_data:
-            sixes_code = str(match_data["more_sixes_team"])
-            match.more_sixes_team = TEAM_MAP.get(sixes_code.upper(), sixes_code)
-
-        if "more_fours_team" in match_data:
-            fours_code = str(match_data["more_fours_team"])
-            match.more_fours_team = TEAM_MAP.get(fours_code.upper(), fours_code)
-            
         # Save a reference to exactly what n8n sent
         match.raw_result_json = match_data
         

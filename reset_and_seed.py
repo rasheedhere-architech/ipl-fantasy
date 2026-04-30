@@ -59,7 +59,7 @@ async def reset_and_seed():
                 team1=m["home"],
                 team2=m["away"],
                 venue=m["venue"],
-                toss_time=utc_time,
+                start_time=utc_time,
                 status=MatchStatus.upcoming
             )
             db.add(new_match)

@@ -177,29 +177,37 @@ GET    /admin/users                → list all users who have logged in at leas
 
 ### 3. Match model — seeded from CricAPI
 
-Fields: `match_id`, `team1`, `team2`, `venue`, `toss_time` (datetime UTC), `status` (enum: upcoming | live | completed)
+Fields: `match_id`, `team1`, `team2`, `venue`, `start_time` (datetime UTC), `status` (enum: upcoming | live | completed)
 
 - APScheduler background job polls CricAPI every 5 minutes
 - Only poll matches with status `upcoming` or `live` to stay within free tier (100 req/day)
 - When status changes to `completed`, automatically trigger the scoring job
-- Prediction lock enforced server-side: `lock_time = toss_time - 30 minutes`
+- Result Storage: The `Match` model stores raw data in `raw_result_json`. A dedicated `CampaignMatchResult` table acts as the "Ground Truth" for scoring, synchronized via the tournament's master campaign. Points are persisted in `LeaderboardEntry` with a `league_id` discriminator (None for Global/Master).
+- Prediction lock enforced server-side: `lock_time = start_time - 30 minutes`
 
-### 4. Predictions
+### 4. Predictions & Match Campaigns
 
-Fixed questions per match:
-- `match_winner` — team name string
-- `top_batter` — player name string
-- `top_bowler` — player name string
-- `total_sixes` — integer
-- `total_fours` — integer
+The system uses a dynamic campaign-based question system. Questions are categorized into two tiers:
 
-Custom questions (admin-created per match):
-- Fields: `question_text`, `answer_type` (enum: text | number | player_name), `correct_answer` (set after match)
+1.  **Master Match Campaign**: Global questions served to all users (Global scope).
+2.  **League Match Campaigns**: Questions specific to participants of a particular league.
+
+#### Dynamic Questions & Polymorphic Scoring
+- **Backend Substitution**: The backend automatically replaces placeholders like `{{Team1}}` and `{{Team2}}` with actual team names.
+- **Answer Types**: `dropdown`, `multiple_choice`, `free_number`, `free_text`, `player_name`.
+- **Tournament-Master Pattern**: Every match resolves its correct answers by querying the tournament's master campaign (`is_master=True`). This ensures consistent scoring across multiple leagues.
+- **Binary Choice UI**: Questions with exactly 2 options (e.g., Match Winner) automatically render as premium, color-coded radio buttons.
+
+#### Prediction Mapping
+Legacy hardcoded fields (winner, powerplay) have been eliminated. All scoring is now dynamic:
+- **Campaign Answers**: Keyed by `question_id`.
+- **Scoring Rules**: Defined per question (Bullseye, Difference, Multi-Choice).
+- **Powerups**: Boolean `use_powerup` for 2x points.
 
 Prediction endpoints:
 ```
 GET  /matches                             → list all matches
-GET  /matches/{id}                        → match detail + questions
+GET  /matches/{id}                        → match detail + dynamic questions
 POST /matches/{id}/predictions            → submit prediction (rejected if past lock_time)
 PUT  /matches/{id}/predictions            → update prediction (rejected if past lock_time)
 GET  /matches/{id}/predictions/mine       → current user's predictions for a match
@@ -207,17 +215,21 @@ GET  /matches/{id}/predictions/all        → all users' predictions — only ac
 ```
 
 **Community predictions — `GET /matches/{id}/predictions/all`**
-- Returns HTTP 403 `{"detail": "predictions_still_open"}` if called before `lock_time`
-- After lock_time, returns all submitted predictions grouped by user:
+- Returns HTTP 403 `{"detail": "predictions_still_open"}` if called before `lock_time`.
+- After lock_time, returns all submitted predictions grouped by user, including core answers and league-specific extra answers.
+- Reveals "WHOM" (User) but hides "WHAT" (Answers) until the reveal window opens.
+
 ```json
 [
   {
     "user": { "id": "...", "name": "Priya", "avatar_url": "..." },
     "answers": {
       "match_winner": "MI",
-      "top_batter": "Rohit Sharma",
-      "total_sixes": 12
-    }
+      "team1_powerplay": 52,
+      "league_mega_93f331d9": "Virat Kohli"
+    },
+    "is_auto_predicted": false,
+    "points_awarded": 15
   }
 ]
 ```
@@ -226,33 +238,44 @@ GET  /matches/{id}/predictions/all        → all users' predictions — only ac
 
 ### 5. Scoring engine
 
-Admin defines rules as JSON stored in `ScoringRule`:
+Admin defines rules as JSON within `CampaignQuestion.scoring_rules`:
 
 ```json
 {
-  "match_winner":  { "type": "exact_match",   "points": 10 },
-  "top_batter":    { "type": "exact_match",   "points": 15 },
-  "top_bowler":    { "type": "exact_match",   "points": 15 },
-  "total_sixes":   { "type": "numeric_range", "range": 2, "points": 8 },
-  "total_fours":   { "type": "numeric_range", "range": 3, "points": 5 }
+  "type": "difference", 
+  "thresholds": [
+    { "diff": 0, "points": 10 },
+    { "diff": 5, "points": 5 }
+  ]
 }
 ```
 
-Formula types:
-- `exact_match` — full points if answer matches exactly (case-insensitive)
-- `numeric_range` — full points if within ±range of correct answer
-- `partial_match` — configurable partial credit
+Rule types:
+- `exact_match` — Full points if answer matches exactly.
+- `difference` — Dynamic points based on numeric distance (e.g., Powerplay scores).
+- `multi_choice` — Points assigned to specific correct options.
 
-Scoring job runs automatically when match status → `completed`.
+Scoring job runs automatically when match status → `completed`, consuming results from the `CampaignMatchResult` table.
 
 ### 6. Leaderboard
 
+The system maintains two types of leaderboards, both driven by the `LeaderboardCache` for performance:
+
+1.  **Global Leaderboard**: Ranks all users based on master match campaign performance within a specific tournament. (Backend: `league_id` is None).
+2.  **League Leaderboards**: Ranks only members of a specific league. Scores include master match points PLUS league-specific campaign points.
+
 ```
-GET /leaderboard                    → global, sorted by total_points DESC
-GET /leaderboard/match/{match_id}   → per-match rankings
+GET /api/leaderboard?league_id=ipl-2026-global  → global standings
+GET /api/leaderboard?league_id=league_id        → specific league standings
 ```
 
-Response fields: `rank`, `username`, `avatar_url`, `total_points`, `matches_played`, `accuracy_pct`
+Response fields: `rank`, `username`, `avatar_url`, `total_points`, `matches_played`, `progression` (aggregated points per match).
+
+#### **Frontend Implementation**
+- **Dynamic Context Switcher**: Integrated into the `Leaderboard` page via a dropdown that automatically includes "Global Leaderboard" for every tournament.
+- **Hierarchical Rendering**: `MatchPage` dynamically renders and groups questions by source (Global vs League), ensuring users can complete all predictions in one view.
+- **Safety & Stability**: Hardened match details and prediction reveals with optional chaining and safe defaults to handle partitioned scoring data.
+- **Admin Isolation**: League admin dashboards now filter campaigns and grading interfaces to show only authorized league-specific content.
 
 ### 7. Admin endpoints
 
@@ -269,7 +292,7 @@ PUT  /admin/scoring-rules                  → update formula config
 ```
 User             — id, google_id, email, name, avatar_url, is_admin, created_at
 AllowlistedEmail — id, email, added_at
-Match            — id, cricapi_match_id, team1, team2, venue, toss_time, status, raw_result_json
+Match            — id, cricapi_match_id, team1, team2, venue, start_time, status, raw_result_json
 Question         — id, match_id, key, question_text, answer_type, correct_answer, is_fixed
 Prediction       — id, user_id, match_id, question_id, answer, points_awarded, created_at
 ScoringRule      — id, config_json, updated_at
@@ -579,7 +602,7 @@ src/app/
 - [ ] Admin allowlist endpoints
 - [ ] CricAPI polling service (APScheduler, poll only upcoming/live)
 - [ ] Prediction endpoints with server-side lock enforcement
-- [ ] Community predictions endpoint — `/predictions/all` locked before toss-30min
+- [ ] Community predictions endpoint — `/predictions/all` locked before start-30min
 - [ ] Scoring engine
 - [ ] Leaderboard endpoints
 - [ ] Admin match/question/results/scoring-rules endpoints

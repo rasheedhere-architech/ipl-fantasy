@@ -5,8 +5,8 @@ from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from backend.database import get_db
-from backend.models import User, AllowlistedEmail, ScoringRule, Match
-from backend.dependencies import get_current_admin
+from backend.models import User, AllowlistedEmail, ScoringRule, Match, LeagueAdminMapping
+from backend.dependencies import get_current_admin, get_current_user
 from backend.scoring import calculate_match_scores
 from backend.utils.cache import backend_cache
 
@@ -64,7 +64,12 @@ async def remove_from_allowlist(email: str, db: AsyncSession = Depends(get_db), 
     return {"message": f"Removed {email} from allowlist"}
 
 @router.get("/users")
-async def get_all_users(db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)):
+async def get_all_users(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not current_user.is_admin:
+        res = await db.execute(select(LeagueAdminMapping).where(LeagueAdminMapping.user_id == current_user.id))
+        if not res.scalars().first():
+            raise HTTPException(status_code=403, detail="Not authorized")
+            
     result = await db.execute(select(User).where(User.is_guest == False).order_by(User.created_at.desc()))
     return result.scalars().all()
 
@@ -86,23 +91,9 @@ async def trigger_match_scoring(match_id: str, payload: MatchResultUpdate, db: A
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
     
-    # Update Match Results
-    if "winner" in answers:
-        match.winner = str(answers["winner"])
-    if "team1_powerplay_score" in answers:
-        match.team1_powerplay_score = int(answers["team1_powerplay_score"])
-    if "team2_powerplay_score" in answers:
-        match.team2_powerplay_score = int(answers["team2_powerplay_score"])
-    if "player_of_the_match" in answers:
-        match.player_of_the_match = str(answers["player_of_the_match"])
-    if "more_sixes_team" in answers:
-        match.more_sixes_team = str(answers["more_sixes_team"])
-    if "more_fours_team" in answers:
-        match.more_fours_team = str(answers["more_fours_team"])
-    
     # Save the entire raw blob for audit/future use
     match.raw_result_json = answers
-    
+
     # Mark as completed and save reporter
     from backend.models import MatchStatus
     match.status = MatchStatus.completed
@@ -110,10 +101,11 @@ async def trigger_match_scoring(match_id: str, payload: MatchResultUpdate, db: A
     match.report_method = "manual"
     await db.commit()
     await db.refresh(match)
-    
-    print(f"Match {match_id} results saved: {match.winner}, {match.team1_powerplay_score}-{match.team2_powerplay_score}")
-    
+
+    print(f"Match {match_id} results saved: {answers.get('winner') or 'Dynamic Results'}")
+
     # Trigger scoring engine
+
     await calculate_match_scores(match_id, db)
     
     # Invalidate Leaderboards after scoring update
@@ -123,6 +115,7 @@ async def trigger_match_scoring(match_id: str, payload: MatchResultUpdate, db: A
     backend_cache.invalidate(f"match_leaderboard_{match_id}")
     
     return {"message": "Results saved and scoring triggered successfully"}
+
 @router.put("/predictions/{prediction_id}")
 async def admin_update_prediction(prediction_id: str, updates: dict, db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)):
     from backend.models import Prediction

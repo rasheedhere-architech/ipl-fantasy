@@ -129,7 +129,7 @@ async def phase1_migration():
                         team1=m["home"],
                         team2=m["away"],
                         venue=m["venue"],
-                        toss_time=utc_time,
+                        start_time=utc_time,
                         status=MatchStatus.upcoming,
                         tournament_id=tournament_id
                     )

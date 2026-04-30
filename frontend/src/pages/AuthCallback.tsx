@@ -3,10 +3,13 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import { apiClient } from '../api/client';
 
+import { useQueryClient } from '@tanstack/react-query';
+
 export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { setUser } = useAuthStore();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const token = searchParams.get('token');
@@ -14,6 +17,7 @@ export default function AuthCallback() {
     if (token) {
       // Clear any old session before fetching new profile
       useAuthStore.getState().logout();
+      queryClient.clear();
       
       const fetchProfile = (retries = 2) => {
         apiClient.get('/auth/me', { 

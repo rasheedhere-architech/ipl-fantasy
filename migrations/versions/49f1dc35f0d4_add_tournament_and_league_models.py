@@ -81,7 +81,7 @@ def upgrade() -> None:
     sa.Column('team1', sa.String(), nullable=False),
     sa.Column('team2', sa.String(), nullable=False),
     sa.Column('venue', sa.String(), nullable=False),
-    sa.Column('toss_time', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('start_time', sa.DateTime(timezone=True), nullable=False),
     sa.Column('status', sa.Enum('upcoming', 'live', 'completed', 'cancelled', name='matchstatus'), nullable=False),
     sa.Column('tournament_id', sa.String(), nullable=True),
     sa.Column('winner', sa.String(), nullable=True),

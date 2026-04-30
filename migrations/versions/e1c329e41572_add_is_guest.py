@@ -53,7 +53,7 @@ def downgrade() -> None:
     sa.Column('team1', sa.VARCHAR(), autoincrement=False, nullable=False),
     sa.Column('team2', sa.VARCHAR(), autoincrement=False, nullable=False),
     sa.Column('venue', sa.VARCHAR(), autoincrement=False, nullable=False),
-    sa.Column('toss_time', postgresql.TIMESTAMP(timezone=True), autoincrement=False, nullable=False),
+    sa.Column('start_time', postgresql.TIMESTAMP(timezone=True), autoincrement=False, nullable=False),
     sa.Column('status', postgresql.ENUM('upcoming', 'live', 'completed', name='matchstatus'), autoincrement=False, nullable=False),
     sa.Column('questions_json', postgresql.JSON(astext_type=sa.Text()), autoincrement=False, nullable=True),
     sa.Column('winner', sa.VARCHAR(), autoincrement=False, nullable=True),

@@ -1,16 +1,57 @@
 import { Outlet, Navigate, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
+import { useMyLeagues } from '../api/hooks/useLeagues';
 import { Trophy, LayoutDashboard, Settings, LogOut, Menu, X, BarChart2, Megaphone, Users } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '../api/client';
 
 export default function Layout() {
-  const { isAuthenticated, user, logout } = useAuthStore();
+  const { isAuthenticated, user, logout: storeLogout, setUser, token } = useAuthStore();
+  const queryClient = useQueryClient();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
   const location = useLocation();
+  const { data: leagues, isLoading: leaguesLoading } = useMyLeagues();
+
+  const handleLogout = () => {
+    storeLogout();
+    queryClient.clear();
+    localStorage.removeItem('redirect_after_login');
+  };
+
+  // Redirect to leagues if not in any league (for regular users)
+  const isLeaguesPage = location.pathname === '/leagues';
+  const shouldRedirectToLeagues =
+    !leaguesLoading &&
+    leagues &&
+    leagues.length === 0 &&
+    !user?.is_admin &&
+    !user?.is_guest &&
+    !isLeaguesPage;
+
+  // Keep profile in sync
+  const { data: profile } = useQuery({
+    queryKey: ['me'],
+    queryFn: async () => {
+      const res = await apiClient.get('/auth/me');
+      return res.data;
+    },
+    enabled: isAuthenticated && !!token,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  useEffect(() => {
+    if (profile && token) {
+      setUser(profile, token);
+    }
+  }, [profile, token, setUser]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (shouldRedirectToLeagues) {
+    return <Navigate to="/leagues" replace />;
   }
 
   const clMenu = () => setIsMenuOpen(false);
@@ -47,7 +88,7 @@ export default function Layout() {
                   <Users className="w-4 h-4" />
                   LEAGUES
                 </Link>
-                {user?.is_admin && (
+                {(user?.is_admin || user?.is_league_admin) && (
                   <Link to="/admin" className="text-gray-300 hover:text-white flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors">
                     <Settings className="w-4 h-4" />
                     ADMIN
@@ -68,7 +109,7 @@ export default function Layout() {
                     )}
                   </div>
                   <img src={user.avatar || `https://ui-avatars.com/api/?name=${user.name}&background=0B0E1A&color=F4C430`} alt="avatar" className="w-8 h-8 rounded-full border border-ipl-gold/50" />
-                  <button onClick={logout} className="hidden md:block text-gray-400 hover:text-white transition-colors ml-2" title="Logout">
+                  <button onClick={handleLogout} className="hidden md:block text-gray-400 hover:text-white transition-colors ml-2" title="Logout">
                     <LogOut className="w-5 h-5" />
                   </button>
                   <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden text-gray-400 hover:text-white p-1 ml-2">
@@ -103,13 +144,13 @@ export default function Layout() {
               <Users className="w-5 h-5 text-ipl-gold" />
               LEAGUES
             </Link>
-            {user?.is_admin && (
+            {(user?.is_admin || user?.is_league_admin) && (
               <Link to="/admin" onClick={clMenu} className="block text-gray-300 hover:text-white font-medium flex items-center gap-3 px-4 py-3 bg-white/5 rounded-lg active:bg-white/10 transition-colors">
                 <Settings className="w-5 h-5 text-ipl-gold" />
                 ADMIN
               </Link>
             )}
-            <button onClick={() => { logout(); clMenu(); }} className="w-full text-left text-red-500 hover:text-red-400 font-medium flex items-center gap-3 px-4 py-3 bg-red-500/10 rounded-lg active:bg-red-500/20 transition-colors mt-4">
+            <button onClick={() => { handleLogout(); clMenu(); }} className="w-full text-left text-red-500 hover:text-red-400 font-medium flex items-center gap-3 px-4 py-3 bg-red-500/10 rounded-lg active:bg-red-500/20 transition-colors mt-4">
               <LogOut className="w-5 h-5" />
               LOGOUT
             </button>
@@ -117,7 +158,7 @@ export default function Layout() {
         )}
       </nav>
 
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Outlet />
       </main>
     </div>

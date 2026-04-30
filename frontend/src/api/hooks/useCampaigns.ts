@@ -45,6 +45,7 @@ export interface Campaign {
   updated_at: string;
   league_id: string | null;
   match_id: string | null;
+  tournament_id: string | null;
   questions: CampaignQuestion[];
   my_response?: CampaignResponseSummary;
 }
@@ -70,6 +71,7 @@ export interface CampaignCreate {
   non_participation_penalty?: number;
   league_id?: string | null;
   match_id?: string | null;
+  tournament_id?: string | null;
   questions: QuestionCreate[];
 }
 

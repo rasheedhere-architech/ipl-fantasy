@@ -143,7 +143,7 @@ export function useCreateTournament() {
 export function useCreateMatch() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { id: string; team1: string; team2: string; venue: string; toss_time: string; tournament_id: string }) => {
+    mutationFn: async (payload: { id: string; team1: string; team2: string; venue: string; start_time: string; tournament_id: string }) => {
       const response = await apiClient.post('/matches', payload);
       return response.data;
     },
@@ -162,7 +162,27 @@ export function useAddLeagueMember() {
     },
     onSuccess: (_, { leagueId }) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'leagues'] });
+      queryClient.invalidateQueries({ queryKey: ['leagues', leagueId] });
       queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+    },
+  });
+}
+
+export function useBulkImportMatches() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ tournamentId, file }: { tournamentId: string; file: File }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await apiClient.post(`/tournaments/${tournamentId}/bulk-import-matches`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['matches'] });
     },
   });
 }

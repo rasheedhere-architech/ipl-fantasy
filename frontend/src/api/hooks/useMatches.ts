@@ -6,8 +6,8 @@ export interface Match {
   team1: string;
   team2: string;
   venue: string;
-  tossTime: string;
-  toss_time: string;
+  tossTime: string;       // ISO string, used for lock calculation
+  start_time: string;     // raw datetime from backend
   status: 'upcoming' | 'live' | 'completed';
   winner?: string;
   team1_powerplay_score?: number;
@@ -35,10 +35,7 @@ export function useMatches(tournamentId?: string) {
       const response = await apiClient.get<Match[]>('/matches', {
         params: { tournament_id: tournamentId }
       });
-      return response.data.map(match => ({
-        ...match,
-        tossTime: (match as any).toss_time
-      })) as Match[];
+      return response.data;
     },
   });
 }
@@ -48,11 +45,7 @@ export function useMatch(id: string) {
     queryKey: ['matches', id],
     queryFn: async () => {
       const response = await apiClient.get(`/matches/${id}`);
-      const data = response.data;
-      if (data.match) {
-        data.match.tossTime = data.match.toss_time;
-      }
-      return data;
+      return response.data;
     },
     enabled: !!id,
   });
@@ -101,7 +94,15 @@ export function useLeaderboard(leagueId?: string) {
   return useQuery({
     queryKey: ['leaderboard', leagueId],
     queryFn: async () => {
-      const url = leagueId ? `/leaderboard?league_id=${leagueId}` : '/leaderboard';
+      let url = '/leaderboard';
+      if (leagueId) {
+        if (leagueId.endsWith('-global')) {
+          const tournamentId = leagueId.replace('-global', '');
+          url = `/tournaments/${tournamentId}/leaderboard`;
+        } else {
+          url = `/leaderboard?league_id=${leagueId}`;
+        }
+      }
       const response = await apiClient.get(url);
       return response.data;
     },

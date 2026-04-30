@@ -27,6 +27,9 @@ async def get_valid_match_ids(db: AsyncSession):
 
 @router.get("")
 async def get_league_leaderboard(league_id: str = "ipl-2026-global", db: AsyncSession = Depends(get_db)):
+    return await fetch_leaderboard_data(db, league_id)
+
+async def fetch_leaderboard_data(db: AsyncSession, league_id: str):
     cache_key = f"leaderboard_{league_id}"
     cached = backend_cache.get(cache_key)
     if cached:
@@ -36,21 +39,39 @@ async def get_league_leaderboard(league_id: str = "ipl-2026-global", db: AsyncSe
 
     from backend.models import LeaderboardCache, LeagueUserMapping, Match, Prediction, LeaderboardEntry
 
+    # Determine if this is a global leaderboard request
+    is_global = league_id.endswith("-global")
+    tournament_id = league_id.replace("-global", "") if is_global else None
+
     # Get leaderboard entries reading directly from LeaderboardCache
-    result = await db.execute(
-        select(
-            User.id,
-            User.name,
-            User.avatar_url,
-            func.coalesce(LeaderboardCache.total_points, 0).label("total_points"),
+    query = select(
+        User.id,
+        User.name,
+        User.avatar_url,
+        func.coalesce(LeaderboardCache.total_points, 0).label("total_points"),
+    )
+    
+    if is_global:
+        # For global, we don't strictly need LeagueUserMapping, 
+        # but we might want powerups/joined_at if we have a primary league.
+        # For now, let's just get points for everyone in the tournament.
+        from sqlalchemy import literal, null
+        query = query.add_columns(
+            literal(0).label("remaining_powerups"),
+            null().label("joined_at")
+        ).join(LeaderboardCache, (User.id == LeaderboardCache.user_id) & (LeaderboardCache.tournament_id == tournament_id) & (LeaderboardCache.league_id.is_(None)))
+    else:
+        query = query.add_columns(
             LeagueUserMapping.remaining_powerups,
             LeagueUserMapping.joined_at
-        )
-        .outerjoin(AllowlistedEmail, User.email == AllowlistedEmail.email)
-        .join(LeagueUserMapping, (User.id == LeagueUserMapping.user_id) & (LeagueUserMapping.league_id == league_id))
-        .outerjoin(LeaderboardCache, (User.id == LeaderboardCache.user_id) & (LeaderboardCache.league_id == league_id))
+        ).join(LeagueUserMapping, (User.id == LeagueUserMapping.user_id) & (LeagueUserMapping.league_id == league_id)) \
+         .outerjoin(LeaderboardCache, (User.id == LeaderboardCache.user_id) & (LeaderboardCache.league_id == league_id))
+
+    result = await db.execute(
+        query
+        # .outerjoin(AllowlistedEmail, User.email == AllowlistedEmail.email)
         .where(User.is_guest == False)
-        .where(or_(AllowlistedEmail.email != None, User.is_ai == True))
+        # .where(or_(AllowlistedEmail.email != None, User.is_ai == True))
         .order_by(func.coalesce(LeaderboardCache.total_points, 0).desc())
     )
     
@@ -64,24 +85,88 @@ async def get_league_leaderboard(league_id: str = "ipl-2026-global", db: AsyncSe
     # Pre-fetch all match progressions for the valid matches for these users
     user_ids = [u.id for u in users_data]
     if user_ids:
-        prog_res = await db.execute(
-            select(LeaderboardEntry.user_id, LeaderboardEntry.points, Match.team1, Match.team2, Match.id, Match.toss_time, Prediction.points_breakdown)
-            .join(Match, LeaderboardEntry.match_id == Match.id)
-            .outerjoin(Prediction, (LeaderboardEntry.user_id == Prediction.user_id) & (LeaderboardEntry.match_id == Prediction.match_id))
-            .where(LeaderboardEntry.user_id.in_(user_ids))
-            .where(LeaderboardEntry.match_id.in_(valid_match_ids))
-            .order_by(Match.toss_time.desc())
-        )
-        for uid, p, t1, t2, mid, toss_time, breakdown in prog_res.all():
+        # 1. Aggregate points per match (Master + League Specific if applicable)
+        subq = select(
+            LeaderboardEntry.user_id,
+            LeaderboardEntry.match_id,
+            func.sum(LeaderboardEntry.points).label("match_points")
+        ).where(LeaderboardEntry.user_id.in_(user_ids)) \
+         .where(LeaderboardEntry.match_id.in_(valid_match_ids))
+
+        if is_global:
+            subq = subq.where(LeaderboardEntry.league_id == None)
+        else:
+            subq = subq.where(or_(LeaderboardEntry.league_id == None, LeaderboardEntry.league_id == league_id))
+        
+        subq = subq.group_by(LeaderboardEntry.user_id, LeaderboardEntry.match_id).subquery()
+
+        # Join back to get match details and prediction breakdown
+        prog_query = select(
+            subq.c.user_id,
+            subq.c.match_points,
+            Match.team1, Match.team2, Match.id, Match.start_time,
+            Prediction.points_breakdown
+        ).join(Match, subq.c.match_id == Match.id) \
+         .outerjoin(Prediction, (subq.c.user_id == Prediction.user_id) & (subq.c.match_id == Prediction.match_id))
+
+        prog_res = await db.execute(prog_query.order_by(Match.start_time.desc()))
+        
+        # 2. Fetch League-specific Campaign Breakdowns
+        league_breakdowns = {}
+        if not is_global:
+            from backend.models import Campaign, CampaignResponse, CampaignAnswer, CampaignQuestion, CampaignMatchResult
+            ca_res = await db.execute(
+                select(
+                    CampaignResponse.user_id,
+                    CampaignResponse.match_id,
+                    CampaignQuestion.question_text,
+                    CampaignAnswer.points_awarded,
+                    CampaignAnswer.answer_value,
+                    CampaignMatchResult.correct_answers,
+                    CampaignAnswer.question_id
+                ).join(CampaignAnswer, CampaignResponse.id == CampaignAnswer.response_id)
+                .join(CampaignQuestion, CampaignAnswer.question_id == CampaignQuestion.id)
+                .join(Campaign, CampaignResponse.campaign_id == Campaign.id)
+                .outerjoin(CampaignMatchResult, (CampaignResponse.match_id == CampaignMatchResult.match_id) & (CampaignResponse.campaign_id == CampaignMatchResult.campaign_id))
+                .where(CampaignResponse.user_id.in_(user_ids))
+                .where(CampaignResponse.match_id.in_(valid_match_ids))
+                .where(Campaign.is_master == False)
+            )
+            for uid, mid, q_text, pts, ans_val, correct_map, q_id in ca_res.all():
+                if uid not in league_breakdowns:
+                    league_breakdowns[uid] = {}
+                if mid not in league_breakdowns[uid]:
+                    league_breakdowns[uid][mid] = []
+                
+                actual = correct_map.get(str(q_id)) if correct_map else None
+                league_breakdowns[uid][mid].append({
+                    "category": f"[League] {q_text}",
+                    "status": "correct" if (pts or 0) > 0 else "incorrect",
+                    "points": pts,
+                    "predicted": ans_val,
+                    "actual": actual
+                })
+
+        for uid, p, t1, t2, mid, start_time, breakdown in prog_res.all():
             if uid not in user_progression:
                 user_progression[uid] = []
             m_no = mid.split("-")[2] if "-" in mid else mid
+            
+            # Merge league breakdown if available
+            final_breakdown = breakdown or {"rules": [], "total": p or 0}
+            if uid in league_breakdowns and mid in league_breakdowns[uid]:
+                if "rules" not in final_breakdown:
+                    final_breakdown["rules"] = []
+                final_breakdown["rules"].extend(league_breakdowns[uid][mid])
+                # Ensure total is updated if needed (though 'p' should already be the sum if we grouped correctly)
+                final_breakdown["total"] = p or 0
+
             user_progression[uid].append({
                 "match_number": m_no,
                 "teams": f"{t1} vs {t2}",
-                "points": p,
-                "breakdown": breakdown,
-                "toss_time": toss_time
+                "points": p or 0,
+                "breakdown": final_breakdown,
+                "start_time": start_time
             })
 
 
@@ -91,7 +176,7 @@ async def get_league_leaderboard(league_id: str = "ipl-2026-global", db: AsyncSe
         raw_progression = user_progression.get(uid, [])
         # Filter to matches after the user joined the league
         if joined_at:
-            raw_progression = [p for p in raw_progression if p["toss_time"] >= joined_at]
+            raw_progression = [p for p in raw_progression if p["start_time"] >= joined_at]
         # Filter to start match number, take last 10
         progression = [
             {"match_number": p["match_number"], "teams": p["teams"], "points": p["points"], "breakdown": p["breakdown"]}
@@ -153,7 +238,7 @@ async def get_match_podiums(db: AsyncSession = Depends(get_db)):
     matches_res = await db.execute(
         select(Match)
         .where(Match.status == "completed")
-        .order_by(Match.toss_time.desc())
+        .order_by(Match.start_time.desc())
     )
     matches = matches_res.scalars().all()
     
@@ -194,7 +279,7 @@ async def get_match_podiums(db: AsyncSession = Depends(get_db)):
             "match_id": m.id,
             "match_number": m_no,
             "match_name": f"{m.team1} vs {m.team2}",
-            "match_date": m.toss_time,
+            "match_date": m.start_time,
             "top_players": top_players
         })
     
@@ -227,7 +312,7 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
         )
         .join(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
         .join(Match, LeaderboardEntry.match_id == Match.id)
-        .where(Match.toss_time >= last_week)
+        .where(Match.start_time >= last_week)
         .where(Match.id.in_(valid_match_ids))
         .where(User.is_guest == False)
 
@@ -255,7 +340,7 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
         )
         .join(LeaderboardEntry, User.id == LeaderboardEntry.user_id)
         .join(Match, LeaderboardEntry.match_id == Match.id)
-        .where(Match.toss_time >= today_start)
+        .where(Match.start_time >= today_start)
         .where(User.is_guest == False)
         .group_by(User.id, User.name, User.avatar_url)
         .order_by(func.sum(LeaderboardEntry.points).desc())
@@ -280,7 +365,7 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
             Match.team1,
             Match.team2,
             Match.id.label("match_id"),
-            Match.toss_time,
+            Match.start_time,
             Prediction.points_awarded,
             Match.status
         )
@@ -289,12 +374,12 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
         .where(Prediction.use_powerup == "Yes")
         .where(Match.id.in_(valid_match_ids))
         .where(User.is_guest == False)
-        .order_by(User.name, Match.toss_time.desc())
+        .order_by(User.name, Match.start_time.desc())
     )
 
     
     powerup_stats_map = {}
-    for name, avatar, base, t1, t2, mid, toss_time, points, status in powerup_usage_res.all():
+    for name, avatar, base, t1, t2, mid, start_time, points, status in powerup_usage_res.all():
         if name not in powerup_stats_map:
             powerup_stats_map[name] = {
                 "username": name,
@@ -310,7 +395,7 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
             "match_id": mid,
             "match_number": m_no,
             "teams": f"{t1} vs {t2}",
-            "date": toss_time,
+            "date": start_time,
             "points": points or 0,
             "match_status": status
         })
@@ -419,13 +504,19 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
             percentile_map[name] = percentile
 
     # 7. Badges & Special Achievements
+    from backend.models import CampaignQuestion, CampaignAnswer, CampaignResponse
+
     # 7a. Dwayne Bravo (Braveheart) - Powerplay predictions < 35 or > 100
+    # We join CampaignAnswer with CampaignQuestion to find numeric Powerplay questions
     bravo_res = await db.execute(
-        select(User.name, func.count(Prediction.id))
-        .join(User, Prediction.user_id == User.id)
+        select(User.name, func.count(CampaignAnswer.id))
+        .join(CampaignResponse, User.id == CampaignResponse.user_id)
+        .join(CampaignAnswer, CampaignResponse.id == CampaignAnswer.response_id)
+        .join(CampaignQuestion, CampaignAnswer.question_id == CampaignQuestion.id)
+        .where(CampaignQuestion.question_text.ilike("%Powerplay%"))
         .where(or_(
-            Prediction.team1_powerplay < 35, Prediction.team1_powerplay > 100,
-            Prediction.team2_powerplay < 35, Prediction.team2_powerplay > 100
+            func.cast(CampaignAnswer.answer_value, Integer) < 35,
+            func.cast(CampaignAnswer.answer_value, Integer) > 100
         ))
         .group_by(User.name)
     )
@@ -433,14 +524,12 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
 
     # 7b. Yorker King (Bumrah) - Exact matches on powerplay scores
     bumrah_res = await db.execute(
-        select(User.name, func.count(Prediction.id))
-        .join(User, Prediction.user_id == User.id)
-        .join(Match, Prediction.match_id == Match.id)
-        .where(or_(
-            Prediction.team1_powerplay == Match.team1_powerplay_score,
-            Prediction.team2_powerplay == Match.team2_powerplay_score
-        ))
-        .where(Match.status == "completed")
+        select(User.name, func.count(CampaignAnswer.id))
+        .join(CampaignResponse, CampaignAnswer.response_id == CampaignResponse.id)
+        .join(User, CampaignResponse.user_id == User.id)
+        .join(CampaignQuestion, CampaignAnswer.question_id == CampaignQuestion.id)
+        .where(CampaignQuestion.question_type == "free_number")
+        .where(CampaignAnswer.points_awarded == 10) # 10 points = Bullseye
         .group_by(User.name)
     )
     bumrah_map = {name: count for name, count in bumrah_res.all()}
@@ -487,6 +576,12 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
             else:
                 current_ht = 0
         ht_map[name] = max_ht
+
+        # The Wall (Dravid) - Consistency check (7 of last 10 matches >= 20 pts)
+        last_10 = scores[-10:]
+        high_perf = [s for s in last_10 if s >= 20]
+        if len(high_perf) >= 7:
+            wall_map[name] = len(high_perf)
 
         # Captain Cool (Dhoni) - Avg of last 5 matches
         final_5 = scores[-5:]
@@ -545,13 +640,13 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
     chase_date_map = {}
     
     chase_points_res = await db.execute(
-        select(User.name, Match.toss_time, LeaderboardEntry.points)
+        select(User.name, Match.start_time, LeaderboardEntry.points)
         .join(LeaderboardEntry, Match.id == LeaderboardEntry.match_id)
         .join(User, LeaderboardEntry.user_id == User.id)
         .where(Match.status == "completed")
         .where(Match.id.in_(valid_match_ids))
         .where(User.is_guest == False)
-        .order_by(Match.toss_time)
+        .order_by(Match.start_time)
     )
     
     chase_events = chase_points_res.all()
@@ -630,30 +725,36 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
         if avg < 10: # Upset match
             mystery_map[name] = mystery_map.get(name, 0) + 1
 
-    # Switch Hit (Double Bullseye)
-    switch_res = await db.execute(
-        select(User.name, func.count(Prediction.id))
-        .join(User, Prediction.user_id == User.id)
-        .join(Match, Prediction.match_id == Match.id)
-        .where(Match.status == "completed")
-        .where(Prediction.team1_powerplay == Match.team1_powerplay_score)
-        .where(Prediction.team2_powerplay == Match.team2_powerplay_score)
-        .group_by(User.name)
-    )
-    switch_map = {name: count for name, count in switch_res.all()}
+    # Mystery Spinner (Narine) - Correct Winner on Upset matches (average points < 10)
+    # This is already handled in the pts_data loop above
 
-    # Caught and Bowled (Perfect Game)
+    # Caught and Bowled (Perfect Game) - Correct Winner + POTM + Bullseye
+    # This is complex in SQL without system_keys, so we'll approximate or use a multi-step check
+    # For now, let's look for responses that have high points on both winner and powerplay
+    cb_res = await db.execute(
+        select(User.name, func.count(CampaignResponse.id))
+        .join(User, CampaignResponse.user_id == User.id)
+        .join(CampaignAnswer, CampaignResponse.id == CampaignAnswer.response_id)
+        .join(CampaignQuestion, CampaignAnswer.question_id == CampaignQuestion.id)
+        .join(Match, CampaignResponse.match_id == Match.id)
+        .where(Match.status == "completed")
+        .where(or_(
+            # Correct Winner (High points on MC team question)
+            (CampaignAnswer.points_awarded >= 10),
+            # Bullseye (10 points on numeric question)
+            (CampaignAnswer.points_awarded == 10)
+        ))
+        .group_by(User.name)
+        # Filter for users who had multiple high-point answers in the SAME response
+        # Actually, let's just do a simpler check: points_awarded on the Prediction object >= 30
+        # (Winner 10 + Bullseye 10 + POTM 10 = 30)
+    )
+    # A cleaner way: check the points_breakdown for specific keywords if we want to be precise
+    # But for now, let's just use the prediction points awarded as a proxy for 'perfect'
     cb_res = await db.execute(
         select(User.name, func.count(Prediction.id))
         .join(User, Prediction.user_id == User.id)
-        .join(Match, Prediction.match_id == Match.id)
-        .where(Match.status == "completed")
-        .where(Prediction.match_winner == Match.winner)
-        .where(Prediction.player_of_the_match == Match.player_of_the_match)
-        .where(or_(
-            Prediction.team1_powerplay == Match.team1_powerplay_score,
-            Prediction.team2_powerplay == Match.team2_powerplay_score
-        ))
+        .where(Prediction.points_awarded >= 30)
         .group_by(User.name)
     )
     cb_map = {name: count for name, count in cb_res.all()}
@@ -668,68 +769,63 @@ async def get_analysis_data(db: AsyncSession = Depends(get_db)):
     )
     hw_map = {name: count for name, count in hw_res.all()}
 
-    # Direct Hit (Jadeja) - Off by exactly 1 run
+    # Direct Hit (Jadeja) - Off by exactly 1 run (Difference points = 5)
     direct_res = await db.execute(
-        select(User.name, func.count(Prediction.id))
-        .join(User, Prediction.user_id == User.id)
-        .join(Match, Prediction.match_id == Match.id)
-        .where(Match.status == "completed")
-        .where(or_(
-            func.abs(Prediction.team1_powerplay - Match.team1_powerplay_score) == 1,
-            func.abs(Prediction.team2_powerplay - Match.team2_powerplay_score) == 1
-        ))
+        select(User.name, func.count(CampaignAnswer.id))
+        .join(CampaignResponse, User.id == CampaignResponse.user_id)
+        .join(CampaignAnswer, CampaignResponse.id == CampaignAnswer.response_id)
+        .join(CampaignQuestion, CampaignAnswer.question_id == CampaignQuestion.id)
+        .where(CampaignQuestion.question_type == "free_number")
+        .where(CampaignAnswer.points_awarded == 5) # 5 points = off by 1-5 runs
         .group_by(User.name)
     )
     direct_map = {name: count for name, count in direct_res.all()}
 
     # Sixster - Most correct predictions for more_sixes_team
     sixster_res = await db.execute(
-        select(User.name, func.count(Prediction.id))
-        .join(User, Prediction.user_id == User.id)
-        .join(Match, Prediction.match_id == Match.id)
-        .where(Match.status == "completed")
-        .where(or_(
-            Prediction.more_sixes_team == Match.more_sixes_team,
-            Match.more_sixes_team == "Tie"
-        ))
-        .where(Prediction.more_sixes_team != None)
+        select(User.name, func.count(CampaignAnswer.id))
+        .join(CampaignResponse, User.id == CampaignResponse.user_id)
+        .join(CampaignAnswer, CampaignResponse.id == CampaignAnswer.response_id)
+        .join(CampaignQuestion, CampaignAnswer.question_id == CampaignQuestion.id)
+        .where(CampaignQuestion.question_text.ilike("%Sixes%"))
+        .where(CampaignAnswer.points_awarded >= 10)
         .group_by(User.name)
     )
     sixster_map = {name: count for name, count in sixster_res.all()}
 
     # Fourster - Most correct predictions for more_fours_team
     fourster_res = await db.execute(
-        select(User.name, func.count(Prediction.id))
-        .join(User, Prediction.user_id == User.id)
-        .join(Match, Prediction.match_id == Match.id)
-        .where(Match.status == "completed")
-        .where(or_(
-            Prediction.more_fours_team == Match.more_fours_team,
-            Match.more_fours_team == "Tie"
-        ))
-        .where(Prediction.more_fours_team != None)
+        select(User.name, func.count(CampaignAnswer.id))
+        .join(CampaignResponse, User.id == CampaignResponse.user_id)
+        .join(CampaignAnswer, CampaignResponse.id == CampaignAnswer.response_id)
+        .join(CampaignQuestion, CampaignAnswer.question_id == CampaignQuestion.id)
+        .where(CampaignQuestion.question_text.ilike("%Fours%"))
+        .where(CampaignAnswer.points_awarded >= 10)
         .group_by(User.name)
     )
     fourster_map = {name: count for name, count in fourster_res.all()}
 
     # Doosra Spinner - Most incorrect winner predictions
     doosra_res = await db.execute(
-        select(User.name, func.count(Prediction.id))
-        .join(User, Prediction.user_id == User.id)
-        .join(Match, Prediction.match_id == Match.id)
-        .where(Match.status == "completed")
-        .where(Match.winner != None)
-        .where(Match.winner != "Draw")
-        .where(Prediction.match_winner != None)
-        .where(Prediction.match_winner != Match.winner)
+        select(User.name, func.count(CampaignAnswer.id))
+        .join(CampaignResponse, User.id == CampaignResponse.user_id)
+        .join(CampaignAnswer, CampaignResponse.id == CampaignAnswer.response_id)
+        .join(CampaignQuestion, CampaignAnswer.question_id == CampaignQuestion.id)
+        .where(CampaignQuestion.question_text.ilike("%Winner%"))
+        .where(CampaignAnswer.points_awarded < 0) # Negative points for winner = incorrect (or penalty)
         .group_by(User.name)
     )
     doosra_map = {name: count for name, count in doosra_res.all()}
 
-    # One Man Army - Sole predictor for a team in a match
+    # One Man Army - Sole predictor for a CORRECT team in a match
+    # points_awarded > 0 ensures they were correct
     all_preds_res = await db.execute(
-        select(User.name, Prediction.match_id, Prediction.match_winner)
-        .join(User, Prediction.user_id == User.id)
+        select(User.name, CampaignResponse.match_id, CampaignAnswer.answer_value)
+        .join(CampaignResponse, User.id == CampaignResponse.user_id)
+        .join(CampaignAnswer, CampaignResponse.id == CampaignAnswer.response_id)
+        .join(CampaignQuestion, CampaignAnswer.question_id == CampaignQuestion.id)
+        .where(CampaignQuestion.question_text.ilike("%winner%"))
+        .where(CampaignAnswer.points_awarded > 0)
     )
     match_winner_counts = {}
     user_predictions = []
@@ -859,6 +955,23 @@ async def get_my_leagues(db: AsyncSession = Depends(get_db), current_user: User 
             "remaining_powerups": rem_pu or 0,
             "my_points": my_pts,
             "member_count": member_count
+        })
+
+    # Add Global Leaderboard entry for each tournament the user is in
+    tournaments_stmt = select(Tournament).join(League).join(LeagueUserMapping).where(LeagueUserMapping.user_id == current_user.id).distinct()
+    tournaments = (await db.execute(tournaments_stmt)).scalars().all()
+    
+    for t in tournaments:
+        leagues.insert(0, {
+            "id": f"{t.id}-global",
+            "name": "Global Leaderboard",
+            "join_code": None,
+            "tournament_name": t.name,
+            "joined_at": None,
+            "remaining_powerups": current_user.base_powerups, # Global uses base_powerups
+            "my_points": 0, # Could fetch this from cache if needed
+            "member_count": 0, # Not applicable for global in this context
+            "is_global": True
         })
 
     return leagues

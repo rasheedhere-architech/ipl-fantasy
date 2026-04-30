@@ -115,12 +115,13 @@ export default function Campaigns() {
   const now = new Date().getTime();
   const active = campaigns?.filter(c => {
     if (c.status !== 'active') return false;
+    if (c.type === 'match') return false;
     if (c.ends_at && new Date(c.ends_at).getTime() < now) return false;
     return true;
   }) ?? [];
 
   return (
-    <div className="space-y-12 max-w-5xl mx-auto pb-20">
+    <div className="space-y-12 w-full max-w-full mx-auto pb-20">
       <header>
         <h1 className="text-3xl font-display text-white border-b-2 border-white/10 pb-4 flex items-center gap-3">
           <Megaphone className="w-7 h-7 text-ipl-gold" />

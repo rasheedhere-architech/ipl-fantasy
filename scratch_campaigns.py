@@ -10,12 +10,11 @@ from sqlalchemy.orm import selectinload
 from backend.database import get_db
 from backend.models import (
     Campaign, CampaignQuestion, CampaignResponse, CampaignAnswer,
-    CampaignStatus, CampaignType, QuestionType, User, LeagueAdminMapping
+    CampaignStatus, CampaignType, QuestionType, User
 )
-from backend.dependencies import get_current_user
+from backend.dependencies import get_current_user, get_current_admin
 from backend.campaigns_scoring import calculate_campaign_scores
 from backend.utils.cache import backend_cache
-from backend.utils.permissions import check_campaign_permission, is_league_admin as _is_league_admin
 
 router = APIRouter(prefix="/api/campaigns", tags=["campaigns"])
 
@@ -49,7 +48,6 @@ class CampaignCreate(BaseModel):
     non_participation_penalty: int = 0
     league_id: Optional[str] = None
     match_id: Optional[str] = None
-    tournament_id: Optional[str] = None
     questions: list[QuestionCreate] = []
 
 
@@ -61,7 +59,6 @@ class CampaignUpdate(BaseModel):
     non_participation_penalty: Optional[int] = None
     league_id: Optional[str] = None
     match_id: Optional[str] = None
-    tournament_id: Optional[str] = None
     questions: Optional[list[QuestionCreate]] = None
 
 
@@ -118,7 +115,6 @@ def _serialize_campaign(campaign: Campaign, my_response: CampaignResponse | None
         "non_participation_penalty": campaign.non_participation_penalty,
         "league_id": campaign.league_id,
         "match_id": campaign.match_id,
-        "tournament_id": campaign.tournament_id,
         "created_at": campaign.created_at,
         "updated_at": campaign.updated_at,
         "questions": questions,
@@ -162,15 +158,11 @@ def _serialize_campaign_admin(campaign: Campaign) -> dict:
         "non_participation_penalty": campaign.non_participation_penalty,
         "league_id": campaign.league_id,
         "match_id": campaign.match_id,
-        "tournament_id": campaign.tournament_id,
         "created_at": campaign.created_at,
         "updated_at": campaign.updated_at,
         "questions": questions,
     }
 
-
-# Re-using check_campaign_permission and _is_league_admin from utils.permissions
-_check_campaign_permission = check_campaign_permission
 
 # ── Admin endpoints ─────────────────────────────────────────────────────────
 
@@ -178,15 +170,8 @@ _check_campaign_permission = check_campaign_permission
 async def create_campaign(
     payload: CampaignCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: User = Depends(get_current_admin),
 ):
-    if payload.is_master and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Only global admins can create master campaigns")
-    if not payload.is_master and payload.league_id:
-        if not current_user.is_admin and not await _is_league_admin(db, current_user.id, payload.league_id):
-            raise HTTPException(status_code=403, detail="Not an admin for this league")
-    elif not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Global campaigns require global admin privileges")
     for q in payload.questions:
         _validate_question(q)
 
@@ -196,9 +181,6 @@ async def create_campaign(
     if payload.type != CampaignType.match and any(q.is_mandatory for q in payload.questions):
         raise HTTPException(status_code=400, detail="Only Match campaigns can have mandatory questions")
 
-    if payload.is_master and not payload.tournament_id:
-        raise HTTPException(status_code=400, detail="Master campaigns must be associated with a tournament")
-
     campaign = Campaign(
         id=str(uuid.uuid4()),
         title=payload.title,
@@ -206,13 +188,12 @@ async def create_campaign(
         type=payload.type,
         is_master=payload.is_master,
         status=CampaignStatus.draft,
-        created_by=current_user.id,
+        created_by=current_admin.id,
         starts_at=payload.starts_at,
         ends_at=payload.ends_at,
         non_participation_penalty=payload.non_participation_penalty,
         league_id=payload.league_id,
         match_id=payload.match_id,
-        tournament_id=payload.tournament_id,
     )
     db.add(campaign)
     await db.flush()
@@ -244,7 +225,7 @@ async def update_campaign(
     campaign_id: str,
     payload: CampaignUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: User = Depends(get_current_admin),
 ):
     result = await db.execute(
         select(Campaign).where(Campaign.id == campaign_id)
@@ -269,8 +250,6 @@ async def update_campaign(
         campaign.league_id = payload.league_id
     if "match_id" in fields_set:
         campaign.match_id = payload.match_id
-    if "tournament_id" in fields_set:
-        campaign.tournament_id = payload.tournament_id
 
     if payload.questions is not None:
         for q in payload.questions:
@@ -330,13 +309,12 @@ async def update_campaign(
 async def delete_campaign(
     campaign_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: User = Depends(get_current_admin),
 ):
     result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
     campaign = result.scalars().first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
-    await _check_campaign_permission(db, campaign, current_user)
     await db.delete(campaign)
     await db.commit()
     backend_cache.invalidate("campaigns_list")
@@ -349,13 +327,12 @@ async def update_campaign_status(
     campaign_id: str,
     payload: CampaignStatusUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: User = Depends(get_current_admin),
 ):
     result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
     campaign = result.scalars().first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
-    await _check_campaign_permission(db, campaign, current_user)
     campaign.status = payload.status
     await db.commit()
     backend_cache.invalidate("campaigns_list")
@@ -367,14 +344,12 @@ async def update_campaign_status(
 async def trigger_campaign_scoring(
     campaign_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: User = Depends(get_current_admin),
 ):
     result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
     campaign = result.scalars().first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
-        
-    await _check_campaign_permission(db, campaign, current_user)
 
     await calculate_campaign_scores(campaign_id, db)
     backend_cache.invalidate(f"campaign_{campaign_id}")
@@ -384,21 +359,13 @@ async def trigger_campaign_scoring(
 @router.get("/admin/all")
 async def admin_list_campaigns(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: User = Depends(get_current_admin),
 ):
     result = await db.execute(
         select(Campaign).options(selectinload(Campaign.questions))
         .order_by(Campaign.created_at.desc())
     )
     campaigns = result.scalars().all()
-    
-    if not current_user.is_admin:
-        # Filter to only campaigns for leagues they manage
-        # Find leagues they manage
-        leagues_res = await db.execute(select(LeagueAdminMapping.league_id).where(LeagueAdminMapping.user_id == current_user.id))
-        managed_leagues = {r for r in leagues_res.scalars().all()}
-        campaigns = [c for c in campaigns if c.league_id and c.league_id in managed_leagues]
-        
     return [_serialize_campaign_admin(c) for c in campaigns]
 
 
@@ -406,7 +373,7 @@ async def admin_list_campaigns(
 async def admin_get_campaign(
     campaign_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: User = Depends(get_current_admin),
 ):
     result = await db.execute(
         select(Campaign).where(Campaign.id == campaign_id)
@@ -415,12 +382,6 @@ async def admin_get_campaign(
     campaign = result.scalars().first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
-        
-    # Anyone who is an admin of the league or global admin or if it's a master campaign
-    if not current_user.is_admin and not campaign.is_master:
-        if not campaign.league_id or not await _is_league_admin(db, current_user.id, campaign.league_id):
-            raise HTTPException(status_code=403, detail="Not authorized to view this campaign")
-
     return _serialize_campaign_admin(campaign)
 
 
@@ -428,16 +389,8 @@ async def admin_get_campaign(
 async def admin_get_campaign_responses(
     campaign_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: User = Depends(get_current_admin),
 ):
-    # Verify permission first
-    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
-    campaign = result.scalars().first()
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not current_user.is_admin and not campaign.is_master:
-        if not campaign.league_id or not await _is_league_admin(db, current_user.id, campaign.league_id):
-            raise HTTPException(status_code=403, detail="Not authorized")
     result = await db.execute(
         select(CampaignResponse, User.name, User.email)
         .join(User, CampaignResponse.user_id == User.id)
@@ -473,29 +426,17 @@ async def list_campaigns(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Find leagues user is part of
-    from backend.models import LeagueUserMapping
-    leagues_res = await db.execute(select(LeagueUserMapping.league_id).where(LeagueUserMapping.user_id == current_user.id))
-    user_leagues = {r for r in leagues_res.scalars().all()}
-
     # Only show active/closed campaigns. Exclude drafts.
-    # Also filter by league_id: show if league_id is None OR user is in that league
-    stmt = select(Campaign).where(Campaign.status != CampaignStatus.draft)
-    
     result = await db.execute(
-        stmt.options(selectinload(Campaign.questions))
+        select(Campaign)
+        .where(Campaign.status != CampaignStatus.draft)
+        .options(selectinload(Campaign.questions))
         .order_by(Campaign.ends_at.desc().nullslast(), Campaign.created_at.desc())
     )
     campaigns = result.scalars().all()
     
-    # Filter in memory (or could be in SQL)
-    campaigns = [c for c in campaigns if c.league_id is None or c.league_id in user_leagues]
-
     # Pre-fetch user's responses for all these campaigns
     campaign_ids = [c.id for c in campaigns]
-    if not campaign_ids:
-        return []
-
     resp_result = await db.execute(
         select(CampaignResponse)
         .where(CampaignResponse.campaign_id.in_(campaign_ids), CampaignResponse.user_id == current_user.id)

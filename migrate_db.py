@@ -13,7 +13,7 @@ if not DATABASE_URL:
 
 async def run_migration():
     print(f"🚀 Connecting to database: {DATABASE_URL[:20]}...")
-    engine = create_async_engine(DATABASE_URL)
+    engine = create_async_engine(DATABASE_URL, connect_args={"timeout": 10})
     
     commands = [
         ("ALTER TABLE users ADD COLUMN base_points INTEGER DEFAULT 0", "base_points"),
@@ -23,7 +23,8 @@ async def run_migration():
         ("ALTER TABLE users ADD COLUMN telegram_username VARCHAR", "telegram_username"),
         ("ALTER TABLE predictions ADD COLUMN points_breakdown JSON", "points_breakdown"),
         ("ALTER TABLE matches ADD COLUMN reported_by VARCHAR", "reported_by"),
-        ("ALTER TABLE matches ADD COLUMN report_method VARCHAR", "report_method")
+        ("ALTER TABLE matches ADD COLUMN report_method VARCHAR", "report_method"),
+        ("ALTER TABLE leaderboard_entries ADD COLUMN league_id VARCHAR", "league_id")
     ]
     
     for sql, col_name in commands:

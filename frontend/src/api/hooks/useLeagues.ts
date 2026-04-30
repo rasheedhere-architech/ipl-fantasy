@@ -7,6 +7,7 @@ export interface LeagueParticipant {
   avatar_url: string;
   joined_at: string;
   remaining_powerups: number;
+  is_league_admin: boolean;
 }
 
 export interface League {
@@ -98,6 +99,19 @@ export function useRefreshJoinCode(leagueId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leagues', leagueId] });
       queryClient.invalidateQueries({ queryKey: ['leagues', 'mine'] });
+    },
+  });
+}
+
+export function useToggleLeagueAdmin(leagueId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, isAdmin }: { userId: string, isAdmin: boolean }) => {
+      const response = await apiClient.put(`/leagues/${leagueId}/members/${userId}/admin`, { is_admin: isAdmin });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leagues', leagueId] });
     },
   });
 }

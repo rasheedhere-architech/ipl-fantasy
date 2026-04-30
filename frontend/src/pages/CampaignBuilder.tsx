@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Plus, Trash2, ChevronDown, ChevronUp, Save,
-  Play, Lock, FileEdit, BarChart2, Users, Copy, Star, Trophy, ArrowDownAZ
+  Play, Lock, FileEdit, BarChart2, Users, Copy, Star, Trophy, ArrowDownAZ, MapPin
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -14,6 +14,7 @@ import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth';
 import { useMyLeagues } from '../api/hooks/useLeagues';
 import { useMatches } from '../api/hooks/useMatches';
+import { useTournaments } from '../api/hooks/useAdmin';
 import { Navigate } from 'react-router-dom';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -343,6 +344,7 @@ function QuestionEditor({
 
 export function CampaignForm({ campaignId }: { campaignId?: string }) {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const isEdit = !!campaignId;
   const { data: existing, isLoading } = useAdminCampaign(campaignId ?? '');
   const { mutate: create, isPending: isCreating } = useCreateCampaign();
@@ -357,11 +359,13 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
   const [penalty, setPenalty] = useState(0);
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [matchId, setMatchId] = useState<string | null>(null);
+  const [tournamentId, setTournamentId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<QuestionCreate[]>([emptyQuestion(0)]);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
 
   const { data: leagues } = useMyLeagues();
   const { data: matches } = useMatches();
+  const { data: tournaments } = useTournaments();
 
   useEffect(() => {
     if (existing) {
@@ -374,6 +378,7 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
       setPenalty(existing.non_participation_penalty ?? 0);
       setLeagueId(existing.league_id);
       setMatchId(existing.match_id);
+      setTournamentId(existing.tournament_id);
       setQuestions(existing.questions.map(q => ({
         id: q.id,
         question_text: q.question_text,
@@ -435,6 +440,7 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
       non_participation_penalty: penalty,
       league_id: leagueId,
       match_id: matchId,
+      tournament_id: tournamentId,
       questions: orderedQs,
     };
 
@@ -484,7 +490,7 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
           </div>
         </div>
 
-        {type === 'match' && (
+        {type === 'match' && user?.is_admin && (
           <label className="flex items-start gap-3 cursor-pointer group">
             <input type="checkbox" checked={isMaster} onChange={e => setIsMaster(e.target.checked)}
               className="mt-0.5 w-4 h-4 accent-ipl-gold cursor-pointer" />
@@ -519,17 +525,29 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
           <label className="text-gray-500 text-[10px] font-display uppercase tracking-widest block mb-1.5">Target League (Optional)</label>
           <select value={leagueId || ''} onChange={e => setLeagueId(e.target.value || null)}
             className="w-full bg-black/40 border-2 border-white/10 py-2.5 px-4 text-white font-display text-sm focus:outline-none focus:border-ipl-gold transition-all appearance-none cursor-pointer">
-            <option value="">Global / All Leagues</option>
-            {leagues?.map(l => (
+            {user?.is_admin && <option value="">Global / All Leagues</option>}
+            {!user?.is_admin && !leagueId && <option value="">Select a League...</option>}
+            {leagues?.filter(l => user?.is_admin || l.is_admin).map(l => (
               <option key={l.id} value={l.id}>{l.name}</option>
             ))}
           </select>
-          <p className="text-gray-600 text-[10px] font-display mt-1">If set, only members of this league can see this campaign.</p>
+          <p className="text-gray-600 text-[10px] font-display mt-1">If set, only members of this league can see this.</p>
+        </div>
+        <div>
+          <label className="text-gray-500 text-[10px] font-display uppercase tracking-widest block mb-1.5">Target Tournament</label>
+          <select value={tournamentId || ''} onChange={e => setTournamentId(e.target.value || null)}
+            className="w-full bg-black/40 border-2 border-white/10 py-2.5 px-4 text-white font-display text-sm focus:outline-none focus:border-ipl-gold transition-all appearance-none cursor-pointer">
+            <option value="">Select Tournament...</option>
+            {tournaments?.map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+          <p className="text-gray-600 text-[10px] font-display mt-1">Required for master templates.</p>
         </div>
         <div>
           <label className="text-gray-500 text-[10px] font-display uppercase tracking-widest block mb-1.5">Associated Match (Optional)</label>
@@ -540,7 +558,7 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
               <option key={m.id} value={m.id}>{m.team1} vs {m.team2}</option>
             ))}
           </select>
-          <p className="text-gray-600 text-[10px] font-display mt-1">Used for match-specific master templates and grading results.</p>
+          <p className="text-gray-600 text-[10px] font-display mt-1">Used for grading results.</p>
         </div>
       </div>
 
@@ -641,9 +659,11 @@ const STATUS_COLOR: Record<CampaignStatus, string> = {
   closed: 'text-gray-500 border-gray-600',
 };
 
-export function AdminCampaignList() {
+export function AdminCampaignList({ leagueId }: { leagueId?: string }) {
   const navigate = useNavigate();
-  const { data: campaigns, isLoading, refetch } = useAdminCampaigns();
+  const { data: allCampaigns, isLoading, refetch } = useAdminCampaigns();
+  const campaigns = leagueId ? allCampaigns?.filter(c => c.league_id === leagueId) : allCampaigns;
+  const { data: tournaments } = useTournaments();
   const { mutate: deleteCampaign } = useDeleteCampaign();
   const [expandedResponses, setExpandedResponses] = useState<string | null>(null);
 
@@ -715,6 +735,12 @@ export function AdminCampaignList() {
                     <span className="flex items-center gap-1 text-[10px] font-display uppercase tracking-widest border px-2 py-0.5 text-ipl-gold border-ipl-gold/40">
                       <Star className="w-2.5 h-2.5" />
                       Master
+                    </span>
+                  )}
+                  {c.tournament_id && (
+                    <span className="flex items-center gap-1 text-[10px] font-display uppercase tracking-widest border px-2 py-0.5 text-white/40 border-white/10">
+                      <MapPin className="w-2.5 h-2.5" />
+                      {tournaments?.find(t => t.id === c.tournament_id)?.name || 'Tournament'}
                     </span>
                   )}
                   <h3 className="text-white font-display truncate">{c.title}</h3>
@@ -794,19 +820,28 @@ export function AdminCampaignList() {
 
 export default function CampaignBuilderRoute() {
   const { user } = useAuthStore();
-  if (!user?.is_admin) return <Navigate to="/matchcenter" replace />;
+  const { data: leagues, isLoading } = useMyLeagues();
+  if (isLoading) return null;
+  const isLeagueAdmin = leagues?.some(l => l.is_admin);
+  if (!user?.is_admin && !isLeagueAdmin) return <Navigate to="/matchcenter" replace />;
   return <AdminCampaignList />;
 }
 
 export function CampaignBuilderNewRoute() {
   const { user } = useAuthStore();
-  if (!user?.is_admin) return <Navigate to="/matchcenter" replace />;
+  const { data: leagues, isLoading } = useMyLeagues();
+  if (isLoading) return null;
+  const isLeagueAdmin = leagues?.some(l => l.is_admin);
+  if (!user?.is_admin && !isLeagueAdmin) return <Navigate to="/matchcenter" replace />;
   return <CampaignForm />;
 }
 
 export function CampaignBuilderEditRoute() {
   const { user } = useAuthStore();
+  const { data: leagues, isLoading } = useMyLeagues();
   const { id } = useParams<{ id: string }>();
-  if (!user?.is_admin) return <Navigate to="/matchcenter" replace />;
+  if (isLoading) return null;
+  const isLeagueAdmin = leagues?.some(l => l.is_admin);
+  if (!user?.is_admin && !isLeagueAdmin) return <Navigate to="/matchcenter" replace />;
   return <CampaignForm campaignId={id} />;
 }

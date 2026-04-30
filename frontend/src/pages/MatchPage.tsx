@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMatch, useSubmitPrediction, useMyPredictions, useAllMatchPredictions } from '../api/hooks/useMatches';
 import { useUpdateMatchResults, useTriggerAIPredictions } from '../api/hooks/useAdmin';
-import { Trophy, Award, Target, CheckCircle2, Edit2, Check, X, Sparkles, Settings, AlertTriangle, ShieldAlert, Bot, MapPin } from 'lucide-react';
+import { Trophy, Target, CheckCircle2, Edit2, Check, X, Sparkles, Settings, AlertTriangle, ShieldAlert, Bot, MapPin } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { apiClient } from '../api/client';
 import toast from 'react-hot-toast';
@@ -27,56 +27,67 @@ export default function MatchPage() {
   // Admin Scoring Processor State
   const { mutate: updateResults, isPending: isUpdatingResults } = useUpdateMatchResults();
   const { mutate: triggerAI, isPending: isTriggerAIPending } = useTriggerAIPredictions();
-  const [adminResults, setAdminResults] = useState({
-    winner: '',
-    team1_powerplay_score: 0,
-    team2_powerplay_score: 0,
-    player_of_the_match: '',
-    more_sixes_team: '',
-    more_fours_team: ''
-  });
+  // Admin Results State: Map of {question_id: answer_value}
+  const [adminResults, setAdminResults] = useState<Record<string, any>>({});
 
-  // Predictions are currently always open (toss-lock disabled)
-  const tossTime = data?.match ? (data.match.tossTime ? new Date(data.match.tossTime) : new Date(data.match.toss_time)) : null;
+  // Predictions are currently always open (start-lock disabled)
+  const tossTime = data?.match?.tossTime ? new Date(data.match.tossTime) : null;
   const isLocked = tossTime ? (new Date() > new Date(tossTime.getTime() - 30 * 60000)) : false;
 
-  const { data: allPredictions } = useAllMatchPredictions(id || '');
+  const { data: leagueSections } = useAllMatchPredictions(id || '');
+
+  const match = data?.match;
+  const questions = data?.questions || [];
 
   // Pre-fill existing predictions and admin results
   useEffect(() => {
-    if (myPredictions && Object.keys(myPredictions).length > 0) {
-      reset(myPredictions);
+    if (myPredictions && Object.keys(myPredictions).length > 0 && questions.length > 0) {
+      // Build the form values: use_powerup stays top-level, everything else goes into extra_answers
+      const formValues: Record<string, any> = {
+        use_powerup: myPredictions.use_powerup || 'No',
+        extra_answers: {}
+      };
+
+      Object.entries(myPredictions).forEach(([key, val]) => {
+        if (key === 'use_powerup' || key === 'is_auto_predicted') return;
+
+        // Answers are now keyed by question_id (UUID or league prefix)
+        // No more system_key mapping needed here.
+        formValues.extra_answers[key] = val;
+      });
+
+      reset(formValues);
       setHasAutoPredicted(!!myPredictions.is_auto_predicted);
     }
-  }, [myPredictions, reset]);
+  }, [myPredictions, questions, reset]);
+
 
   useEffect(() => {
-    if (data?.match) {
-      setAdminResults({
-        winner: data.match.winner || '',
-        team1_powerplay_score: data.match.team1_powerplay_score || 0,
-        team2_powerplay_score: data.match.team2_powerplay_score || 0,
-        player_of_the_match: data.match.player_of_the_match || '',
-        more_sixes_team: data.match.more_sixes_team || '',
-        more_fours_team: data.match.more_fours_team || ''
-      });
+    if (data?.match?.results) {
+      setAdminResults(data.match.results);
     }
   }, [data]);
 
-  const match = data?.match;
-  const sortedPredictions = useMemo(() => {
-    if (!allPredictions || !match) return [];
-    return [...allPredictions].sort((a, b) => {
-      // Primary sort: Points awarded (if match completed)
+
+  const winnerQId = useMemo(() => {
+    if (!match) return null;
+    const teamSet = new Set([match.team1, match.team2]);
+    return questions.find((q: any) =>
+      q.options && q.options.length === 2 && q.options.every((opt: string) => teamSet.has(opt))
+    )?.key || null;
+  }, [questions, match]);
+
+  const getSortedPredictions = (predictions: any[]) => {
+    if (!predictions || !match) return [];
+    return [...predictions].sort((a, b) => {
       if (match.status === 'completed') {
         const pointsA = a.points_awarded ?? -999;
         const pointsB = b.points_awarded ?? -999;
         if (pointsA !== pointsB) return pointsB - pointsA;
       }
 
-      // Secondary/Default sort: Match winner grouping
       const getScore = (p: any) => {
-        const w = p.answers?.match_winner;
+        const w = winnerQId ? p.answers?.[winnerQId] : null;
         if (w === match.team1) return 1;
         if (w === match.team2) return 2;
         return 3;
@@ -84,27 +95,144 @@ export default function MatchPage() {
       const scoreDiff = getScore(a) - getScore(b);
       if (scoreDiff !== 0) return scoreDiff;
 
-      // Tertiary sort: Name
-      const nameA = a.user?.name || '';
-      const nameB = b.user?.name || '';
-      return nameA.localeCompare(nameB);
+      return (a.user?.name || '').localeCompare(b.user?.name || '');
     });
-  }, [allPredictions, match]);
+  };
+
+  const powerupsUsed = data?.powerups_used || 0;
+  const totalPowerups = data?.total_powerups ?? 10;
+  const powerupsLeft = totalPowerups - powerupsUsed;
+  const hasPredicted = myPredictions && Object.keys(myPredictions).length > 0;
+
+  const matchNumber = match?.id?.split('-')?.pop() || '0';
+
+
+  const groupedQuestions = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    questions.forEach((q: any) => {
+      const source = q.source_name || 'IPL Global';
+      if (!groups[source]) groups[source] = [];
+      groups[source].push(q);
+    });
+    return groups;
+  }, [questions]);
+
+  const questionMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    questions.forEach((q: any) => {
+      map[q.key] = q;
+    });
+    return map;
+  }, [questions]);
 
   if (isLoading) return <div className="text-white text-center font-display tracking-widest mt-20 animate-pulse">LOADING MATCH...</div>;
   if (error || !data || !match) return <div className="text-ipl-live text-center font-display tracking-widest mt-20">FAILED TO LOAD MATCH</div>;
 
-  const questions = data.questions || [];
-  const powerupsUsed = data.powerups_used || 0;
-  const totalPowerups = data.total_powerups ?? 10;
-  const powerupsLeft = totalPowerups - powerupsUsed;
-  const hasPredicted = myPredictions && Object.keys(myPredictions).length > 0;
+  const renderQuestion = (q: any) => {
+    // All prediction answers go through extra_answers keyed by q.key (question_id or league key)
+    // Only use_powerup stays as a top-level field
+    const registerName = `extra_answers.${q.key}`;
+    const error = (errors.extra_answers as any)?.[q.key];
 
-  const matchNumber = match.id.split('-').pop() || '0';
+    if (q.key === 'use_powerup') return null;
 
-  // Find specific labels from the questions array
-  const team1PPLabel = questions.find((q: any) => q.key === 'team1_powerplay')?.question_text || `${match.team1} Power Play Score`;
-  const team2PPLabel = questions.find((q: any) => q.key === 'team2_powerplay')?.question_text || `${match.team2} Power Play Score`;
+    const options = q.options || [];
+    const isBinary = options.length === 2 && (q.answer_type === 'dropdown' || q.answer_type === 'multiple_choice' || (q.answer_type === 'text' && q.options));
+
+    if (isBinary) {
+      const isMatchWinner = q.key === winnerQId;
+      return (
+        <div key={q.key} className={`space-y-4 ${isMatchWinner ? 'col-span-full' : ''}`}>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
+              {q.question_text}
+              {error && <span className="ml-2 text-red-500 text-[10px] animate-pulse">(! Required)</span>}
+            </label>
+            {q.source_name && q.source_name !== 'IPL Global' && (
+              <span className="text-[8px] bg-ipl-gold/10 text-ipl-gold px-1.5 py-0.5 rounded border border-ipl-gold/20 font-bold uppercase tracking-tighter">
+                {q.source_name} League
+              </span>
+            )}
+          </div>
+          <div className={`grid grid-cols-2 gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
+            {options.map((opt: string) => (
+              <label key={opt} className="cursor-pointer">
+                <input type="radio" value={opt} {...register(registerName, { required: true })} className="peer sr-only" disabled={isLocked} />
+                <div
+                  className={`team-select-button p-4 border-2 text-center font-display transition-all peer-checked:text-white ${isMatchWinner ? 'text-xl' : 'text-sm'}`}
+                  style={{
+                    '--team-color': getTeamColor(opt),
+                    borderColor: error ? 'rgba(239, 68, 68, 0.5)' : 'rgba(255, 255, 255, 0.2)',
+                    color: error ? 'rgba(239, 68, 68, 0.5)' : 'rgba(156, 163, 175, 1)'
+                  } as any}
+                >
+                  {opt}
+                </div>
+              </label>
+            ))}
+          </div>
+          <style>{`
+            .team-select-button { transition: all 0.3s ease; }
+            input:checked + .team-select-button {
+              background-color: var(--team-color) !important;
+              border-color: var(--team-color) !important;
+              box-shadow: 0 0 20px var(--team-color) !important;
+            }
+          `}</style>
+        </div>
+      );
+    }
+
+    const isFullWidth = q.answer_type === 'free_text' || q.answer_type === 'player_name' || q.answer_type === 'text' || q.answer_type === 'free_text';
+
+    return (
+      <div key={q.key} className={`space-y-2 ${isFullWidth ? 'col-span-full' : ''}`}>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
+            {q.question_text}
+            {error && <span className="ml-2 text-red-500 text-[10px] animate-pulse">(! Required)</span>}
+          </label>
+          {q.source_name && q.source_name !== 'IPL Global' && (
+            <span className="text-[8px] bg-ipl-gold/10 text-ipl-gold px-1.5 py-0.5 rounded border border-ipl-gold/20 font-bold uppercase tracking-tighter">
+              {q.source_name} League
+            </span>
+          )}
+        </div>
+
+        {q.answer_type === 'dropdown' || (q.answer_type === 'text' && q.options) ? (
+          <select
+            {...register(registerName, { required: true })}
+            disabled={isLocked}
+            className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all appearance-none disabled:opacity-50 ${error ? 'border-red-500/50' : 'border-white/20'}`}
+          >
+            <option value="">Select Option</option>
+            {q.options?.map((opt: string) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        ) : q.answer_type === 'multiple_choice' ? (
+          <div className={`grid grid-cols-2 gap-3 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
+            {q.options?.map((opt: string) => (
+              <label key={opt} className="cursor-pointer">
+                <input type="radio" value={opt} {...register(registerName, { required: true })} className="peer sr-only" disabled={isLocked} />
+                <div className={`p-3 border-2 text-center font-display text-xs transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold border-white/20 text-gray-400`}>
+                  {opt}
+                </div>
+              </label>
+            ))}
+          </div>
+        ) : (
+          <input
+            {...register(registerName, { required: true, valueAsNumber: q.answer_type === 'number' || q.answer_type === 'free_number' })}
+            type={q.answer_type === 'number' || q.answer_type === 'free_number' ? 'number' : 'text'}
+            disabled={isLocked}
+            placeholder={q.answer_type === 'number' || q.answer_type === 'free_number' ? '0' : 'Type your answer'}
+            className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all disabled:opacity-50 ${error ? 'border-red-500/50' : 'border-white/20'}`}
+          />
+        )}
+      </div>
+    );
+  };
 
 
   const onSubmit = (formData: any) => {
@@ -144,12 +272,15 @@ export default function MatchPage() {
     try {
       const { data: predictedData } = await apiClient.post(`/matches/${id || match.id}/autopredict`);
 
-      setValue('match_winner', predictedData.match_winner, { shouldValidate: true, shouldDirty: true });
-      setValue('team1_powerplay', predictedData.team1_powerplay, { shouldValidate: true, shouldDirty: true });
-      setValue('team2_powerplay', predictedData.team2_powerplay, { shouldValidate: true, shouldDirty: true });
-      setValue('player_of_the_match', predictedData.player_of_the_match, { shouldValidate: true, shouldDirty: true });
-      setValue('more_sixes_team', predictedData.more_sixes_team, { shouldValidate: true, shouldDirty: true });
-      setValue('more_fours_team', predictedData.more_fours_team, { shouldValidate: true, shouldDirty: true });
+      Object.entries(predictedData).forEach(([qId, val]) => {
+        if (qId === 'use_powerup') {
+          setValue('use_powerup', val, { shouldValidate: true, shouldDirty: true });
+          return;
+        }
+        // Auto-predict response now uses question IDs directly
+        setValue(`extra_answers.${qId}`, val, { shouldValidate: true, shouldDirty: true });
+      });
+
 
       // Invalidate so hasPredicted flips to true from server
       queryClient.invalidateQueries({ queryKey: ['predictions', 'mine', id || match.id] });
@@ -185,7 +316,7 @@ export default function MatchPage() {
 
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto pb-20">
+    <div className="space-y-8 max-w-[1600px] mx-auto w-full px-2 md:px-6 pb-20">
       <div className="glass-panel p-8 text-center border-b-[4px] border-ipl-gold relative overflow-hidden">
         <div className={`absolute top-0 right-0 ${isLocked ? 'bg-ipl-live' : 'bg-ipl-gold'} text-ipl-navy font-display text-xs tracking-widest px-3 py-1 font-bold`}>
           {isLocked ? 'PREDICTIONS CLOSED' : 'PREDICTIONS OPEN'}
@@ -219,7 +350,10 @@ export default function MatchPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div
               className="bg-white/5 p-6 border relative overflow-hidden group transition-all"
-              style={{ borderColor: `${getTeamColor(match.winner)}40`, boxShadow: `0 0 20px ${getTeamColor(match.winner)}15` }}
+              style={{
+                borderColor: match?.results?.[winnerQId] ? `${getTeamColor(match.results[winnerQId])}40` : 'rgba(255,255,255,0.1)',
+                boxShadow: match?.results?.[winnerQId] ? `0 0 20px ${getTeamColor(match.results[winnerQId])}15` : 'none'
+              }}
             >
               <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
                 <CheckCircle2 className="w-24 h-24 text-ipl-gold" />
@@ -227,51 +361,36 @@ export default function MatchPage() {
               <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] mb-4">Official Winner</label>
               <div
                 className="text-3xl font-display tracking-widest uppercase"
-                style={{ color: getTeamColor(match.winner), textShadow: `0 0 20px ${getTeamColor(match.winner)}60` }}
+                style={{
+                  color: match?.results?.[winnerQId] ? getTeamColor(match.results[winnerQId]) : 'white',
+                  textShadow: match?.results?.[winnerQId] ? `0 0 20px ${getTeamColor(match.results[winnerQId])}60` : 'none'
+                }}
               >
-                {match.winner}
+                {match?.results?.[winnerQId] || 'TBD'}
               </div>
             </div>
 
-            <div className="bg-white/5 p-6 border border-white/10 relative overflow-hidden group">
-              <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                <Target className="w-24 h-24 text-ipl-gold" />
-              </div>
-              <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] mb-4 font-normal">Power Play Scores</label>
-              <div className="flex items-center gap-4">
-                <div className="text-center">
-                  <div className="text-xs text-gray-400 font-display uppercase mb-1">{match.team1}</div>
-                  <div className="text-3xl font-display text-white">{match.team1_powerplay_score}</div>
+            {Object.keys(match?.results || {}).filter(k => k !== winnerQId).map(k => {
+              const q = questions.find((q: any) => q.key === k);
+              let label = q?.question_text || 'Result';
+              if (label.length > 25) label = label.substring(0, 25) + '...';
+
+              const val = match.results[k];
+              const isTeamMatch = getTeamColor(val) !== '#666666';
+              const valStyle = isTeamMatch ? { color: getTeamColor(val) } : { color: 'white' };
+
+              return (
+                <div key={k} className="bg-white/5 p-6 border border-white/10 relative overflow-hidden group flex flex-col justify-center items-center">
+                  <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                    <Target className="w-24 h-24 text-ipl-gold" />
+                  </div>
+                  <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] mb-2 text-center">{label}</label>
+                  <div className="text-2xl font-display tracking-wide uppercase text-center" style={valStyle}>
+                    {val}
+                  </div>
                 </div>
-                <div className="text-gray-600 text-2xl font-display mt-4">—</div>
-                <div className="text-center">
-                  <div className="text-xs text-gray-400 font-display uppercase mb-1">{match.team2}</div>
-                  <div className="text-3xl font-display text-white">{match.team2_powerplay_score}</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/5 p-6 border border-white/10 relative overflow-hidden group">
-              <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                <Award className="w-24 h-24 text-ipl-gold" />
-              </div>
-              <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] mb-4">Player of the Match</label>
-              <div className="text-2xl font-display text-white tracking-wide uppercase">{match.player_of_the_match}</div>
-            </div>
-
-            {match.more_sixes_team && (
-              <div className="bg-white/5 p-6 border border-white/10 relative overflow-hidden group">
-                <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] mb-4">More Sixes</label>
-                <div className="text-2xl font-display text-white tracking-wide uppercase" style={{ color: getTeamColor(match.more_sixes_team) }}>{match.more_sixes_team}</div>
-              </div>
-            )}
-
-            {match.more_fours_team && (
-              <div className="bg-white/5 p-6 border border-white/10 relative overflow-hidden group">
-                <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] mb-4">More Fours</label>
-                <div className="text-2xl font-display text-white tracking-wide uppercase" style={{ color: getTeamColor(match.more_fours_team) }}>{match.more_fours_team}</div>
-              </div>
-            )}
+              );
+            })}
           </div>
 
           {(match.reported_by_name) && (
@@ -344,127 +463,25 @@ export default function MatchPage() {
               </div>
             </div>
           ) : (
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              <div className="space-y-4">
-                <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Match Winner</label>
-                <div className={`grid grid-cols-2 gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
-                  <label className="cursor-pointer">
-                    <input type="radio" value={match.team1} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
-                    <div
-                      className="team-select-button p-4 border-2 text-center font-display text-xl transition-all peer-checked:text-white"
-                      style={{
-                        '--team-color': getTeamColor(match.team1),
-                        borderColor: errors.match_winner ? 'rgba(239, 68, 68, 0.5)' : 'rgba(255, 255, 255, 0.2)',
-                        color: errors.match_winner ? 'rgba(239, 68, 68, 0.5)' : 'rgba(156, 163, 175, 1)'
-                      } as any}
-                    >
-                      {match.team1}
-                    </div>
-                  </label>
-                  <label className="cursor-pointer">
-                    <input type="radio" value={match.team2} {...register('match_winner', { required: true })} className="peer sr-only" disabled={isLocked} />
-                    <div
-                      className="team-select-button p-4 border-2 text-center font-display text-xl transition-all peer-checked:text-white"
-                      style={{
-                        '--team-color': getTeamColor(match.team2),
-                        borderColor: errors.match_winner ? 'rgba(239, 68, 68, 0.5)' : 'rgba(255, 255, 255, 0.2)',
-                        color: errors.match_winner ? 'rgba(239, 68, 68, 0.5)' : 'rgba(156, 163, 175, 1)'
-                      } as any}
-                    >
-                      {match.team2}
-                    </div>
-                  </label>
-                </div>
-                <style>{`
-                  .team-select-button {
-                    transition: all 0.3s ease;
-                  }
-                  input:checked + .team-select-button {
-                    background-color: var(--team-color) !important;
-                    border-color: var(--team-color) !important;
-                    box-shadow: 0 0 20px var(--team-color) !important;
-                  }
-                `}</style>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-6 pt-6">
-                <div className="space-y-2">
-                  <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
-                    {team1PPLabel}
-                  </label>
-                  <input
-                    {...register('team1_powerplay', { required: true, valueAsNumber: true })}
-                    type="number"
-                    placeholder="0"
-                    disabled={isLocked}
-                    className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team1_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
-                    {team2PPLabel}
-                  </label>
-                  <input
-                    {...register('team2_powerplay', { required: true, valueAsNumber: true })}
-                    type="number"
-                    placeholder="0"
-                    disabled={isLocked}
-                    className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.team2_powerplay ? 'border-red-500/50' : 'border-white/20'}`}
-                  />
-                </div>
-              </div>
-
-              {Number(matchNumber) >= 39 && (
-                <div className="grid md:grid-cols-2 gap-6 pt-4">
-                  <div className="space-y-4">
-                    <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Team to score more 6s</label>
-                    <div className={`grid grid-cols-2 gap-3 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
-                      <label className="cursor-pointer">
-                        <input type="radio" value={match.team1} {...register('more_sixes_team', { required: Number(matchNumber) >= 39 })} className="peer sr-only" disabled={isLocked} />
-                        <div className="p-3 border-2 text-center font-display text-xs transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold border-white/20 text-gray-400">
-                          {match.team1}
-                        </div>
-                      </label>
-                      <label className="cursor-pointer">
-                        <input type="radio" value={match.team2} {...register('more_sixes_team', { required: Number(matchNumber) >= 39 })} className="peer sr-only" disabled={isLocked} />
-                        <div className="p-3 border-2 text-center font-display text-xs transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold border-white/20 text-gray-400">
-                          {match.team2}
-                        </div>
-                      </label>
-                    </div>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-12">
+              {Object.entries(groupedQuestions).map(([source, groupQuestions]) => (
+                <div key={source} className="space-y-6 pt-8 first:pt-0 border-t border-white/5 first:border-t-0">
+                  <div className="flex items-center gap-3 border-l-4 border-ipl-gold pl-4 mb-4">
+                    <h3 className="text-lg font-display text-white tracking-widest uppercase italic">
+                      {source === 'IPL Global' ? (
+                        <>IPL Global <span className="text-ipl-gold not-italic">Questions</span></>
+                      ) : (
+                        <><span className="text-ipl-gold not-italic">League:</span> {source}</>
+                      )}
+                    </h3>
                   </div>
-                  <div className="space-y-4">
-                    <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Team to score more 4s</label>
-                    <div className={`grid grid-cols-2 gap-3 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
-                      <label className="cursor-pointer">
-                        <input type="radio" value={match.team1} {...register('more_fours_team', { required: Number(matchNumber) >= 39 })} className="peer sr-only" disabled={isLocked} />
-                        <div className="p-3 border-2 text-center font-display text-xs transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold border-white/20 text-gray-400">
-                          {match.team1}
-                        </div>
-                      </label>
-                      <label className="cursor-pointer">
-                        <input type="radio" value={match.team2} {...register('more_fours_team', { required: Number(matchNumber) >= 39 })} className="peer sr-only" disabled={isLocked} />
-                        <div className="p-3 border-2 text-center font-display text-xs transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold border-white/20 text-gray-400">
-                          {match.team2}
-                        </div>
-                      </label>
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                    {groupQuestions.map(q => renderQuestion(q))}
                   </div>
                 </div>
-              )}
+              ))}
 
-              <div className="space-y-2">
-                <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Player of the Match</label>
-                <input
-                  {...register('player_of_the_match', { required: true })}
-                  type="text"
-                  placeholder="Player Name"
-                  disabled={isLocked}
-                  className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.player_of_the_match ? 'border-red-500/50' : 'border-white/20'}`}
-                />
-              </div>
-
-              <div className="space-y-4 pt-4">
+              <div className="space-y-4 pt-8 border-t border-white/10">
                 <div className="flex justify-between items-end">
                   <label className={`block font-display tracking-wide uppercase text-sm ${errors.use_powerup ? 'text-red-500' : 'text-gray-300'}`}>
                     Use 2x Powerup for this match? {errors.use_powerup && <span className="ml-2 text-[10px] animate-pulse">(! Selection Required)</span>}
@@ -490,47 +507,6 @@ export default function MatchPage() {
                 )}
               </div>
 
-              {/* Dynamic League Questions */}
-              {questions.filter((q: any) => q.key?.startsWith('league_')).map((q: any) => (
-                <div key={q.key} className="space-y-2 pt-4 border-t border-white/5">
-                  <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">
-                    {q.question_text}
-                    {(errors.extra_answers as any)?.[q.key] && <span className="ml-2 text-red-500 text-[10px]">*</span>}
-                  </label>
-                  {q.answer_type === 'dropdown' ? (
-                    <select
-                      {...register(`extra_answers.${q.key}`, { required: true })}
-                      disabled={isLocked}
-                      className="w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all border-white/20 appearance-none disabled:opacity-50"
-                    >
-                      <option value="">Select Option</option>
-                      {q.options?.map((opt: string) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  ) : q.answer_type === 'multiple_choice' ? (
-                    <div className={`grid grid-cols-2 gap-3 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
-                      {q.options?.map((opt: string) => (
-                        <label key={opt} className="cursor-pointer">
-                          <input type="radio" value={opt} {...register(`extra_answers.${q.key}`, { required: true })} className="peer sr-only" disabled={isLocked} />
-                          <div className="p-3 border-2 text-center font-display text-xs transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold border-white/20 text-gray-400">
-                            {opt}
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                  ) : (
-                    <input
-                      {...register(`extra_answers.${q.key}`, { required: true, valueAsNumber: q.answer_type === 'free_number' })}
-                      type={q.answer_type === 'free_number' ? 'number' : 'text'}
-                      disabled={isLocked}
-                      placeholder={q.answer_type === 'free_number' ? '0' : 'Type your answer'}
-                      className="w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all border-white/20 disabled:opacity-50"
-                    />
-                  )}
-                </div>
-              ))}
-
               <div className="pt-8">
                 <button
                   type="submit"
@@ -540,277 +516,275 @@ export default function MatchPage() {
                   {isLocked ? 'LOCK PERIOD CLOSED' : (isPending ? 'LOCKING...' : (hasPredicted ? 'Update Lock' : 'Submit Lock'))}
                 </button>
                 {isLocked && (
-                  <p className="text-gray-500 text-[10px] font-display uppercase mt-3 text-center">Prediction window ended 30m before the match toss.</p>
+                  <p className="text-gray-500 text-[10px] font-display uppercase mt-3 text-center">Prediction window ended 30m before the match start.</p>
                 )}
               </div>
             </form>
           )}
         </div>
       )}
-      <div className="glass-panel p-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <div className="flex items-center gap-3 mb-8 border-b-2 border-white/5 pb-4">
-          <h2 className="text-2xl font-display text-white italic tracking-tighter">
-            MATCH {matchNumber} <span className="text-ipl-gold">REVEAL</span>
-          </h2>
-          {isLocked ? (
-            <span className="bg-ipl-live/20 text-ipl-live text-[10px] px-2 py-1 rounded font-display animate-pulse uppercase tracking-tighter">Live Guesses</span>
-          ) : (
-            <span className="bg-ipl-gold/20 text-ipl-gold text-[10px] px-2 py-1 rounded font-display uppercase tracking-tighter">Guesses Hidden</span>
-          )}
-        </div>
-
-        {!allPredictions || allPredictions.length === 0 ? (
-          <div className="text-center py-10 text-gray-500 font-display tracking-widest text-[10px] uppercase">
-            NO PREDICTIONS FOUND FOR THIS MATCH
+      <div className="space-y-12">
+        {!leagueSections || leagueSections.length === 0 ? (
+          <div className="glass-panel p-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div className="text-center py-10 text-gray-500 font-display tracking-widest text-[10px] uppercase">
+              NO PREDICTIONS FOUND FOR THIS MATCH
+            </div>
           </div>
         ) : (
-          <div className="flex flex-col gap-4 md:gap-6">
-            {/* Stats Header */}
-            <div className="flex justify-center items-center gap-6 md:gap-8 bg-white/5 rounded-lg md:rounded-xl p-3 md:p-4 border border-white/10">
-              <div className="flex flex-col items-center">
-                <span className="text-[9px] md:text-[10px] text-gray-400 font-display uppercase tracking-widest leading-none mb-1">{getTeamShortName(match.team1)}</span>
-                <span className="text-xl md:text-3xl font-display leading-none drop-shadow-md" style={{ color: getTeamColor(match.team1) }}>
-                  {allPredictions.filter((p: any) => p.answers.match_winner === match.team1).length}
-                </span>
-              </div>
-              <div className="h-6 md:h-10 w-[1px] md:w-[2px] bg-white/20 rounded-full" />
-              <div className="flex flex-col items-center">
-                <span className="text-[9px] md:text-[10px] text-gray-400 font-display uppercase tracking-widest leading-none mb-1">{getTeamShortName(match.team2)}</span>
-                <span className="text-xl md:text-3xl font-display leading-none drop-shadow-md" style={{ color: getTeamColor(match.team2) }}>
-                  {allPredictions.filter((p: any) => p.answers.match_winner === match.team2).length}
-                </span>
-              </div>
-            </div>
+          leagueSections.map((section: any) => {
+            const allPredictions = section.predictions;
+            const sortedPredictions = getSortedPredictions(allPredictions);
+            return (
+              <div key={section.league.id} className="glass-panel p-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div className="flex items-center gap-3 mb-8 border-b-2 border-white/5 pb-4">
+                  <h2 className="text-2xl font-display text-white italic tracking-tighter">
+                    {section.league.name === 'IPL Global' ? (
+                      <>MATCH {matchNumber} <span className="text-ipl-gold">REVEAL</span></>
+                    ) : (
+                      <>{section.league.name} <span className="text-ipl-gold">| COMMUNITY REVEAL</span></>
+                    )}
+                  </h2>
+                  {isLocked ? (
+                    <span className="bg-ipl-live/20 text-ipl-live text-[10px] px-2 py-1 rounded font-display animate-pulse uppercase tracking-tighter">Live Guesses</span>
+                  ) : (
+                    <span className="bg-ipl-gold/20 text-ipl-gold text-[10px] px-2 py-1 rounded font-display uppercase tracking-tighter">Guesses Hidden</span>
+                  )}
+                </div>
 
-            {/* Helper Function */}
-            {(() => {
-              const renderPredictionCard = (pred: any, idx: number, isDesktop = false) => {
-                const isMyRow = pred.user?.id === currentUser?.id;
-                const teamWinnerShort = pred.answers.match_winner === '🔒' ? '🔒' : getTeamShortName(pred.answers.match_winner);
-                const team1Short = getTeamShortName(match.team1);
-                const team2Short = getTeamShortName(match.team2);
-
-                return (
-                  <div key={idx} className={`flex items-center justify-between rounded-lg border transition-all ${isDesktop ? 'md:p-3.5 md:gap-4' : 'p-2 gap-2'} ${isMyRow ? 'bg-ipl-gold/10 border-ipl-gold/50 shadow-[0_0_15px_rgba(244,196,48,0.15)]' : 'bg-white/5 border-white/10'}`}>
-                    <div className="flex items-center gap-2 md:gap-3">
-                      <div className="relative shrink-0">
-                        <img src={pred.user.avatar_url || 'https://via.placeholder.com/32'} className={`${isDesktop ? 'md:w-9 md:h-9' : 'w-7 h-7'} rounded-full border object-cover ${isMyRow ? 'border-ipl-gold' : 'border-white/10'}`} alt={pred.user.name} />
-                        {isMyRow && (
-                          <div className={`absolute -top-1 -right-1 bg-ipl-gold rounded-full border border-ipl-navy flex items-center justify-center ${isDesktop ? 'md:w-3.5 md:h-3.5' : 'w-2.5 h-2.5'}`}>
-                            <Check className={`${isDesktop ? 'md:w-2 md:h-2' : 'w-1.5 h-1.5'} text-black`} />
-                          </div>
-                        )}
+                {!allPredictions || allPredictions.length === 0 ? (
+                  <div className="text-center py-10 text-gray-500 font-display tracking-widest text-[10px] uppercase">
+                    NO PREDICTIONS FOUND FOR THIS LEAGUE
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-4 md:gap-6">
+                    {/* Stats Header */}
+                    <div className="flex justify-center items-center gap-6 md:gap-8 bg-white/5 rounded-lg md:rounded-xl p-3 md:p-4 border border-white/10">
+                      <div className="flex flex-col items-center">
+                        <span className="text-[9px] md:text-[10px] text-gray-400 font-display uppercase tracking-widest leading-none mb-1">{getTeamShortName(match.team1)}</span>
+                        <span className="text-xl md:text-3xl font-display leading-none drop-shadow-md" style={{ color: getTeamColor(match.team1) }}>
+                          {allPredictions.filter((p: any) => winnerQId && p.answers[winnerQId] === match.team1).length}
+                        </span>
                       </div>
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-1 md:gap-2">
-                          <span className={`${isDesktop ? 'md:text-[13px] md:font-black' : 'text-xs font-bold'} tracking-tight leading-none ${isMyRow ? 'text-ipl-gold' : 'text-white'}`}>
-                            {pred.user.name}
-                          </span>
-                          {match.status === 'completed' && pred.points_awarded !== undefined && pred.points_awarded !== null && (
-                            <div className="group/score relative">
-                              <span className={`px-1.5 py-0.5 rounded text-[9px] md:text-[10px] font-bold font-mono cursor-help transition-all group-hover/score:bg-white/20 ${pred.points_awarded > 0 ? 'bg-green-500/20 text-green-400 border border-green-500/30' : pred.points_awarded < 0 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-white/10 text-gray-400 border border-white/20'}`}>
-                                {pred.points_awarded > 0 ? '+' : ''}{pred.points_awarded} PTS
-                              </span>
-                              
-                              {/* Breakdown Tooltip */}
-                              {pred.points_breakdown?.rules && (
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-[#0f172a] border border-white/10 rounded-lg shadow-2xl p-3 opacity-0 group-hover/score:opacity-100 pointer-events-none transition-all z-50">
-                                  <div className="space-y-1.5">
-                                    {/* Boostable Core Rules */}
-                                    {pred.points_breakdown.rules.filter((r: any) => !['More Sixes', 'More Fours'].includes(r.category)).map((rule: any, ri: number) => (
-                                      <div key={ri} className="flex justify-between items-center text-[8px] uppercase tracking-wider">
-                                        <span className="text-gray-500 truncate mr-2">{rule.category}</span>
-                                        <span className={rule.points > 0 ? 'text-green-400' : rule.points < 0 ? 'text-red-400' : 'text-gray-400'}>
-                                          {rule.points > 0 ? '+' : ''}{rule.points}
-                                        </span>
-                                      </div>
-                                    ))}
+                      <div className="h-6 md:h-10 w-[1px] md:w-[2px] bg-white/20 rounded-full" />
+                      <div className="flex flex-col items-center">
+                        <span className="text-[9px] md:text-[10px] text-gray-400 font-display uppercase tracking-widest leading-none mb-1">{getTeamShortName(match.team2)}</span>
+                        <span className="text-xl md:text-3xl font-display leading-none drop-shadow-md" style={{ color: getTeamColor(match.team2) }}>
+                          {allPredictions.filter((p: any) => winnerQId && p.answers[winnerQId] === match.team2).length}
+                        </span>
+                      </div>
+                    </div>
 
-                                    {/* Multiplier Indicator */}
-                                    {pred.points_breakdown.powerup?.used && (
-                                      <div className="py-1 my-1 border-y border-white/5 flex justify-between items-center text-[8px] uppercase tracking-widest font-bold text-ipl-gold">
-                                        <span className="flex items-center gap-1">⚡ 2X Booster Applied</span>
-                                        <span className="bg-ipl-gold text-black px-1 rounded-sm">x2</span>
-                                      </div>
-                                    )}
+                    {/* Helper Function */}
+                    {(() => {
+                      const renderPredictionCard = (pred: any, idx: number, isDesktop = false) => {
+                        const isMyRow = pred.user?.id === currentUser?.id;
+                        const winnerAns = winnerQId ? pred.answers[winnerQId] : '🔒';
+                        const teamWinnerShort = winnerAns === '🔒' ? '🔒' : getTeamShortName(winnerAns);
 
-                                    {/* Non-Boostable Bonuses */}
-                                    {pred.points_breakdown.rules.some((r: any) => ['More Sixes', 'More Fours'].includes(r.category)) && (
-                                      <div className="pt-1.5 space-y-1.5">
-                                        <div className="text-[7px] text-gray-600 font-bold tracking-tighter uppercase mb-1">Match Bonuses (No 2x)</div>
-                                        {pred.points_breakdown.rules.filter((r: any) => ['More Sixes', 'More Fours'].includes(r.category)).map((rule: any, ri: number) => (
-                                          <div key={ri} className="flex justify-between items-center text-[8px] uppercase tracking-wider">
-                                            <span className="text-gray-500 truncate mr-2">{rule.category}</span>
-                                            <span className={rule.points > 0 ? 'text-green-400' : 'text-gray-400'}>
-                                              {rule.points > 0 ? '+' : ''}{rule.points}
+                        return (
+                          <div key={idx} className={`flex items-center justify-between rounded-lg border transition-all ${isDesktop ? 'md:p-3.5 md:gap-4' : 'p-2 gap-2'} ${isMyRow ? 'bg-ipl-gold/10 border-ipl-gold/50 shadow-[0_0_15px_rgba(244,196,48,0.15)]' : 'bg-white/5 border-white/10'}`}>
+                            <div className="flex items-center gap-2 md:gap-3">
+                              <div className="relative shrink-0">
+                                <img src={pred.user.avatar_url || 'https://via.placeholder.com/32'} className={`${isDesktop ? 'md:w-9 md:h-9' : 'w-7 h-7'} rounded-full border object-cover ${isMyRow ? 'border-ipl-gold' : 'border-white/10'}`} alt={pred.user.name} />
+                                {isMyRow && (
+                                  <div className={`absolute -top-1 -right-1 bg-ipl-gold rounded-full border border-ipl-navy flex items-center justify-center ${isDesktop ? 'md:w-3.5 md:h-3.5' : 'w-2.5 h-2.5'}`}>
+                                    <Check className={`${isDesktop ? 'md:w-2 md:h-2' : 'w-1.5 h-1.5'} text-black`} />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-1 md:gap-2">
+                                  <span className={`${isDesktop ? 'md:text-[13px] md:font-black' : 'text-xs font-bold'} tracking-tight leading-none ${isMyRow ? 'text-ipl-gold' : 'text-white'}`}>
+                                    {pred.user.name}
+                                  </span>
+                                  {match.status === 'completed' && pred.points_awarded !== undefined && pred.points_awarded !== null && (
+                                    <div className="group-score relative">
+                                      <span className={`px-1.5 py-0.5 rounded text-[9px] md:text-[10px] font-bold font-mono cursor-help transition-all group-hover-score:bg-white/20 ${pred.points_awarded > 0 ? 'bg-green-500/20 text-green-400 border border-green-500/30' : pred.points_awarded < 0 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-white/10 text-gray-400 border border-white/20'}`}>
+                                        {pred.points_awarded > 0 ? '+' : ''}{pred.points_awarded} PTS
+                                      </span>
+
+                                      {/* Breakdown Tooltip */}
+                                      {pred.points_breakdown?.rules && (
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 bg-[#0f172a] border border-white/10 rounded-lg shadow-2xl p-3 opacity-0 group-hover-score:opacity-100 pointer-events-none transition-all z-50">
+                                          <div className="space-y-1.5">
+                                            {/* Boostable Core Rules */}
+                                            {pred.points_breakdown.rules.filter((r: any) => !['More Sixes', 'More Fours'].includes(r.category)).map((rule: any, ri: number) => (
+                                              <div key={ri} className="flex justify-between items-center text-[8px] uppercase tracking-wider">
+                                                <span className="text-gray-500 truncate mr-2">{rule.category}</span>
+                                                <span className={rule.points > 0 ? 'text-green-400' : rule.points < 0 ? 'text-red-400' : 'text-gray-400'}>
+                                                  {rule.points > 0 ? '+' : ''}{rule.points}
+                                                </span>
+                                              </div>
+                                            ))}
+
+                                            {/* Multiplier Indicator */}
+                                            {pred.points_breakdown.powerup?.used && (
+                                              <div className="py-1 my-1 border-y border-white/5 flex justify-between items-center text-[8px] uppercase tracking-widest font-bold text-ipl-gold">
+                                                <span className="flex items-center gap-1">⚡ 2X Booster Applied</span>
+                                                <span className="bg-ipl-gold text-black px-1 rounded-sm">x2</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0f172a] border-r border-b border-white/10 rotate-45" />
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  {pred.is_auto_predicted && (
+                                    <Sparkles className={`${isDesktop ? 'md:w-3 md:h-3' : 'w-2 h-2'} text-[#7B2FF7]`} />
+                                  )}
+                                </div>
+                                <div className={`${isDesktop ? 'md:flex md:items-center md:gap-2 md:mt-2' : 'flex items-center gap-1.5 mt-1'} leading-none`}>
+                                  {(!winnerQId || pred.answers[winnerQId] === '🔒') ? (
+                                    <span className="text-[8px] text-gray-500 font-mono tracking-tight opacity-60 italic">🔒 HIDDEN</span>
+                                  ) : (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {Object.keys(pred.answers || {}).filter(k => ![winnerQId, 'use_powerup'].includes(k)).map(k => {
+                                        const q = questionMap?.[k];
+                                        let label = q?.question_text || '';
+                                        if (q?.source_name && q.source_name !== 'IPL Global') {
+                                          label = `${q.source_name}: ${label}`;
+                                        }
+
+                                        // Color code if it matches a team name
+                                        const isTeamMatch = getTeamColor(pred.answers[k]) !== '#666666';
+                                        const valStyle = isTeamMatch ? { color: getTeamColor(pred.answers[k]) } : {};
+                                        const displayVal = isTeamMatch ? getTeamShortName(pred.answers[k]) : pred.answers[k];
+
+                                        return (
+                                          <div key={k} className={`flex items-center bg-white/5 border border-white/10 rounded px-2 py-1 leading-none ${isDesktop ? 'md:bg-black/40' : ''}`}>
+                                            {label && (
+                                              <span className="text-[8px] text-gray-400 mr-1.5 font-bold uppercase whitespace-normal break-words max-w-[150px]">
+                                                {label}
+                                              </span>
+                                            )}
+                                            <span className={`${isDesktop ? 'md:text-[10px]' : 'text-[9px]'} text-white font-mono font-bold whitespace-nowrap`} style={valStyle}>
+                                              {displayVal}
                                             </span>
                                           </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                  {/* Pointer Arrow */}
-                                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#0f172a] border-r border-b border-white/10 rotate-45" />
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
+                              </div>
                             </div>
-                          )}
-                          {pred.is_auto_predicted && (
-                            <Sparkles className={`${isDesktop ? 'md:w-3 md:h-3' : 'w-2 h-2'} text-[#7B2FF7]`} />
-                          )}
-                        </div>
-                        <div className={`${isDesktop ? 'md:flex md:items-center md:gap-2 md:mt-2' : 'flex items-center gap-1.5 mt-1'} leading-none`}>
-                          {pred.answers.team1_powerplay === '🔒' ? (
-                            <span className="text-[8px] text-gray-500 font-mono tracking-tight opacity-60 italic">🔒 HIDDEN</span>
-                          ) : (
-                            <>
-                              <div className={`flex items-center bg-white/5 border border-white/10 rounded px-1.5 py-0.5 leading-none ${isDesktop ? 'md:bg-black/40' : ''}`}>
-                                <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold mr-1.5`} style={{ color: getTeamColor(match.team1) }}>{team1Short}</span>
-                                <span className={`${isDesktop ? 'md:text-[10px]' : 'text-[9px]'} text-white font-mono font-bold`}>{pred.answers.team1_powerplay}</span>
+                            <div className="flex flex-col items-end gap-1">
+                              <div className="flex items-center gap-1.5 md:gap-2">
+                                {pred.answers.use_powerup === 'Yes' && (
+                                  <div className={`flex items-center bg-ipl-live/10 border border-ipl-live/20 rounded leading-none ${isDesktop ? 'md:px-1.5 md:py-1' : 'px-1 py-0.5'}`}>
+                                    <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold text-ipl-live tracking-tighter uppercase`}>⚡ 2X Booster</span>
+                                  </div>
+                                )}
+                                <span
+                                  className={`font-bold rounded leading-none uppercase tracking-widest border ${isDesktop ? 'md:text-[10px] md:px-2 md:py-1' : 'text-[9px] px-1.5 py-0.5'} ${winnerAns === '🔒' ? 'bg-white/5 border-white/10 text-gray-500' : ''}`}
+                                  style={winnerAns !== '🔒' ? {
+                                    backgroundColor: `${getTeamColor(winnerAns)}15`,
+                                    borderColor: `${getTeamColor(winnerAns)}40`,
+                                    color: getTeamColor(winnerAns)
+                                  } : {}}
+                                >
+                                  {isDesktop && winnerAns !== '🔒' ? getTeamShortName(winnerAns) : teamWinnerShort}
+                                </span>
                               </div>
-                              <div className={`flex items-center bg-white/5 border border-white/10 rounded px-1.5 py-0.5 leading-none ${isDesktop ? 'md:bg-black/40' : ''}`}>
-                                <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold mr-1.5`} style={{ color: getTeamColor(match.team2) }}>{team2Short}</span>
-                                <span className={`${isDesktop ? 'md:text-[10px]' : 'text-[9px]'} text-white font-mono font-bold`}>{pred.answers.team2_powerplay}</span>
+
+                              <div className="flex items-center justify-end">
+                                {editingId === pred.prediction_id ? (
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <input
+                                      value={editValue}
+                                      onChange={(e) => setEditValue(e.target.value)}
+                                      className="bg-black/60 border border-white/20 text-white p-0.5 text-[8px] md:text-[10px] w-16 md:w-24 focus:border-ipl-gold focus:outline-none font-mono"
+                                      autoFocus
+                                    />
+                                    <button onClick={() => handleAdminUpdate(pred.prediction_id)} className="text-green-500 hover:bg-white/10 rounded p-0.5">
+                                      <Check className="w-2.5 h-2.5 md:w-3.5 md:h-3.5" />
+                                    </button>
+                                    <button onClick={() => setEditingId(null)} className="text-red-500 hover:bg-white/10 rounded p-0.5">
+                                      <X className="w-2.5 h-2.5 md:w-3.5 md:h-3.5" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    {/* Edit block removed since we are now fully dynamic. We can still let admins edit, but they might need to go to Admin panel for specific questions. */
+                                      currentUser?.is_admin && pred.prediction_id && (
+                                        <button
+                                          onClick={() => {
+                                            // As a fallback, we could edit the first free_text answer if we want, but since it's dynamic, we might just edit the prediction's 'extra_answers' directly from the Admin panel instead.
+                                            console.log("Admin edit requested for", pred.prediction_id);
+                                          }}
+                                          className="text-gray-600 hover:text-ipl-gold transition-colors ml-1.5"
+                                          title="Edit prediction (Go to Admin Panel)"
+                                        >
+                                          <Edit2 className={`${isDesktop ? 'md:w-3.5 md:h-3.5' : 'w-2.5 h-2.5'}`} />
+                                        </button>
+                                      )}
+                                  </>
+                                )}
                               </div>
-                              {pred.answers.more_sixes_team && (
-                                <div className={`flex items-center bg-white/5 border border-white/10 rounded px-1.5 py-0.5 leading-none ${isDesktop ? 'md:bg-black/40' : ''}`}>
-                                  <span className={`${isDesktop ? 'md:text-[8px]' : 'text-[7px]'} text-gray-400 mr-1`}>6s:</span>
-                                  <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold`} style={{ color: getTeamColor(pred.answers.more_sixes_team) }}>{getTeamShortName(pred.answers.more_sixes_team)}</span>
-                                </div>
-                              )}
-                              {pred.answers.more_fours_team && (
-                                <div className={`flex items-center bg-white/5 border border-white/10 rounded px-1.5 py-0.5 leading-none ${isDesktop ? 'md:bg-black/40' : ''}`}>
-                                  <span className={`${isDesktop ? 'md:text-[8px]' : 'text-[7px]'} text-gray-400 mr-1`}>4s:</span>
-                                  <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold`} style={{ color: getTeamColor(pred.answers.more_fours_team) }}>{getTeamShortName(pred.answers.more_fours_team)}</span>
-                                </div>
-                              )}
-                              
-                              {/* Dynamic League Answers */}
-                              {Object.keys(pred.answers).filter(k => k.startsWith('league_')).map(k => (
-                                <div key={k} className={`flex items-center bg-white/5 border border-white/10 rounded px-1.5 py-0.5 leading-none ${isDesktop ? 'md:bg-black/40' : ''}`}>
-                                  <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} text-white font-mono font-bold truncate max-w-[80px]`}>{pred.answers[k]}</span>
-                                </div>
-                              ))}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <div className="flex items-center gap-1.5 md:gap-2">
-                        {pred.answers.use_powerup === 'Yes' && (
-                          <div className={`flex items-center bg-ipl-live/10 border border-ipl-live/20 rounded leading-none ${isDesktop ? 'md:px-1.5 md:py-1' : 'px-1 py-0.5'}`}>
-                            <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold text-ipl-live tracking-tighter uppercase`}>⚡ 2X Booster</span>
+                            </div>
                           </div>
-                        )}
-                        <span
-                          className={`font-bold rounded leading-none uppercase tracking-widest border ${isDesktop ? 'md:text-[10px] md:px-2 md:py-1' : 'text-[9px] px-1.5 py-0.5'} ${pred.answers.match_winner === '🔒' ? 'bg-white/5 border-white/10 text-gray-500' : ''}`}
-                          style={pred.answers.match_winner !== '🔒' ? {
-                            backgroundColor: `${getTeamColor(pred.answers.match_winner)}15`,
-                            borderColor: `${getTeamColor(pred.answers.match_winner)}40`,
-                            color: getTeamColor(pred.answers.match_winner)
-                          } : {}}
-                        >
-                          {isDesktop && pred.answers.match_winner !== '🔒' ? getTeamShortName(pred.answers.match_winner) : teamWinnerShort}
-                        </span>
-                      </div>
+                        );
+                      };
 
-                      <div className="flex items-center justify-end">
-                        {editingId === pred.prediction_id ? (
-                          <div className="flex items-center gap-1 justify-end">
-                            <input
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              className="bg-black/60 border border-white/20 text-white p-0.5 text-[8px] md:text-[10px] w-16 md:w-24 focus:border-ipl-gold focus:outline-none font-mono"
-                              autoFocus
-                            />
-                            <button onClick={() => handleAdminUpdate(pred.prediction_id)} className="text-green-500 hover:bg-white/10 rounded p-0.5">
-                              <Check className="w-2.5 h-2.5 md:w-3.5 md:h-3.5" />
-                            </button>
-                            <button onClick={() => setEditingId(null)} className="text-red-500 hover:bg-white/10 rounded p-0.5">
-                              <X className="w-2.5 h-2.5 md:w-3.5 md:h-3.5" />
-                            </button>
+                      return (
+                        <>
+                          {/* MOBILE ONLY: Compact Cards */}
+                          <div className="grid grid-cols-1 md:hidden gap-1.5">
+                            {sortedPredictions.map((pred: any, idx: number) => renderPredictionCard(pred, idx, false))}
                           </div>
-                        ) : (
-                          <>
-                            {pred.answers.player_of_the_match !== '🔒' && (
-                              <span className={`${isDesktop ? 'md:text-[9px] md:max-w-[150px]' : 'text-[7.5px] max-w-[80px]'} text-gray-500 uppercase tracking-widest truncate italic leading-none`}>
-                                {pred.answers.player_of_the_match}
-                              </span>
-                            )}
-                            {currentUser?.is_admin && pred.prediction_id && (
-                              <button
-                                onClick={() => {
-                                  setEditingId(pred.prediction_id);
-                                  setEditValue(pred.answers.player_of_the_match);
-                                }}
-                                className="text-gray-600 hover:text-ipl-gold transition-colors ml-1.5"
-                              >
-                                <Edit2 className={`${isDesktop ? 'md:w-3.5 md:h-3.5' : 'w-2.5 h-2.5'}`} />
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              };
 
-              return (
-                <>
-                  {/* MOBILE ONLY: Compact Cards */}
-                  <div className="grid grid-cols-1 md:hidden gap-1.5">
-                    {sortedPredictions.map((pred: any, idx: number) => renderPredictionCard(pred, idx, false))}
+                          {/* DESKTOP ONLY: Side-by-Side Teams */}
+                          <div className="hidden md:grid md:grid-cols-2 gap-6 mt-2">
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-3 mb-2 px-1">
+                                <div className="w-2 h-6 rounded-full" style={{ backgroundColor: getTeamColor(match.team1) }} />
+                                <span className="text-xs font-display uppercase tracking-widest text-white font-black">
+                                  {match.team1} SUPPORTERS
+                                </span>
+                              </div>
+                              <div className="space-y-2">
+                                {sortedPredictions.filter(p => winnerQId && p.answers[winnerQId] === match.team1).map((pred: any, idx: number) => renderPredictionCard(pred, idx, true))}
+                                {sortedPredictions.filter(p => winnerQId && p.answers[winnerQId] === match.team1).length === 0 && (
+                                  <div className="p-8 border border-dashed border-white/10 rounded-lg text-center text-[10px] text-gray-600 uppercase">No supporters yet</div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-3 mb-2 px-1">
+                                <div className="w-2 h-6 rounded-full" style={{ backgroundColor: getTeamColor(match.team2) }} />
+                                <span className="text-xs font-display uppercase tracking-widest text-white font-black">
+                                  {match.team2} SUPPORTERS
+                                </span>
+                              </div>
+                              <div className="space-y-2">
+                                {sortedPredictions.filter(p => winnerQId && p.answers[winnerQId] === match.team2).map((pred: any, idx: number) => renderPredictionCard(pred, idx, true))}
+                                {sortedPredictions.filter(p => winnerQId && p.answers[winnerQId] === match.team2).length === 0 && (
+                                  <div className="p-8 border border-dashed border-white/10 rounded-lg text-center text-[10px] text-gray-600 uppercase">No supporters yet</div>
+                                )}
+                              </div>
+                            </div>
+                            {sortedPredictions.some(p => winnerQId && p.answers[winnerQId] !== match.team1 && p.answers[winnerQId] !== match.team2) && (
+                              <div className="col-span-2 mt-8 space-y-4">
+                                <div className="flex items-center gap-2 mb-2 px-1 justify-center border-t border-white/5 pt-8">
+                                  <span className="text-[11px] font-display uppercase tracking-widest text-gray-600 font-bold">
+                                    OTHER PREDICTIONS
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  {sortedPredictions.filter(p => winnerQId && p.answers[winnerQId] !== match.team1 && p.answers[winnerQId] !== match.team2).map((pred: any, idx: number) => renderPredictionCard(pred, idx, true))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
-
-                  {/* DESKTOP ONLY: Side-by-Side Teams */}
-                  <div className="hidden md:grid md:grid-cols-2 gap-6 mt-2">
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3 mb-2 px-1">
-                        <div className="w-2 h-6 rounded-full" style={{ backgroundColor: getTeamColor(match.team1) }} />
-                        <span className="text-xs font-display uppercase tracking-widest text-white font-black">
-                          {match.team1} SUPPORTERS
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        {sortedPredictions.filter(p => p.answers.match_winner === match.team1).map((pred: any, idx: number) => renderPredictionCard(pred, idx, true))}
-                        {sortedPredictions.filter(p => p.answers.match_winner === match.team1).length === 0 && (
-                          <div className="p-8 border border-dashed border-white/10 rounded-lg text-center text-[10px] text-gray-600 uppercase">No supporters yet</div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3 mb-2 px-1">
-                        <div className="w-2 h-6 rounded-full" style={{ backgroundColor: getTeamColor(match.team2) }} />
-                        <span className="text-xs font-display uppercase tracking-widest text-white font-black">
-                          {match.team2} SUPPORTERS
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        {sortedPredictions.filter(p => p.answers.match_winner === match.team2).map((pred: any, idx: number) => renderPredictionCard(pred, idx, true))}
-                        {sortedPredictions.filter(p => p.answers.match_winner === match.team2).length === 0 && (
-                          <div className="p-8 border border-dashed border-white/10 rounded-lg text-center text-[10px] text-gray-600 uppercase">No supporters yet</div>
-                        )}
-                      </div>
-                    </div>
-                    {sortedPredictions.some(p => p.answers.match_winner !== match.team1 && p.answers.match_winner !== match.team2) && (
-                      <div className="col-span-2 mt-8 space-y-4">
-                        <div className="flex items-center gap-2 mb-2 px-1 justify-center border-t border-white/5 pt-8">
-                          <span className="text-[11px] font-display uppercase tracking-widest text-gray-600 font-bold">
-                            OTHER PREDICTIONS
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          {sortedPredictions.filter(p => p.answers.match_winner !== match.team1 && p.answers.match_winner !== match.team2).map((pred: any, idx: number) => renderPredictionCard(pred, idx, true))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </>
-              );
-            })()}
-          </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
 
@@ -845,99 +819,57 @@ export default function MatchPage() {
               </div>
             </div>
 
-            <form onSubmit={handleAdminResultSubmit} className="space-y-6">
+            <form onSubmit={handleAdminResultSubmit} className="space-y-8">
               {match.status === 'completed' && (
                 <div className="bg-red-500/10 border border-red-500/20 p-3 flex gap-3 items-center mb-6">
                   <ShieldAlert className="w-5 h-5 text-red-500 shrink-0" />
                   <p className="text-[10px] text-red-500 font-display uppercase tracking-widest leading-relaxed">
-                    Override Mode: Updating facts for a completed match will RE-CALCULATE scores for all users immediately. Proceed with caution.
+                    Override Mode: Updating facts will RE-CALCULATE scores for all users immediately.
                   </p>
                 </div>
               )}
-              <div className="space-y-4">
-                <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em]">Match Winner</label>
-                <div className="grid grid-cols-2 gap-4">
-                  {[match.team1, match.team2].map(team => (
-                    <button
-                      key={team}
-                      type="button"
-                      onClick={() => setAdminResults({ ...adminResults, winner: team })}
-                      className={`p-4 border-2 font-display text-[10px] tracking-widest transition-all ${adminResults.winner === team ? 'border-ipl-gold bg-ipl-gold text-black' : 'border-white/10 text-gray-500 hover:border-white/20'}`}
-                    >
-                      {team.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
-              <div className="space-y-4">
-                <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em]">More Sixes</label>
-                <div className="grid grid-cols-3 gap-4">
-                  {[match.team1, match.team2, 'Tie'].map(team => (
-                    <button
-                      key={team}
-                      type="button"
-                      onClick={() => setAdminResults({ ...adminResults, more_sixes_team: team })}
-                      className={`p-4 border-2 font-display text-[10px] tracking-widest transition-all ${adminResults.more_sixes_team === team ? 'border-ipl-gold bg-ipl-gold text-black' : 'border-white/10 text-gray-500 hover:border-white/20'}`}
-                    >
-                      {team.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                {questions.filter((q: any) =>
+                  q.source_name === 'IPL Global' &&
+                  !q.question_text.toLowerCase().includes('booster') &&
+                  !q.question_text.toLowerCase().includes('powerup')
+                ).map((q: any) => (
+                  <div key={q.question_id} className="space-y-4">
+                    <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em]">
+                      {q.question_text}
+                    </label>
 
-              <div className="space-y-4">
-                <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em]">More Fours</label>
-                <div className="grid grid-cols-3 gap-4">
-                  {[match.team1, match.team2, 'Tie'].map(team => (
-                    <button
-                      key={team}
-                      type="button"
-                      onClick={() => setAdminResults({ ...adminResults, more_fours_team: team })}
-                      className={`p-4 border-2 font-display text-[10px] tracking-widest transition-all ${adminResults.more_fours_team === team ? 'border-ipl-gold bg-ipl-gold text-black' : 'border-white/10 text-gray-500 hover:border-white/20'}`}
-                    >
-                      {team.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] truncate">{match.team1} PP Score</label>
-                  <input
-                    type="number"
-                    value={adminResults.team1_powerplay_score}
-                    onChange={(e) => setAdminResults({ ...adminResults, team1_powerplay_score: parseInt(e.target.value) || 0 })}
-                    className="w-full bg-black/40 border-2 border-white/10 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all font-mono"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] truncate">{match.team2} PP Score</label>
-                  <input
-                    type="number"
-                    value={adminResults.team2_powerplay_score}
-                    onChange={(e) => setAdminResults({ ...adminResults, team2_powerplay_score: parseInt(e.target.value) || 0 })}
-                    className="w-full bg-black/40 border-2 border-white/10 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em]">Player of the Match</label>
-                <input
-                  type="text"
-                  value={adminResults.player_of_the_match}
-                  onChange={(e) => setAdminResults({ ...adminResults, player_of_the_match: e.target.value })}
-                  placeholder="ENTER PLAYER NAME"
-                  className="w-full bg-black/40 border-2 border-white/10 p-4 text-white focus:outline-none focus:border-ipl-gold transition-all font-display text-sm tracking-widest uppercase placeholder:text-gray-700"
-                />
+                    {q.options ? (
+                      <div className={`grid ${q.options.length > 2 ? 'grid-cols-3' : 'grid-cols-2'} gap-3`}>
+                        {q.options.map((opt: string) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => setAdminResults({ ...adminResults, [q.question_id]: opt })}
+                            className={`p-3 border-2 font-display text-[9px] tracking-widest transition-all ${adminResults[q.question_id] === opt ? 'border-ipl-gold bg-ipl-gold text-black' : 'border-white/10 text-gray-500 hover:border-white/20'}`}
+                          >
+                            {opt.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <input
+                        type={q.answer_type === 'free_number' ? 'number' : 'text'}
+                        value={adminResults[q.question_id] || ''}
+                        onChange={(e) => setAdminResults({ ...adminResults, [q.question_id]: e.target.value })}
+                        placeholder={q.answer_type === 'free_number' ? 'ENTER VALUE' : 'ENTER TEXT'}
+                        className="w-full bg-black/40 border-2 border-white/10 p-3 text-white focus:outline-none focus:border-ipl-gold transition-all font-display text-[10px] tracking-widest uppercase"
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
 
               <button
                 type="submit"
-                disabled={isUpdatingResults || !adminResults.winner}
-                className="w-full bg-ipl-gold text-black font-display py-4 uppercase tracking-[0.3em] font-black hover:bg-white hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-20 disabled:grayscale"
+                disabled={isUpdatingResults || Object.keys(adminResults).length === 0}
+                className="w-full bg-ipl-gold text-black font-display py-4 uppercase tracking-[0.3em] font-black hover:bg-white hover:scale-[1.01] transition-all disabled:opacity-20"
               >
                 {isUpdatingResults ? 'EXECUTING LOGIC...' : 'TRIGGER SCORING ENGINE'}
               </button>

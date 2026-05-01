@@ -60,8 +60,8 @@ AllowlistedEmail   id, email, added_at
 Tournament         id, name, status, starts_at, ends_at, master_campaign_id
 Match              id, team1, team2, venue, start_time, status, tournament_id,
                    winner, raw_result_json, reported_by, report_method
-League             id, name, tournament_id, join_code, starting_powerups, is_global
-LeagueUserMapping  user_id, league_id, joined_at, remaining_powerups
+League             id, name, tournament_id, join_code, is_global
+LeagueUserMapping  user_id, league_id, joined_at
 LeagueAdminMapping user_id, league_id
 Campaign           id, name, tournament_id, league_id (nullable), is_master,
                    starts_at, ends_at, max_selections, parent_campaign_id
@@ -89,6 +89,10 @@ Defined in `scoring_rules` JSON per `CampaignQuestion`:
 **Powerup (2× Booster)**: Applied to Winner, POM, and Powerplay categories. **Not** applied to Sixes/Fours.
 
 **Non-participation penalty**: −5 pts from Match 12 onwards (Match 25 for AI Assassin).
+**Late Entrants**:
+- Receive a starting inventory of `User.base_powerups` (default 10) valid globally.
+- Immune to non-participation penalties for any match that started before their `created_at` timestamp.
+- Can be granted a `User.base_points` handicap that contributes to both Global and Private League scores.
 
 ### Prediction Lock
 

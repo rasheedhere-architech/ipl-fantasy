@@ -18,15 +18,16 @@ A private IPL Fantasy prediction platform for a group of friends. Users sign in 
 ### Backend (Python/FastAPI)
 - **Async Throughout**: Use `async def` and `await` for all DB and external I/O.
 - **Models**: `backend/models.py` — all SQLAlchemy models in one file.
-- **Routers**: `auth_router`, `match_router`, `admin_router`, `campaigns_router`, `leaderboard_router`, `tournament_router`, `league_router`, `external_router`.
+- **Routers**: `auth_router`, `match_router`, `admin_router`, `campaigns_router`, `leaderboard_router`, `tournament_router`, `league_router`, `external_router`, `events_router`.
 - **Scoring Engine**: `backend/scoring.py` (match scoring) + `backend/campaigns_scoring.py` (campaign-specific scoring).
 - **Agents**: `backend/agents/match_stats_agent.py` (nightly) and `backend/agents/match_result_agent.py` (post-match).
 - **Permissions**: `backend/utils/permissions.py` — RBAC helpers for league admin checks.
+- **Event Bus**: `backend/utils/events.py` — `dispatch_event` utility for audit logging.
 
 ### Frontend (React/TS)
 - **Tailwind CSS**: "Bold & sporty" IPL theme with custom tokens (`ipl-navy`, `ipl-gold`, `ipl-live`).
 - **Team Colors**: `frontend/src/utils/teamColors.ts` (note: `teamColors.ts` not `teamColours.ts`). **Both `getTeamColor(val)` and `getTeamShortName(val)` accept `any` type** — safe against numbers or undefined values passed from dynamic answer maps.
-- **State**: Zustand for auth (`src/store/auth.ts`); TanStack Query v5 for all server state.
+- **State**: Zustand for auth (`src/store/auth.ts`); TanStack Query v5 for all server state (hooks in `src/api/hooks/`).
 - **Layout**: `Layout.tsx` main wrapper uses `max-w-[1280px]`. Individual pages should use `w-full max-w-full` — never add inner `max-w` constraints that reduce the available width.
 - **Dynamic Rendering**: `renderPredictionCard` in `MatchPage.tsx` iterates over `pred.answers` keys — **never hardcode question IDs** (`winnerQId` is the only retained special case for the team-split view).
 
@@ -51,7 +52,7 @@ A private IPL Fantasy prediction platform for a group of friends. Users sign in 
 - **Player of the Match**: +25 correct, 0 incorrect.
 - **Powerplay Scores**: Exact = +15, Within ±5 = +5.
 - **Sixes / Fours**: +5 correct (ties award points to all who picked either team).
-- **Powerup (2× Booster)**: Multiplies Winner, POM, and Powerplay. **Does NOT multiply Sixes/Fours**.
+- **Powerup (2× Booster)**: Multiplies Winner, POM, and Powerplay. **Does NOT multiply Sixes/Fours**. Questions can be individually exempted via `allow_powerup=False` in `CampaignQuestion`.
 - **Non-participation penalty**: −5 from **Match 12 onwards**.
 - **AI Assassin penalty**: Starts from **Match 25 onwards**.
 
@@ -68,11 +69,22 @@ A private IPL Fantasy prediction platform for a group of friends. Users sign in 
 - `CampaignResponse.answers` is a JSON dict keyed by `question.key`.
 
 ### 6. Multi-League Architecture
-- `Tournament` → `League` → `LeagueUserMapping` (M2M with `joined_at`, `remaining_powerups`).
+- `Tournament` → `League` → `LeagueUserMapping` (M2M with `joined_at`).
 - **Global League**: auto-created per tournament, all users auto-joined.
 - **Private Leagues**: invite-only via `join_code`.
 - **Leaderboard**: `LeaderboardCache` stores `league_id=None` (global) and per-league totals.
 - **Time-Bound Scoring**: League points only count from matches/campaigns that locked after the user's `joined_at` timestamp.
+
+### 7. Late Entrants & Powerups (Tournament Scoping)
+- **Tournament Scoping**: User stats (`base_points`, `base_powerups`, `powerups_used`) are stored in `TournamentUserMapping`. This allows users to participate in multiple tournaments with separate balances.
+- **Base Points Handicap**: Late entrants can be given a catch-up handicap via `TournamentUserMapping.base_points`. This adds to their total score in both Global and Private leagues.
+- **Retroactive Penalty Protection**: The scoring engine skips non-participation penalties for any match that started *before* the user's `created_at` timestamp.
+
+### 8. Platform Activity & Visibility
+- **Activity Feed**: `SystemEvent` records logins, predictions, league joins, and match scoring.
+- **Push Notification Ready**: The Pulse system includes `priority` (low to critical) and `target_user_id` fields, designed to drive future mobile push notifications and targeted alerts.
+- **Privacy Filtering**: Regular users only see events they are involved in, events from their shared leagues, or public platform updates.
+- **Global Admins**: Have unrestricted visibility into all platform activity via the `/activity` feed.
 
 ---
 
@@ -90,7 +102,7 @@ A private IPL Fantasy prediction platform for a group of friends. Users sign in 
 - **Match IDs**: Format `{tournament}-{year}-{number}` (e.g., `ipl-2026-42`). Bulk import accepts sequential integers (1, 2, 3) and auto-formats.
 - **Webhooks**: `PUT /external/match-results` — n8n pushes Telegram-parsed results here.
 - **Environment**: `.env` requires `GOOGLE_CLIENT_ID`, `DATABASE_URL`, `GEMINI_API_KEY`. `CRICAPI_KEY` is optional.
-- **Migrations**: Always use `alembic revision --autogenerate -m "description"` for schema changes. Run via `docker compose exec backend alembic upgrade head`.
+- **Migrations**: Always use `alembic revision --autogenerate -m "description"` for schema changes. For detailed workflows and troubleshooting (e.g., "revision out of sync" errors), see [backend/MIGRATIONS.md](backend/MIGRATIONS.md).
 - **Dev Startup**: `./start_all.sh` — builds Docker backend + starts Vite frontend.
 - **SQLite Note**: Dev database is at `backend/database_dev.db`. `ALTER TABLE ... RENAME COLUMN` requires SQLite 3.25+.
 
@@ -103,29 +115,34 @@ A private IPL Fantasy prediction platform for a group of friends. Users sign in 
 | `backend/models.py` | All SQLAlchemy models |
 | `backend/scoring.py` | Core match scoring engine |
 | `backend/campaigns_scoring.py` | Campaign-specific scoring |
+| `backend/router/events_router.py` | Role-aware activity feed API |
+| `backend/utils/events.py` | Event dispatch utility |
 | `backend/scheduler.py` | APScheduler background jobs |
 | `backend/utils/permissions.py` | RBAC helpers |
 | `backend/agents/match_stats_agent.py` | Gemini nightly stats fetcher |
 | `backend/agents/match_result_agent.py` | Gemini post-match result fetcher |
+| `backend/MIGRATIONS.md` | Database schema change guide |
 | `frontend/src/utils/teamColors.ts` | IPL team color map & helpers |
 | `frontend/src/store/auth.ts` | Zustand auth store |
 | `frontend/src/api/client.ts` | Axios instance with auth interceptors |
 | `frontend/src/pages/MatchPage.tsx` | Prediction form + community reveal |
+| `frontend/src/components/SocialFeed.tsx` | Glassmorphic activity feed component |
 | `frontend/src/components/Layout.tsx` | App shell, nav, main width constraint |
 | `migrations/versions/` | All Alembic migration files |
 
 ---
 
-## 📝 Current State (as of 2026-04-30)
+## 📝 Current State (as of 2026-05-01)
 
-- **Multi-league architecture**: Fully implemented. All phases complete.
-- **Dynamic frontend**: `renderPredictionCard` and match results section are fully dynamic — no hardcoded question IDs.
-- **`toss_time` → `start_time`**: DB column renamed. API returns both `tossTime` (for frontend) and `start_time`.
-- **Layout**: All page containers use `w-full max-w-full`. Layout.tsx caps at `max-w-[1280px]`.
+- **Platform Activity Feed**: Fully implemented with role-based visibility and premium glassmorphic UI.
+- **Tournament Scoping**: Successfully migrated user stats (`base_points`, `base_powerups`) to `TournamentUserMapping`.
+- **Campaign Fairness**: Added `allow_powerup` toggle to `CampaignQuestion` to allow bonus questions exempt from boosters.
+- **Multi-league architecture**: Fully implemented.
+- **Dynamic frontend**: `renderPredictionCard` and match results section are fully dynamic.
 - **Hall of Fame**: Sixster and Fourster badges implemented.
-- **Bulk Match Import**: Admin can upload CSV to create matches in bulk under a tournament.
-- **All MD docs updated**: README.md, PROJECT_SPEC.md, league_management_plan.md, frontend/README.md.
+- **Bulk Match Import**: Admin can upload CSV to create matches in bulk.
+- **All MD docs updated**: GEMINI.md, README.md, PROJECT_SPEC.md.
 
 ---
 
-*Last Updated: 2026-04-30*
+*Last Updated: 2026-05-01*

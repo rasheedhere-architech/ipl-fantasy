@@ -176,7 +176,8 @@ ipl-fantasy/
 | Non-participation (Match 12+) | — | −5 |
 | AI Assassin penalty starts | — | Match 25 |
 
-**Powerup (2× Booster)**: Multiplies Winner, POM, and Powerplay points. Does **not** multiply Sixes/Fours.
+**Powerup (2× Booster)**: Tracked globally (`User.base_powerups`). Multiplies Winner, POM, and Powerplay points. Does **not** multiply Sixes/Fours.
+**Late Entrants**: Protected from retroactive penalties for matches before signup. Can receive a `User.base_points` catch-up handicap applied globally and in private leagues.
 
 ---
 

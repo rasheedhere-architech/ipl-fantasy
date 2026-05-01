@@ -6,10 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from backend.database import get_db
-from backend.models import User, AllowlistedEmail, League, LeagueAdminMapping, LeagueUserMapping
+from backend.models import User, AllowlistedEmail, League, LeagueAdminMapping, LeagueUserMapping, SystemEventType
 from backend.auth import oauth, create_access_token
 from backend.dependencies import get_current_user
 from backend.utils.cache import backend_cache
+from backend.utils.events import dispatch_event
 
 router = APIRouter(prefix="/api", tags=["auth"])
 
@@ -89,6 +90,15 @@ async def auth_callback(request: Request, db: AsyncSession = Depends(get_db)):
             
         # 3. Issue JWT Session Token
         jwt_token = create_access_token(data={"sub": user.id})
+        
+        # Log event
+        await dispatch_event(
+            db,
+            event_type=SystemEventType.login,
+            user_id=user.id,
+            message=f"{user.name} logged in via Google."
+        )
+        await db.commit()
         
         # Redirect back to frontend with Token (frontend handles parsing)
         # Assuming frontend grabs ?token=... and saves it to Zustand

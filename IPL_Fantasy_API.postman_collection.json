@@ -46,8 +46,13 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/auth/google",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "google"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "google"
+              ]
             },
             "description": "Redirects to Google OAuth consent screen. After login, Google redirects to /auth/callback which issues a JWT and redirects the frontend to /auth/callback?token=<jwt>. Copy that token into the jwt_token collection variable."
           }
@@ -57,14 +62,25 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{"key": "token", "value": "{{jwt_token}}", "type": "string"}]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/auth/me",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "me"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
             },
             "description": "Returns the currently authenticated user's profile: id, email, name, avatar, is_admin."
           }
@@ -81,10 +97,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/matches",
-              "host": ["{{baseUrl}}"],
-              "path": ["matches"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches"
+              ]
             },
-            "description": "Returns upcoming matches (within next 3 days), all upcoming status matches, and all completed matches. No auth required. Each match includes: id, team1, team2, venue, toss_time, status, winner, team1_powerplay_score, team2_powerplay_score, player_of_the_match."
+            "description": "Returns upcoming matches (within next 3 days), all upcoming status matches, and all completed matches. No auth required. Each match includes: id, team1, team2, venue, start_time, status, winner, team1_powerplay_score, team2_powerplay_score, player_of_the_match."
           }
         },
         {
@@ -92,14 +112,25 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{"key": "token", "value": "{{jwt_token}}", "type": "string"}]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/matches/{{match_id}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["matches", "{{match_id}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{match_id}}"
+              ]
             },
             "description": "Returns match detail, hardcoded prediction questions, and the current user's powerup usage count for the season. Auth required."
           }
@@ -109,21 +140,42 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{"key": "token", "value": "{{jwt_token}}", "type": "string"}]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "POST",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"match_winner\": \"CSK\",\n  \"team1_powerplay\": 52,\n  \"team2_powerplay\": 48,\n  \"player_of_the_match\": \"MS Dhoni\",\n  \"use_powerup\": \"No\"\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": {
               "raw": "{{baseUrl}}/matches/{{match_id}}/predictions",
-              "host": ["{{baseUrl}}"],
-              "path": ["matches", "{{match_id}}", "predictions"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{match_id}}",
+                "predictions"
+              ]
             },
-            "description": "Submit or update a prediction for a match. If a prediction already exists for this user+match, it is overwritten (upsert). Predictions are locked 30 minutes before toss_time (HTTP 403 returned). use_powerup must be 'Yes' or 'No'. Season limit is 10 powerups."
+            "description": "Submit or update a prediction for a match. If a prediction already exists for this user+match, it is overwritten (upsert). Predictions are locked 30 minutes before start_time (HTTP 403 returned). use_powerup must be 'Yes' or 'No'. Season limit is 10 powerups."
           }
         },
         {
@@ -131,14 +183,27 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{"key": "token", "value": "{{jwt_token}}", "type": "string"}]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/matches/{{match_id}}/predictions/mine",
-              "host": ["{{baseUrl}}"],
-              "path": ["matches", "{{match_id}}", "predictions", "mine"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{match_id}}",
+                "predictions",
+                "mine"
+              ]
             },
             "description": "Returns the current user's prediction for this match. Returns {} if no prediction submitted yet."
           }
@@ -148,16 +213,29 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{"key": "token", "value": "{{jwt_token}}", "type": "string"}]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/matches/{{match_id}}/predictions/all",
-              "host": ["{{baseUrl}}"],
-              "path": ["matches", "{{match_id}}", "predictions", "all"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "matches",
+                "{{match_id}}",
+                "predictions",
+                "all"
+              ]
             },
-            "description": "Returns all users' predictions for this match. Answers are masked with 🔒 until 30 minutes before toss_time, then revealed. Includes prediction_id (used by admin to override individual predictions)."
+            "description": "Returns all users' predictions for this match. Answers are masked with 🔒 until 30 minutes before start_time, then revealed. Includes prediction_id (used by admin to override individual predictions)."
           }
         }
       ]
@@ -172,8 +250,12 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/leaderboard",
-              "host": ["{{baseUrl}}"],
-              "path": ["leaderboard"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leaderboard"
+              ]
             },
             "description": "Returns all users ranked by total points (match points + base_points). Includes per-match point progression array for sparkline display. No auth required."
           }
@@ -185,8 +267,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/leaderboard/match/{{match_id}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["leaderboard", "match", "{{match_id}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leaderboard",
+                "match",
+                "{{match_id}}"
+              ]
             },
             "description": "Returns ranked standings for a single match only. Useful for seeing who scored best in a specific game."
           }
@@ -202,14 +290,25 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{"key": "token", "value": "{{jwt_token}}", "type": "string"}]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/admin/allowlist",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "allowlist"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "allowlist"
+              ]
             },
             "description": "Returns all emails on the registration allowlist, ordered by most recently added."
           }
@@ -219,19 +318,39 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{"key": "token", "value": "{{jwt_token}}", "type": "string"}]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "POST",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"emails\": [\n    \"player1@example.com\",\n    \"player2@example.com\"\n  ]\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": {
               "raw": "{{baseUrl}}/admin/allowlist",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "allowlist"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "allowlist"
+              ]
             },
             "description": "Add one or more emails to the allowlist. Emails are normalised to lowercase. Duplicates are silently skipped."
           }
@@ -241,14 +360,26 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{"key": "token", "value": "{{jwt_token}}", "type": "string"}]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "DELETE",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/admin/allowlist/player1@example.com",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "allowlist", "player1@example.com"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "allowlist",
+                "player1@example.com"
+              ]
             },
             "description": "Remove a specific email from the allowlist by passing it in the URL path."
           }
@@ -258,14 +389,25 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{"key": "token", "value": "{{jwt_token}}", "type": "string"}]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/admin/users",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "users"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users"
+              ]
             },
             "description": "Returns all registered users sorted by most recently created. Each user includes id, name, email, avatar_url, is_admin, base_points."
           }
@@ -275,19 +417,41 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{"key": "token", "value": "{{jwt_token}}", "type": "string"}]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "PUT",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"base_points\": 50\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": {
               "raw": "{{baseUrl}}/admin/users/{{user_id}}/base-points",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "users", "{{user_id}}", "base-points"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "{{user_id}}",
+                "base-points"
+              ]
             },
             "description": "Set a user's base_points handicap/bonus. This is added to their match points in the leaderboard total. Set the user_id variable to the target user's UUID."
           }
@@ -297,19 +461,41 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{"key": "token", "value": "{{jwt_token}}", "type": "string"}]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "PUT",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"answers\": {\n    \"winner\": \"CSK\",\n    \"team1_powerplay_score\": 54,\n    \"team2_powerplay_score\": 47,\n    \"player_of_the_match\": \"MS Dhoni\"\n  }\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": {
               "raw": "{{baseUrl}}/admin/matches/{{match_id}}/results",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "matches", "{{match_id}}", "results"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "matches",
+                "{{match_id}}",
+                "results"
+              ]
             },
             "description": "Submit official match results and trigger the scoring engine for all users. Sets match status to 'completed'. Can be called again to override results for a completed match — scores are recalculated. Keys in answers: winner (string), team1_powerplay_score (int), team2_powerplay_score (int), player_of_the_match (string)."
           }
@@ -319,19 +505,40 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{"key": "token", "value": "{{jwt_token}}", "type": "string"}]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "PUT",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"player_of_the_match\": \"Virat Kohli\"\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": {
               "raw": "{{baseUrl}}/admin/predictions/{{prediction_id}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "predictions", "{{prediction_id}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "predictions",
+                "{{prediction_id}}"
+              ]
             },
             "description": "Allows admin to correct a user's player_of_the_match prediction (e.g. fix spelling/name variations before scoring). Get the prediction_id from the /matches/{id}/predictions/all response."
           }
@@ -341,19 +548,39 @@
           "request": {
             "auth": {
               "type": "bearer",
-              "bearer": [{"key": "token", "value": "{{jwt_token}}", "type": "string"}]
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "PUT",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"match_winner\": {\n    \"type\": \"exact_match\",\n    \"points\": 10\n  },\n  \"team1_powerplay\": {\n    \"type\": \"closest\",\n    \"points\": 15\n  },\n  \"team2_powerplay\": {\n    \"type\": \"closest\",\n    \"points\": 15\n  },\n  \"player_of_the_match\": {\n    \"type\": \"exact_match\",\n    \"points\": 20\n  }\n}",
-              "options": {"raw": {"language": "json"}}
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": {
               "raw": "{{baseUrl}}/admin/scoring-rules",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "scoring-rules"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "scoring-rules"
+              ]
             },
             "description": "Persist a new scoring rules configuration to the database."
           }

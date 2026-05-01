@@ -36,7 +36,7 @@ app.add_middleware(SessionMiddleware, secret_key=os.environ.get("JWT_SECRET", "s
 
 
 from backend.router import auth_router, admin_router, match_router, leaderboard_router
-from backend.router import campaigns_router, external_router, league_router, campaign_results_router, tournament_router
+from backend.router import campaigns_router, external_router, league_router, campaign_results_router, tournament_router, events_router
 
 app.include_router(auth_router.router)
 app.include_router(admin_router.router)
@@ -47,6 +47,7 @@ app.include_router(external_router.router)
 app.include_router(league_router.router)
 app.include_router(tournament_router.router)
 app.include_router(campaign_results_router.router)
+app.include_router(events_router.router)
 
 @app.get("/")
 async def root():

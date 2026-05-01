@@ -5,7 +5,7 @@ from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from backend.database import get_db
-from backend.models import User, AllowlistedEmail, ScoringRule, Match, LeagueAdminMapping
+from backend.models import User, AllowlistedEmail, Match, LeagueAdminMapping, TournamentUserMapping
 from backend.dependencies import get_current_admin, get_current_user
 from backend.scoring import calculate_match_scores
 from backend.utils.cache import backend_cache
@@ -116,47 +116,54 @@ async def trigger_match_scoring(match_id: str, payload: MatchResultUpdate, db: A
     
     return {"message": "Results saved and scoring triggered successfully"}
 
-@router.put("/predictions/{prediction_id}")
-async def admin_update_prediction(prediction_id: str, updates: dict, db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)):
-    from backend.models import Prediction
-    result = await db.execute(select(Prediction).where(Prediction.id == prediction_id))
-    pred = result.scalars().first()
-    if not pred:
-        raise HTTPException(status_code=404, detail="Prediction not found")
-    
-    if "player_of_the_match" in updates:
-        pred.player_of_the_match = str(updates["player_of_the_match"])
-        
-    await db.commit()
-    return {"message": "Prediction updated successfully", "prediction_id": prediction_id}
 
-@router.put("/users/{user_id}/base-points")
-async def update_user_base_points(user_id: str, payload: dict, db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)):
+@router.put("/users/{user_id}/base-stats")
+async def update_user_base_stats(user_id: str, payload: dict, db: AsyncSession = Depends(get_db), current_admin: User = Depends(get_current_admin)):
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
-    if "base_points" in payload:
-        user.base_points = int(payload["base_points"])
-    if "base_powerups" in payload:
-        user.base_powerups = int(payload["base_powerups"])
+    # User-level attributes
     if "is_telegram_admin" in payload:
         user.is_telegram_admin = bool(payload["is_telegram_admin"])
     if "telegram_username" in payload:
         user.telegram_username = payload["telegram_username"]
+    
+    # Tournament-scoped attributes
+    tournament_id = payload.get("tournament_id")
+    if tournament_id and ("base_points" in payload or "base_powerups" in payload):
+        res = await db.execute(
+            select(TournamentUserMapping).where(
+                TournamentUserMapping.tournament_id == tournament_id,
+                TournamentUserMapping.user_id == user_id
+            )
+        )
+        mapping = res.scalars().first()
+        if not mapping:
+            mapping = TournamentUserMapping(
+                tournament_id=tournament_id,
+                user_id=user_id,
+                base_points=0,
+                base_powerups=10,
+                powerups_used=0
+            )
+            db.add(mapping)
         
+        if "base_points" in payload:
+            mapping.base_points = int(payload["base_points"])
+        if "base_powerups" in payload:
+            mapping.base_powerups = int(payload["base_powerups"])
+
     await db.commit()
     
-    # Invalidate Leaderboards after user stat adjustment
+    # Invalidate Leaderboards
     backend_cache.invalidate("global_leaderboard")
     backend_cache.invalidate("analysis")
     
     return {
-        "message": "User base stats updated", 
+        "message": "User stats updated", 
         "user_id": user_id, 
-        "base_points": user.base_points, 
-        "base_powerups": user.base_powerups,
         "is_telegram_admin": user.is_telegram_admin,
         "telegram_username": user.telegram_username
     }

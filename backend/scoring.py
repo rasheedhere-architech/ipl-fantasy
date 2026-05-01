@@ -1,26 +1,33 @@
+"""
+Core match scoring engine.
+- Reads CampaignResponse.answers (JSON) per user
+- Reads CampaignMatchResult.correct_answers as ground truth
+- Writes points_breakdown back to CampaignResponse
+- Writes LeaderboardEntry and updates LeaderboardCache
+"""
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import or_
-from sqlalchemy.orm import selectinload
 
 from backend.models import (
-    Match, Prediction, LeaderboardEntry, ScoringRule, User,
-    Campaign, CampaignResponse, CampaignAnswer, CampaignQuestion,
-    LeaderboardCache, League, LeagueUserMapping, LeagueCampaignMapping
+    Match, User, CampaignQuestion, Campaign, CampaignResponse,
+    CampaignMatchResult, LeaderboardEntry, LeaderboardCache,
+    League, LeagueUserMapping, TournamentUserMapping,
+    SystemEventType,
 )
+from backend.utils.events import dispatch_event
 
 
 def _apply_rules(answer_value, correct_answer, question_type: str, scoring_rules: dict, multiplier: int) -> tuple[int, str]:
     """
-    Pure scoring function: compares answer_value to correct_answer using scoring_rules.
+    Pure scoring function. Compares answer_value to correct_answer using scoring_rules.
     Returns (points, status).
 
-    scoring_rules fields used:
-      - exact_match_points   : points for exact/bingo match
-      - wrong_answer_points  : points for wrong answer (can be negative)
-      - within_range_points  : points for being within range_delta (free_number only)
-      - range_delta          : tolerance for free_number questions (default 5)
+    scoring_rules fields:
+      exact_match_points  : points for exact/bingo match
+      wrong_answer_points : points for wrong answer (can be negative)
+      within_range_points : points for free_number within range_delta
+      range_delta         : tolerance for free_number questions (default 5)
     """
     if answer_value is None or correct_answer is None:
         return 0, "skip"
@@ -41,7 +48,8 @@ def _apply_rules(answer_value, correct_answer, question_type: str, scoring_rules
             return pts * multiplier, "range"
         else:
             pts = rules.get("wrong_answer_points", 0)
-            return pts * multiplier if pts < 0 else pts, "miss"
+            # Negative penalties are never multiplied
+            return pts if pts < 0 else pts, "miss"
     else:
         # String match (dropdown, free_text, toggle, multiple_choice)
         is_correct = str(answer_value).strip().lower() == str(correct_answer).strip().lower()
@@ -50,25 +58,21 @@ def _apply_rules(answer_value, correct_answer, question_type: str, scoring_rules
             return pts * multiplier, "correct"
         else:
             pts = rules.get("wrong_answer_points", 0)
-            # Negative penalty is not multiplied for fairness (keeps original behaviour)
+            # Negative penalties are never multiplied
             return pts, "incorrect"
 
 
 async def sync_match_results_to_campaign_questions(match_id: str, db: AsyncSession):
     """
-    Synchronizes the Match model's raw_result_json to the CampaignMatchResult record.
-    This ensures that correct answers are match-specific even if questions are shared.
+    Syncs Match.raw_result_json into a CampaignMatchResult record for the master campaign.
+    Falls back to legacy text-matching when result keys don't directly match question IDs.
     """
-    from backend.models import Match, Campaign, CampaignQuestion, CampaignMatchResult
-    from sqlalchemy.orm import selectinload
-
-    # Fetch match
     match_res = await db.execute(select(Match).where(Match.id == match_id))
     match = match_res.scalars().first()
     if not match or not match.raw_result_json:
         return
 
-    # Find master campaign for this tournament
+    from sqlalchemy.orm import selectinload
     cam_res = await db.execute(
         select(Campaign).options(selectinload(Campaign.questions))
         .where(Campaign.tournament_id == match.tournament_id, Campaign.is_master == True)
@@ -79,8 +83,7 @@ async def sync_match_results_to_campaign_questions(match_id: str, db: AsyncSessi
 
     t1, t2 = match.team1, match.team2
     res_data = match.raw_result_json
-    
-    # Extract results from raw_result_json (handle legacy or standard formats)
+
     winner = res_data.get("winner")
     pp1 = res_data.get("team1_powerplay_score") or res_data.get("scores", {}).get(t1)
     pp2 = res_data.get("team2_powerplay_score") or res_data.get("scores", {}).get(t2)
@@ -91,41 +94,49 @@ async def sync_match_results_to_campaign_questions(match_id: str, db: AsyncSessi
     correct_answers_map = {}
 
     for q in master_cam.questions:
-        # Check for direct mapping first (modern dynamic mapping)
+        # 1. Direct match by question ID in result payload
         if q.id in res_data:
             correct_answers_map[q.id] = res_data[q.id]
             continue
 
-        # Fallback to legacy identification logic
+        # 2. Match by question key (slug) if defined
+        if q.key and q.key in res_data:
+            correct_answers_map[q.id] = res_data[q.key]
+            continue
+
+        # 3. Fallback heuristic by text/type
         opts = q.options or []
         qtype = q.question_type
         text = (q.question_text or "").lower()
         correct = None
 
-        # Match Winner
         if set(opts) == {t1, t2} and winner:
             correct = winner
-        # Powerplay
         elif qtype == "free_number" and "powerplay" in text:
             if t1.lower() in text or "team1" in text or "{{team1}}" in text:
-                if pp1 is not None: correct = str(pp1)
+                if pp1 is not None:
+                    correct = str(pp1)
             elif t2.lower() in text or "team2" in text or "{{team2}}" in text:
-                if pp2 is not None: correct = str(pp2)
-        # Player of the Match
+                if pp2 is not None:
+                    correct = str(pp2)
         elif qtype == "free_text" and ("player" in text or "potm" in text or "man of" in text):
-            if potm: correct = potm
-        # Sixes / Fours
+            if potm:
+                correct = potm
         elif qtype == "dropdown":
-            if "six" in text and sixes: correct = sixes
-            elif "four" in text and fours: correct = fours
+            if "six" in text and sixes:
+                correct = sixes
+            elif "four" in text and fours:
+                correct = fours
 
         if correct is not None:
             correct_answers_map[q.id] = correct
 
     if correct_answers_map:
-        # Save or update CampaignMatchResult
         cmr_res = await db.execute(
-            select(CampaignMatchResult).where(CampaignMatchResult.match_id == match_id, CampaignMatchResult.campaign_id == master_cam.id)
+            select(CampaignMatchResult).where(
+                CampaignMatchResult.match_id == match_id,
+                CampaignMatchResult.campaign_id == master_cam.id
+            )
         )
         cmr = cmr_res.scalars().first()
         if not cmr:
@@ -138,33 +149,28 @@ async def sync_match_results_to_campaign_questions(match_id: str, db: AsyncSessi
             db.add(cmr)
         else:
             cmr.correct_answers = correct_answers_map
-        
+
         await db.flush()
 
 
 async def calculate_match_scores(match_id: str, db: AsyncSession):
     """
-    Main entry point for scoring a match. 
-    1. Syncs match results to master questions.
-    2. Calculates points for all participants based on their answers.
-    3. Updates predictions and leaderboard entries.
+    Main scoring entry point for a completed match.
+    1. Syncs raw_result_json → CampaignMatchResult
+    2. Reads all CampaignResponses (JSON answers) for this match
+    3. Scores each response against correct answers
+    4. Writes points_breakdown back to CampaignResponse
+    5. Upserts LeaderboardEntry and rebuilds LeaderboardCache
     """
-    # ── Sync Results ──────────────────────────────────────────────────────────
     await sync_match_results_to_campaign_questions(match_id, db)
 
-    # ── Fetch Context ─────────────────────────────────────────────────────────
-    # Get all participants
-    users_res = await db.execute(select(User).where(User.is_guest == False))
-    all_users = users_res.scalars().all()
-    
-    # Get match info
+    # ── Match context ─────────────────────────────────────────────────────────
     match_res = await db.execute(select(Match).where(Match.id == match_id))
     match = match_res.scalars().first()
     if not match:
-        raise ValueError("Match not found")
+        raise ValueError(f"Match {match_id} not found")
 
-    # ── Fetch master questions & results ──────────────────────────────────────
-    from backend.models import CampaignMatchResult
+    # ── Master campaign questions ─────────────────────────────────────────────
     q_res = await db.execute(
         select(CampaignQuestion, Campaign.id.label("campaign_id"))
         .join(Campaign, CampaignQuestion.campaign_id == Campaign.id)
@@ -172,11 +178,12 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
     )
     questions = q_res.all()
     if not questions:
-        return # No master campaign for this match's tournament
+        return  # No master campaign found
 
     master_campaign_id = questions[0].campaign_id
+    question_map = {q.CampaignQuestion.id: q.CampaignQuestion for q in questions}
 
-    # Fetch ground truth for this match
+    # ── Ground truth ─────────────────────────────────────────────────────────
     cmr_res = await db.execute(
         select(CampaignMatchResult).where(
             CampaignMatchResult.match_id == match_id,
@@ -185,209 +192,227 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
     )
     cmr = cmr_res.scalars().first()
     if not cmr or not cmr.correct_answers:
-        return # No results reported yet
+        return  # Results not yet reported
 
-    correct_answers = cmr.correct_answers
+    correct_answers = cmr.correct_answers  # {question_id: answer_value}
 
-    # ── Fetch all answers for these questions ────────────────────────────────
-    ans_res = await db.execute(
-        select(CampaignAnswer, CampaignResponse.user_id)
-        .join(CampaignResponse, CampaignAnswer.response_id == CampaignResponse.id)
-        .where(
+    # ── All responses for this match ─────────────────────────────────────────
+    resp_res = await db.execute(
+        select(CampaignResponse).where(
+            CampaignResponse.campaign_id == master_campaign_id,
             CampaignResponse.match_id == match_id,
-            CampaignAnswer.question_id.in_([q.CampaignQuestion.id for q in questions])
         )
     )
-    answers_list = ans_res.all()
+    responses = resp_res.scalars().all()
+    responses_by_user = {r.user_id: r for r in responses}
 
-    # Group answers by user
-    user_answers = {}
-    for ans_row, user_id in answers_list:
-        if user_id not in user_answers:
-            user_answers[user_id] = []
-        
-        q_obj = next(q.CampaignQuestion for q in questions if q.CampaignQuestion.id == ans_row.question_id)
-        user_answers[user_id].append({
-            "answer_value": ans_row.answer_value,
-            "correct_answer": correct_answers.get(ans_row.question_id),
-            "q_type": q_obj.question_type,
-            "scoring_rules": q_obj.scoring_rules,
-            "q_text": q_obj.question_text,
-            "ans_obj": ans_row
-        })
-
-    # ── Fetch all predictions (for use_powerup + penalty tracking) ───────────
-    p_result = await db.execute(select(Prediction).where(Prediction.match_id == match_id))
-    predictions_map = {p.user_id: p for p in p_result.scalars().all()}
+    # Scoped handicaps not needed for per-match scoring logic
 
     # ── Penalty config ────────────────────────────────────────────────────────
     match_number = 0
-    if "-" in match_id:
-        try:
-            match_number = int(match_id.split("-")[-1])
-        except ValueError:
-            pass
+    try:
+        match_number = int(match_id.split("-")[-1])
+    except (ValueError, IndexError):
+        pass
     penalty_points = -5 if match_number >= 12 else 0
 
     # ── Score each user ───────────────────────────────────────────────────────
     user_points: dict[str, int] = {}
 
     for user in all_users:
-        if user.id not in predictions_map:
-            # No prediction → apply penalty (AI exempt before match 25)
-            current_penalty = penalty_points
-            if user.is_ai and match_number < 25:
+        response = responses_by_user.get(user.id)
+
+        if not response:
+            # No prediction — apply penalty (AI exempt before match 25)
+            # Do NOT penalize if the user joined after the match started
+            if user.created_at and match.start_time and user.created_at > match.start_time:
                 current_penalty = 0
+            else:
+                current_penalty = penalty_points
+                if user.is_ai and match_number < 25:
+                    current_penalty = 0
             user_points[user.id] = current_penalty
             continue
 
-        pred = predictions_map[user.id]
-        is_powerup = pred.use_powerup == "Yes"
-        multiplier = 2 if is_powerup else 1
+        answers = response.answers or {}  # {question_id: answer_value}
+        multiplier = 2 if response.use_powerup else 1
 
         total_points = 0
         breakdown_rules = []
 
-        for ans in user_answers.get(user.id, []):
+        for q_id, q in question_map.items():
+            answer_value = answers.get(q_id)
+            correct_answer = correct_answers.get(q_id)
+
+            # Respect allow_powerup flag (some questions like mid-tournament additions might exclude powerups)
+            current_multiplier = multiplier if q.allow_powerup else 1
+
             pts, status = _apply_rules(
-                answer_value=ans["answer_value"],
-                correct_answer=ans["correct_answer"],
-                question_type=ans["q_type"],
-                scoring_rules=ans["scoring_rules"],
-                multiplier=multiplier,
+                answer_value=answer_value,
+                correct_answer=correct_answer,
+                question_type=q.question_type,
+                scoring_rules=q.scoring_rules,
+                multiplier=current_multiplier,
             )
             if status == "skip":
                 continue
 
             total_points += pts
             breakdown_rules.append({
-                "category": ans["q_text"],
+                "category": q.question_text,
+                "key": q.key,
                 "status": status,
                 "points": pts,
-                "predicted": ans["answer_value"],
-                "actual": ans["correct_answer"],
+                "predicted": answer_value,
+                "actual": correct_answer,
+                "was_boosted": current_multiplier > 1,
             })
 
-        pred.points_breakdown = {
+        response.points_breakdown = {
             "rules": breakdown_rules,
-            "powerup": {"used": is_powerup, "multiplier": multiplier},
+            "powerup": {"used": response.use_powerup, "multiplier": multiplier},
             "total": total_points,
         }
-        pred.points_awarded = total_points
+        response.total_points = total_points
         user_points[user.id] = total_points
 
-    # ── Update LeaderboardEntry ───────────────────────────────────────────────
+    # ── Upsert LeaderboardEntry (global, league_id=None) ─────────────────────
     for uid, pts in user_points.items():
         lb_res = await db.execute(
             select(LeaderboardEntry).where(
                 LeaderboardEntry.match_id == match_id,
-                LeaderboardEntry.user_id == uid
+                LeaderboardEntry.user_id == uid,
+                LeaderboardEntry.league_id == None,
             )
         )
         lb_entry = lb_res.scalars().first()
+        breakdown = (responses_by_user.get(uid).points_breakdown
+                     if uid in responses_by_user else None)
         if lb_entry:
             lb_entry.points = pts
-            lb_entry.league_id = None
+            lb_entry.points_breakdown = breakdown
         else:
             db.add(LeaderboardEntry(
-                id=str(uuid.uuid4()), 
-                user_id=uid, 
-                match_id=match_id, 
+                id=str(uuid.uuid4()),
+                user_id=uid,
+                match_id=match_id,
                 league_id=None,
-                points=pts
+                points=pts,
+                points_breakdown=breakdown,
             ))
 
     await db.commit()
     await update_leaderboard_cache(db, match.tournament_id)
+    
+    # Log event
+    await dispatch_event(
+        db,
+        event_type=SystemEventType.match_scored,
+        match_id=match_id,
+        message=f"Match {match.id} ({match.team1} vs {match.team2}) has been scored."
+    )
+    await db.commit()
 
 
 async def update_leaderboard_cache(db: AsyncSession, tournament_id: str):
     """
-    Recalculates LeaderboardCache for all users in all leagues under a specific tournament,
-    plus a 'global' entry for the tournament itself.
+    Rebuilds LeaderboardCache for all users across global and league scopes
+    for a given tournament.
     """
-    from backend.models import Tournament, User
-    
-    # Get all users participating in this tournament (any league or master)
     users_res = await db.execute(select(User).where(User.is_guest == False))
     all_users = users_res.scalars().all()
+    
+    # Pre-fetch tournament mappings
+    mapping_res = await db.execute(
+        select(TournamentUserMapping).where(TournamentUserMapping.tournament_id == tournament_id)
+    )
+    mapping_map = {m.user_id: m.base_points for m in mapping_res.scalars().all()}
 
-    # 1. Update Global Cache (league_id=None) for the tournament
+    # ── Global cache (league_id=None) ────────────────────────────────────────
     for user in all_users:
         uid = user.id
-        match_points_res = await db.execute(
+        pts_res = await db.execute(
             select(LeaderboardEntry.points)
             .join(Match, LeaderboardEntry.match_id == Match.id)
-            .where(LeaderboardEntry.user_id == uid)
-            .where(Match.tournament_id == tournament_id)
-            .where(LeaderboardEntry.league_id == None)
+            .where(
+                LeaderboardEntry.user_id == uid,
+                Match.tournament_id == tournament_id,
+                LeaderboardEntry.league_id == None,
+            )
         )
-        total_global_points = sum(pts for (pts,) in match_points_res.all())
+        # Legacy powerup decrement removed. Powerups are calculated dynamically or via mapping.
+        base_points = mapping_map.get(uid, 0)
+        total = sum(pts for (pts,) in pts_res.all()) + base_points
 
-        # Upsert global cache
         cache_res = await db.execute(
             select(LeaderboardCache).where(
                 LeaderboardCache.user_id == uid,
                 LeaderboardCache.tournament_id == tournament_id,
-                LeaderboardCache.league_id == None
+                LeaderboardCache.league_id == None,
             )
         )
-        cache_entry = cache_res.scalars().first()
-        if cache_entry:
-            cache_entry.total_points = total_global_points
+        cache = cache_res.scalars().first()
+        if cache:
+            cache.total_points = total
         else:
             db.add(LeaderboardCache(
                 user_id=uid, tournament_id=tournament_id,
-                league_id=None, total_points=total_global_points
+                league_id=None, total_points=total
             ))
 
-    # 2. Update Specific League Caches
+    # ── Per-league caches ─────────────────────────────────────────────────────
     leagues_res = await db.execute(select(League).where(League.tournament_id == tournament_id))
     leagues = leagues_res.scalars().all()
 
     for league in leagues:
-        users_mapping_res = await db.execute(select(LeagueUserMapping).where(LeagueUserMapping.league_id == league.id))
-        mappings = users_mapping_res.scalars().all()
-
-        for mapping in mappings:
+        mappings_res = await db.execute(
+            select(LeagueUserMapping).where(LeagueUserMapping.league_id == league.id)
+        )
+        for mapping in mappings_res.scalars().all():
             uid = mapping.user_id
             joined_at = mapping.joined_at
 
-            # Global match points earned AFTER joining the league
-            match_points_res = await db.execute(
+            # Global match points earned AFTER joining
+            global_pts_res = await db.execute(
                 select(LeaderboardEntry.points)
                 .join(Match, LeaderboardEntry.match_id == Match.id)
-                .where(LeaderboardEntry.user_id == uid)
-                .where(Match.tournament_id == tournament_id)
-                .where(LeaderboardEntry.league_id == None)
-                .where(Match.start_time >= joined_at)
+                .where(
+                    LeaderboardEntry.user_id == uid,
+                    Match.tournament_id == tournament_id,
+                    LeaderboardEntry.league_id == None,
+                    Match.start_time >= joined_at,
+                )
             )
-            global_points = sum(pts for (pts,) in match_points_res.all())
+            global_points = sum(pts for (pts,) in global_pts_res.all())
 
-            # League-specific campaign points (from LeaderboardEntry to include non-participation penalties)
-            campaign_points_stmt = select(LeaderboardEntry.points).where(
-                LeaderboardEntry.user_id == uid,
-                LeaderboardEntry.league_id == league.id
+            # League-specific campaign points
+            league_pts_res = await db.execute(
+                select(LeaderboardEntry.points).where(
+                    LeaderboardEntry.user_id == uid,
+                    LeaderboardEntry.league_id == league.id,
+                )
             )
-            campaign_points_res = await db.execute(campaign_points_stmt)
-            campaign_points = sum(pts for (pts,) in campaign_points_res.all() if pts is not None)
+            league_points = sum(pts for (pts,) in league_pts_res.all() if pts is not None)
 
-            total_points = global_points + campaign_points
+            base_points = mapping_map.get(uid, 0)
+            total = global_points + league_points + base_points
 
-            # Upsert league cache
             cache_res = await db.execute(
                 select(LeaderboardCache).where(
                     LeaderboardCache.user_id == uid,
-                    LeaderboardCache.league_id == league.id
+                    LeaderboardCache.tournament_id == tournament_id,
+                    LeaderboardCache.league_id == league.id,
                 )
             )
-            cache_entry = cache_res.scalars().first()
-            if cache_entry:
-                cache_entry.total_points = total_points
+            cache = cache_res.scalars().first()
+            if cache:
+                cache.total_points = total
             else:
                 db.add(LeaderboardCache(
-                    user_id=uid, league_id=league.id,
-                    tournament_id=tournament_id, total_points=total_points
+                    user_id=uid,
+                    tournament_id=tournament_id,
+                    league_id=league.id,
+                    total_points=total
                 ))
 
     await db.commit()

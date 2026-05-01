@@ -1,6 +1,4 @@
 import { useMyLeagues } from '../api/hooks/useMatches';
-import { Link } from 'react-router-dom';
-import { TrendingUp } from 'lucide-react';
 import LeaderboardSection from '../components/LeaderboardSection';
 
 export default function Leaderboard() {

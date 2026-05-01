@@ -35,9 +35,9 @@ Tournament (e.g., IPL 2026)
 
 ```
 Tournament          id, name, status, starts_at, ends_at, master_campaign_id
-League              id, name, tournament_id, join_code, starting_powerups, is_global
+League              id, name, tournament_id, join_code, is_global
 LeagueAdminMapping  user_id, league_id
-LeagueUserMapping   user_id, league_id, joined_at, remaining_powerups
+LeagueUserMapping   user_id, league_id, joined_at
 Match               id, team1, team2, venue, start_time, status, tournament_id
 Campaign            id, name, tournament_id, league_id (nullable), is_master
 CampaignQuestion    id, campaign_id, key, question_text, answer_type, options, scoring_rules, order
@@ -112,8 +112,14 @@ MatchStats          match_id, stats_json (Gemini-generated head-to-head, form, p
 | AI Assassin penalty | Starts from Match 25 |
 
 ### Powerup (2× Booster)
+- Tracked globally per user (`User.base_powerups`).
 - Multiplies: Winner, POM, Powerplay
 - Does **not** multiply: Sixes, Fours
+
+### Late Entrants
+- Inherit full global powerup inventory.
+- Protected from retroactive non-participation penalties (matches before `user.created_at`).
+- Can receive a `User.base_points` catch-up handicap applied globally and in private leagues.
 
 ### League Campaign
 - Points computed per-league using `CampaignMatchResult` for that league's campaign.

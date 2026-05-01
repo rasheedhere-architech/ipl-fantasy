@@ -1,7 +1,7 @@
 import { Outlet, Navigate, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import { useMyLeagues } from '../api/hooks/useLeagues';
-import { Trophy, LayoutDashboard, Settings, LogOut, Menu, X, BarChart2, Megaphone, Users } from 'lucide-react';
+import { Trophy, LayoutDashboard, Settings, LogOut, Menu, X, BarChart2, Megaphone, Users, Activity as ActivityIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
@@ -87,6 +87,10 @@ export default function Layout() {
                 <Link to="/leagues" className="text-gray-300 hover:text-white flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors">
                   <Users className="w-4 h-4" />
                   LEAGUES
+                </Link>
+                <Link to="/activity" className="text-gray-300 hover:text-white flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors">
+                  <ActivityIcon className="w-4 h-4" />
+                  ACTIVITY
                 </Link>
                 {(user?.is_admin || user?.is_league_admin) && (
                   <Link to="/admin" className="text-gray-300 hover:text-white flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors">

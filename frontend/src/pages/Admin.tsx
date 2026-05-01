@@ -60,8 +60,8 @@ export default function Admin() {
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-display text-[10px] uppercase tracking-widest transition-all ${activeTab === tab.id
-                ? 'bg-ipl-gold text-ipl-navy shadow-neon shadow-ipl-gold/20'
-                : 'text-gray-500 hover:text-white hover:bg-white/5'
+              ? 'bg-ipl-gold text-ipl-navy shadow-neon shadow-ipl-gold/20'
+              : 'text-gray-500 hover:text-white hover:bg-white/5'
               }`}
           >
             <tab.icon className="w-4 h-4" />
@@ -853,14 +853,14 @@ function TournamentMatchManager({ tournamentId, onBack }: { tournamentId: string
                     </div>
                     <div className="flex items-center gap-2 text-gray-500 mt-1">
                       <Calendar className="w-3 h-3" />
-                      <span className="text-[9px] font-mono italic">{new Date(match.startTime).toLocaleString()}</span>
+                      <span className="text-[9px] font-mono italic">{new Date(match.start_time).toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
                   <span className={`px-3 py-1 rounded-full text-[8px] uppercase tracking-widest font-bold ${match.status === 'upcoming' ? 'bg-ipl-gold/10 text-ipl-gold border border-ipl-gold/20' :
-                      match.status === 'live' ? 'bg-ipl-live/10 text-ipl-live border border-ipl-live/20 animate-pulse' :
-                        'bg-white/5 text-gray-500 border border-white/10'
+                    match.status === 'live' ? 'bg-ipl-live/10 text-ipl-live border border-ipl-live/20 animate-pulse' :
+                      'bg-white/5 text-gray-500 border border-white/10'
                     }`}>
                     {match.status}
                   </span>

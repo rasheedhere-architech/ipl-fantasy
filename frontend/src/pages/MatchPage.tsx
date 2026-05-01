@@ -153,6 +153,11 @@ export default function MatchPage() {
                 {q.source_name} League
               </span>
             )}
+            {q.allow_powerup === false && (
+              <span className="text-[8px] bg-white/5 text-gray-500 px-1.5 py-0.5 rounded border border-white/10 font-bold uppercase tracking-tighter ml-1.5">
+                No Booster
+              </span>
+            )}
           </div>
           <div className={`grid grid-cols-2 gap-4 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
             {options.map((opt: string) => (
@@ -195,6 +200,11 @@ export default function MatchPage() {
           {q.source_name && q.source_name !== 'IPL Global' && (
             <span className="text-[8px] bg-ipl-gold/10 text-ipl-gold px-1.5 py-0.5 rounded border border-ipl-gold/20 font-bold uppercase tracking-tighter">
               {q.source_name} League
+            </span>
+          )}
+          {q.allow_powerup === false && (
+            <span className="text-[8px] bg-white/5 text-gray-500 px-1.5 py-0.5 rounded border border-white/10 font-bold uppercase tracking-tighter ml-1.5">
+              No Booster
             </span>
           )}
         </div>
@@ -610,7 +620,10 @@ export default function MatchPage() {
                                             {/* Boostable Core Rules */}
                                             {pred.points_breakdown.rules.filter((r: any) => !['More Sixes', 'More Fours'].includes(r.category)).map((rule: any, ri: number) => (
                                               <div key={ri} className="flex justify-between items-center text-[8px] uppercase tracking-wider">
-                                                <span className="text-gray-500 truncate mr-2">{rule.category}</span>
+                                                <div className="flex items-center gap-1 min-w-0">
+                                                  {rule.was_boosted && <span className="text-ipl-gold shrink-0">⚡</span>}
+                                                  <span className="text-gray-500 truncate">{rule.category}</span>
+                                                </div>
                                                 <span className={rule.points > 0 ? 'text-green-400' : rule.points < 0 ? 'text-red-400' : 'text-gray-400'}>
                                                   {rule.points > 0 ? '+' : ''}{rule.points}
                                                 </span>

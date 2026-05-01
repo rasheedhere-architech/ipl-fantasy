@@ -31,11 +31,11 @@ async def backfill_ai_assassin():
         print(f"👤 Found {ai_user.name} (Current Base Points: {ai_user.base_points})")
         
         # 2. Find matches from 12 to 24
-        result = await db.execute(select(Match).order_by(Match.toss_time.asc()))
+        result = await db.execute(select(Match).order_by(Match.start_time.asc()))
         all_matches = result.scalars().all()
         
         # 2. Find all matches
-        result = await db.execute(select(Match).order_by(Match.toss_time.asc()))
+        result = await db.execute(select(Match).order_by(Match.start_time.asc()))
         all_matches = result.scalars().all()
         
         print(f"📅 Found {len(all_matches)} matches to process.")

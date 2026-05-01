@@ -50,13 +50,8 @@ class MatchResultAgent:
             print(f"Failed to fetch results for match {match_id}")
             return None
 
-        # Update the match record
-        match.winner = result_data.get("winner")
-        match.player_of_the_match = result_data.get("player_of_the_match")
-        match.team1_powerplay_score = result_data.get("team1_powerplay_score")
-        match.team2_powerplay_score = result_data.get("team2_powerplay_score")
-        match.more_sixes_team = result_data.get("more_sixes_team")
-        match.more_fours_team = result_data.get("more_fours_team")
+        # Update the match record — all result data lives in raw_result_json
+        match.raw_result_json = result_data
         match.status = MatchStatus.completed
         match.report_method = "agent"
         

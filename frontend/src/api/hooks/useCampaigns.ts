@@ -22,6 +22,7 @@ export interface CampaignQuestion {
   scoring_rules: ScoringRules;
   order_index: number;
   is_mandatory: boolean;
+  allow_powerup: boolean;
 }
 
 export interface CampaignResponseSummary {
@@ -59,6 +60,7 @@ export interface QuestionCreate {
   scoring_rules: ScoringRules;
   order_index: number;
   is_mandatory: boolean;
+  allow_powerup: boolean;
 }
 
 export interface CampaignCreate {

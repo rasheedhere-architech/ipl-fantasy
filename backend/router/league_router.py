@@ -7,8 +7,9 @@ import uuid
 import secrets
 
 from backend.database import get_db
-from backend.models import User, League, LeagueUserMapping, LeagueAdminMapping, Tournament, TournamentStatus
+from backend.models import User, League, LeagueUserMapping, LeagueAdminMapping, Tournament, TournamentStatus, SystemEventType
 from backend.router.auth_router import get_current_user
+from backend.utils.events import dispatch_event
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/leagues", tags=["Leagues"])
@@ -16,7 +17,6 @@ router = APIRouter(prefix="/api/leagues", tags=["Leagues"])
 class LeagueCreateReq(BaseModel):
     name: str
     tournament_id: str
-    starting_powerups: Optional[int] = 0
 
 class LeagueJoinReq(BaseModel):
     join_code: str
@@ -50,7 +50,6 @@ async def create_league(
         name=req.name,
         tournament_id=req.tournament_id,
         join_code=final_join_code,
-        starting_powerups=req.starting_powerups,
         created_by=current_user.id
     )
     db.add(new_league)
@@ -62,8 +61,7 @@ async def create_league(
     # Add creator as a participant
     user_mapping = LeagueUserMapping(
         league_id=league_id,
-        user_id=current_user.id,
-        remaining_powerups=req.starting_powerups
+        user_id=current_user.id
     )
     db.add(user_mapping)
     
@@ -124,12 +122,21 @@ async def join_league(
         
     mapping = LeagueUserMapping(
         league_id=league.id,
-        user_id=current_user.id,
-        remaining_powerups=league.starting_powerups
+        user_id=current_user.id
     )
     db.add(mapping)
     await db.commit()
     
+    # Log event
+    await dispatch_event(
+        db,
+        event_type=SystemEventType.league_joined,
+        user_id=current_user.id,
+        league_id=league.id,
+        message=f"{current_user.name} joined the league: {league.name}"
+    )
+    await db.commit()
+
     # Immediately backfill the leaderboard cache for this new member
     from backend.scoring import update_leaderboard_cache
     await update_leaderboard_cache(db, league.tournament_id)
@@ -163,16 +170,38 @@ async def get_league_details(
     
     admin_ids = {a.id for a in league.admins}
     
+    from backend.models import TournamentUserMapping, Campaign, CampaignResponse
+    from sqlalchemy import func
+    
+    # Pre-fetch all tournament mappings for this tournament
+    mappings_res = await db.execute(
+        select(TournamentUserMapping).where(TournamentUserMapping.tournament_id == league.tournament_id)
+    )
+    mapping_map = {m.user_id: m.base_powerups for m in mappings_res.scalars().all()}
+
+    # Pre-fetch powerups used per user for this tournament
+    powerups_used_res = await db.execute(
+        select(CampaignResponse.user_id, func.count(CampaignResponse.id))
+        .join(Campaign, CampaignResponse.campaign_id == Campaign.id)
+        .where(Campaign.tournament_id == league.tournament_id, CampaignResponse.use_powerup == True)
+        .group_by(CampaignResponse.user_id)
+    )
+    powerups_used_map = {uid: count for uid, count in powerups_used_res.all()}
+
     participants = []
-    # Optionally load remaining_powerups for members if needed
     for p in league.participants:
         p_mapping = await db.get(LeagueUserMapping, (league.id, p.id))
+        
+        base_pu = mapping_map.get(p.id, 10)
+        used_pu = powerups_used_map.get(p.id, 0)
+        rem_pu = max(0, base_pu - used_pu)
+        
         participants.append({
             "id": p.id,
             "name": p.name,
             "avatar_url": p.avatar_url,
             "joined_at": p_mapping.joined_at if p_mapping else None,
-            "remaining_powerups": p_mapping.remaining_powerups if p_mapping else 0,
+            "remaining_powerups": rem_pu,
             "is_league_admin": p.id in admin_ids
         })
         
@@ -182,7 +211,6 @@ async def get_league_details(
         "tournament_id": league.tournament_id,
         "is_admin": is_admin,
         "join_code": league.join_code if is_admin else None,
-        "starting_powerups": league.starting_powerups,
         "participants": participants
     }
 
@@ -292,8 +320,7 @@ async def add_member(
         
     mapping = LeagueUserMapping(
         league_id=league_id,
-        user_id=req.user_id,
-        remaining_powerups=league.starting_powerups
+        user_id=req.user_id
     )
     db.add(mapping)
     await db.commit()

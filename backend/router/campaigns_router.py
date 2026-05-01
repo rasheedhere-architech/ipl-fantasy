@@ -9,7 +9,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from backend.database import get_db
 from backend.models import (
-    Campaign, CampaignQuestion, CampaignResponse, CampaignAnswer,
+    Campaign, CampaignQuestion, CampaignResponse,
     CampaignStatus, CampaignType, QuestionType, User, LeagueAdminMapping
 )
 from backend.dependencies import get_current_user
@@ -37,6 +37,7 @@ class QuestionCreate(BaseModel):
     scoring_rules: ScoringRulesSchema
     order_index: int = 0
     is_mandatory: bool = False
+    allow_powerup: bool = True
 
 
 class CampaignCreate(BaseModel):
@@ -146,6 +147,7 @@ def _serialize_campaign_admin(campaign: Campaign) -> dict:
             "scoring_rules": q.scoring_rules,
             "order_index": q.order_index,
             "is_mandatory": q.is_mandatory,
+            "allow_powerup": q.allow_powerup,
         }
         for q in campaign.questions
     ]
@@ -231,6 +233,7 @@ async def create_campaign(
             scoring_rules=q.scoring_rules.model_dump(),
             order_index=q.order_index,
             is_mandatory=True if force_mandatory else q.is_mandatory,
+            allow_powerup=q.allow_powerup,
         )
         db.add(cq)
 
@@ -297,6 +300,7 @@ async def update_campaign(
                 cq.scoring_rules = q.scoring_rules.model_dump()
                 cq.order_index = q.order_index
                 cq.is_mandatory = q.is_mandatory
+                cq.allow_powerup = q.allow_powerup
                 new_questions.append(cq)
             else:
                 new_cq = CampaignQuestion(
@@ -309,6 +313,7 @@ async def update_campaign(
                     scoring_rules=q.scoring_rules.model_dump(),
                     order_index=q.order_index,
                     is_mandatory=q.is_mandatory,
+                    allow_powerup=q.allow_powerup,
                 )
                 db.add(new_cq)
                 new_questions.append(new_cq)
@@ -526,7 +531,6 @@ async def get_campaign(
     resp_result = await db.execute(
         select(CampaignResponse)
         .where(CampaignResponse.campaign_id == campaign_id, CampaignResponse.user_id == current_user.id)
-        .options(selectinload(CampaignResponse.answers))
     )
     my_response = resp_result.scalars().first()
     return _serialize_campaign(campaign, my_response)
@@ -559,7 +563,6 @@ async def submit_response(
     existing_result = await db.execute(
         select(CampaignResponse)
         .where(CampaignResponse.campaign_id == campaign_id, CampaignResponse.user_id == current_user.id)
-        .options(selectinload(CampaignResponse.answers))
     )
     existing_response = existing_result.scalars().first()
 
@@ -572,7 +575,9 @@ async def submit_response(
     if missing:
         raise HTTPException(status_code=400, detail=f"Missing answers for {len(missing)} question(s)")
 
-    # Validate answer values
+    # Validate answer values and collect them
+    new_answers = {}
+    import re
     for answer in payload.answers:
         q = questions_map.get(answer.question_id)
         if not q:
@@ -598,31 +603,20 @@ async def submit_response(
                 for v in answer.answer_value:
                     if v not in q.options:
                         raise HTTPException(status_code=400, detail=f"Invalid option in multiple_choice answer")
+        new_answers[answer.question_id] = answer.answer_value
 
     if existing_response:
         response = existing_response
         response.submitted_at = now
-        # Delete old answers
-        for old_ans in response.answers:
-            await db.delete(old_ans)
+        response.answers = new_answers
     else:
         response = CampaignResponse(
             id=str(uuid.uuid4()),
             campaign_id=campaign_id,
             user_id=current_user.id,
+            answers=new_answers
         )
         db.add(response)
-        
-    await db.flush()
-
-    for answer in payload.answers:
-        ca = CampaignAnswer(
-            id=str(uuid.uuid4()),
-            response_id=response.id,
-            question_id=answer.question_id,
-            answer_value=answer.answer_value,
-        )
-        db.add(ca)
 
     await db.commit()
     backend_cache.invalidate("campaigns_list")

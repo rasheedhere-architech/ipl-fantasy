@@ -32,6 +32,7 @@ function emptyQuestion(order: number): QuestionCreate {
     scoring_rules: { exact_match_points: 10, wrong_answer_points: -5, within_range_points: 5 },
     order_index: order,
     is_mandatory: false,
+    allow_powerup: true,
   };
 }
 
@@ -156,17 +157,37 @@ function QuestionEditor({
               className="w-full bg-black/40 border-2 border-white/10 py-2.5 px-4 text-white font-display text-sm placeholder:text-gray-600 focus:outline-none focus:border-ipl-gold transition-all disabled:cursor-not-allowed"
             />
 
-            <div className="relative">
-              <select
-                value={q.question_type}
-                onChange={e => setType(e.target.value as QuestionCreate['question_type'])}
-                className="w-full bg-black/40 border-2 border-white/10 py-2.5 pl-4 pr-10 text-white font-display text-sm appearance-none focus:outline-none focus:border-ipl-gold transition-all"
-              >
-                {QUESTION_TYPES.map(t => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+            <div className="flex flex-wrap gap-4">
+              <div className="relative flex-1">
+                <select
+                  value={q.question_type}
+                  onChange={e => setType(e.target.value as QuestionCreate['question_type'])}
+                  className="w-full bg-black/40 border-2 border-white/10 py-2.5 pl-4 pr-10 text-white font-display text-sm appearance-none focus:outline-none focus:border-ipl-gold transition-all"
+                >
+                  {QUESTION_TYPES.map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+              </div>
+
+              <div className="flex items-center gap-3 bg-black/20 border-2 border-white/5 px-4 py-1.5 rounded-lg">
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <div className="relative w-8 h-4">
+                    <input
+                      type="checkbox"
+                      checked={q.allow_powerup !== false}
+                      onChange={e => onChange({ ...q, allow_powerup: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-full h-full bg-gray-600 rounded-full peer peer-checked:bg-ipl-gold transition-colors"></div>
+                    <div className="absolute left-0.5 top-0.5 w-3 h-3 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
+                  </div>
+                  <span className="text-[10px] font-display uppercase tracking-wider text-gray-400 group-hover:text-white transition-colors">
+                    Allow Powerup (2x)
+                  </span>
+                </label>
+              </div>
             </div>
 
             {has_options && (
@@ -388,6 +409,7 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
         scoring_rules: q.scoring_rules,
         order_index: q.order_index,
         is_mandatory: q.is_mandatory,
+        allow_powerup: q.allow_powerup,
       })));
       setExpandedIndex(null); // Keep collapsed by default when editing existing
     }

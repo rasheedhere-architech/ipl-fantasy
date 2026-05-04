@@ -153,6 +153,19 @@ export function useCreateMatch() {
   });
 }
 
+export function useUpdateMatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ matchId, payload }: { matchId: string; payload: any }) => {
+      const response = await apiClient.put(`/matches/${matchId}`, payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['matches'] });
+    },
+  });
+}
+
 export function useAddLeagueMember() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -183,6 +196,84 @@ export function useBulkImportMatches() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['matches'] });
+    },
+  });
+}
+
+export function useTournamentQuestionBank(tournamentId: string | null) {
+  return useQuery({
+    queryKey: ['tournaments', tournamentId, 'questionBank'],
+    queryFn: async () => {
+      const response = await apiClient.get<{ tournament_id: string; questions: any[] }>(`/tournaments/${tournamentId}/question-bank`);
+      return response.data;
+    },
+    enabled: !!tournamentId,
+  });
+}
+
+export function useAddTournamentQuestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ tournamentId, payload }: { tournamentId: string; payload: any }) => {
+      const response = await apiClient.post(`/tournaments/${tournamentId}/question-bank`, payload);
+      return response.data;
+    },
+    onSuccess: (_, { tournamentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tournaments', tournamentId, 'questionBank'] });
+    },
+  });
+}
+
+export function useDeleteTournamentQuestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ tournamentId, questionId }: { tournamentId: string; questionId: string }) => {
+      const response = await apiClient.delete(`/tournaments/${tournamentId}/question-bank/${questionId}`);
+      return response.data;
+    },
+    onSuccess: (_, { tournamentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tournaments', tournamentId, 'questionBank'] });
+    },
+  });
+}
+
+export function useUpdateTournamentQuestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ tournamentId, questionId, payload }: { tournamentId: string; questionId: string; payload: any }) => {
+      const response = await apiClient.put(`/tournaments/${tournamentId}/question-bank/${questionId}`, payload);
+      return response.data;
+    },
+    onSuccess: (_, { tournamentId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tournaments', tournamentId, 'questionBank'] });
+    },
+  });
+}
+
+
+
+export function useTournamentMatchAnswers(tournamentId: string, matchId: string) {
+  return useQuery({
+    queryKey: ['tournaments', tournamentId, 'matches', matchId, 'answers'],
+    queryFn: async () => {
+      const response = await apiClient.get(`/tournaments/${tournamentId}/matches/${matchId}/answers`);
+      return response.data;
+    },
+    enabled: !!tournamentId && !!matchId,
+  });
+}
+
+export function useUpdateTournamentMatchAnswers() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ tournamentId, matchId, correct_answers }: { tournamentId: string, matchId: string, correct_answers: Record<string, any> }) => {
+      const response = await apiClient.put(`/tournaments/${tournamentId}/matches/${matchId}/answers`, { correct_answers });
+      return response.data;
+    },
+    onSuccess: (_, { tournamentId, matchId }) => {
+      queryClient.invalidateQueries({ queryKey: ['tournaments', tournamentId, 'matches', matchId, 'answers'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
     },
   });
 }

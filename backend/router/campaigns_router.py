@@ -10,7 +10,8 @@ from sqlalchemy.orm import selectinload
 from backend.database import get_db
 from backend.models import (
     Campaign, CampaignQuestion, CampaignResponse,
-    CampaignStatus, CampaignType, QuestionType, User, LeagueAdminMapping
+    CampaignStatus, CampaignType, QuestionType, User, LeagueAdminMapping,
+    CampaignResult, Tournament
 )
 from backend.dependencies import get_current_user
 from backend.campaigns_scoring import calculate_campaign_scores
@@ -30,6 +31,7 @@ class ScoringRulesSchema(BaseModel):
 
 class QuestionCreate(BaseModel):
     id: Optional[str] = None  # set when preserving an existing question (e.g. mandatory)
+    key: Optional[str] = None # Stable key from the tournament question bank
     question_text: str
     question_type: QuestionType
     options: Optional[list[str]] = None
@@ -79,7 +81,9 @@ class CampaignResponseSubmit(BaseModel):
     answers: list[AnswerSubmit]
 
 
-def _validate_question(q: QuestionCreate):
+def _validate_question(q: QuestionCreate, campaign_type: CampaignType = CampaignType.general):
+    if campaign_type == CampaignType.match and not q.key:
+        raise HTTPException(status_code=400, detail="Match campaigns only allow questions from the Tournament Question Bank (custom questions not allowed).")
     if q.question_type == QuestionType.toggle:
         if not q.options or len(q.options) != 2:
             raise HTTPException(status_code=400, detail=f"Toggle question must have exactly 2 options")
@@ -96,14 +100,14 @@ def _serialize_campaign(campaign: Campaign, my_response: CampaignResponse | None
     questions = [
         {
             "id": q.id,
+            "key": q.key,
             "question_text": q.question_text,
             "question_type": q.question_type,
             "options": q.options,
             "scoring_rules": q.scoring_rules,
             "order_index": q.order_index,
             "is_mandatory": q.is_mandatory,
-            # Only expose correct_answer if campaign is closed
-            "correct_answer": q.correct_answer if campaign.status == CampaignStatus.closed else None,
+            "allow_powerup": q.allow_powerup,
         }
         for q in campaign.questions
     ]
@@ -140,10 +144,10 @@ def _serialize_campaign_admin(campaign: Campaign) -> dict:
     questions = [
         {
             "id": q.id,
+            "key": q.key,
             "question_text": q.question_text,
             "question_type": q.question_type,
             "options": q.options,
-            "correct_answer": q.correct_answer,
             "scoring_rules": q.scoring_rules,
             "order_index": q.order_index,
             "is_mandatory": q.is_mandatory,
@@ -190,7 +194,7 @@ async def create_campaign(
     elif not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Global campaigns require global admin privileges")
     for q in payload.questions:
-        _validate_question(q)
+        _validate_question(q, payload.type)
 
     if payload.is_master and payload.type != CampaignType.match:
         raise HTTPException(status_code=400, detail="Only Match campaigns can be marked as master templates")
@@ -226,10 +230,10 @@ async def create_campaign(
         cq = CampaignQuestion(
             id=str(uuid.uuid4()),
             campaign_id=campaign.id,
+            key=q.key,
             question_text=q.question_text,
             question_type=q.question_type,
             options=q.options,
-            correct_answer=q.correct_answer,
             scoring_rules=q.scoring_rules.model_dump(),
             order_index=q.order_index,
             is_mandatory=True if force_mandatory else q.is_mandatory,
@@ -277,16 +281,17 @@ async def update_campaign(
 
     if payload.questions is not None:
         for q in payload.questions:
-            _validate_question(q)
+            _validate_question(q, campaign.type)
 
         existing_by_id = {q.id: q for q in campaign.questions}
         mandatory_ids = {qid for qid, q in existing_by_id.items() if q.is_mandatory}
         payload_ids = {q.id for q in payload.questions if q.id}
 
-        # Enforce: every existing mandatory question must appear in the payload
-        missing_mandatory = mandatory_ids - payload_ids
-        if missing_mandatory:
-            raise HTTPException(status_code=400, detail=f"Cannot remove mandatory questions: {missing_mandatory}")
+        # Enforce: every existing mandatory question must appear in the payload (unless it's the master campaign)
+        if not campaign.is_master:
+            missing_mandatory = mandatory_ids - payload_ids
+            if missing_mandatory:
+                raise HTTPException(status_code=400, detail=f"Cannot remove mandatory questions: {missing_mandatory}")
 
         # Sync questions
         new_questions = []
@@ -296,20 +301,21 @@ async def update_campaign(
                 cq.question_text = q.question_text
                 cq.question_type = q.question_type
                 cq.options = q.options
-                cq.correct_answer = q.correct_answer
                 cq.scoring_rules = q.scoring_rules.model_dump()
                 cq.order_index = q.order_index
                 cq.is_mandatory = q.is_mandatory
                 cq.allow_powerup = q.allow_powerup
+                if q.key is not None:
+                    cq.key = q.key
                 new_questions.append(cq)
             else:
                 new_cq = CampaignQuestion(
                     id=str(uuid.uuid4()),
                     campaign_id=campaign.id,
+                    key=q.key,
                     question_text=q.question_text,
                     question_type=q.question_type,
                     options=q.options,
-                    correct_answer=q.correct_answer,
                     scoring_rules=q.scoring_rules.model_dump(),
                     order_index=q.order_index,
                     is_mandatory=q.is_mandatory,
@@ -386,6 +392,53 @@ async def trigger_campaign_scoring(
     return {"message": "Scoring complete"}
 
 
+class CampaignResultSubmit(BaseModel):
+    correct_answers: dict[str, Any]  # {question_id: answer_value}
+
+
+@router.put("/{campaign_id}/result")
+async def set_campaign_result(
+    campaign_id: str,
+    payload: CampaignResultSubmit,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Set correct answers for a general campaign and trigger scoring."""
+    result = await db.execute(
+        select(Campaign).where(Campaign.id == campaign_id)
+    )
+    campaign = result.scalars().first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if campaign.type != CampaignType.general:
+        raise HTTPException(
+            status_code=400,
+            detail="Use the match-result endpoint for match campaigns. This endpoint is for general campaigns only."
+        )
+    await _check_campaign_permission(db, campaign, current_user)
+
+    # Upsert CampaignResult
+    cr_res = await db.execute(
+        select(CampaignResult).where(CampaignResult.campaign_id == campaign_id)
+    )
+    cr = cr_res.scalars().first()
+    if cr:
+        cr.correct_answers = payload.correct_answers
+    else:
+        cr = CampaignResult(
+            campaign_id=campaign_id,
+            correct_answers=payload.correct_answers,
+        )
+        db.add(cr)
+    await db.flush()
+
+    # Trigger scoring immediately
+    await calculate_campaign_scores(campaign_id, db)
+    backend_cache.invalidate(f"campaign_{campaign_id}")
+    return {"message": "Result saved and scoring complete"}
+
+
+
 @router.get("/admin/all")
 async def admin_list_campaigns(
     db: AsyncSession = Depends(get_db),
@@ -398,11 +451,11 @@ async def admin_list_campaigns(
     campaigns = result.scalars().all()
     
     if not current_user.is_admin:
-        # Filter to only campaigns for leagues they manage
+        # Filter to only campaigns for leagues they manage + master campaigns
         # Find leagues they manage
         leagues_res = await db.execute(select(LeagueAdminMapping.league_id).where(LeagueAdminMapping.user_id == current_user.id))
         managed_leagues = {r for r in leagues_res.scalars().all()}
-        campaigns = [c for c in campaigns if c.league_id and c.league_id in managed_leagues]
+        campaigns = [c for c in campaigns if c.is_master or (c.league_id and c.league_id in managed_leagues)]
         
     return [_serialize_campaign_admin(c) for c in campaigns]
 

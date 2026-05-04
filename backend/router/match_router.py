@@ -39,6 +39,14 @@ class MatchCreate(BaseModel):
     tournament_id: str
 
 
+class MatchUpdate(BaseModel):
+    team1: Optional[str] = None
+    team2: Optional[str] = None
+    venue: Optional[str] = None
+    start_time: Optional[datetime] = None
+    status: Optional[MatchStatus] = None
+
+
 def _replace_placeholders(text: str, match: Match) -> str:
     if not text:
         return text
@@ -681,6 +689,7 @@ async def create_match(
 
     new_match = Match(
         id=req.id,
+        external_id=req.id,
         team1=req.team1,
         team2=req.team2,
         venue=req.venue,
@@ -694,11 +703,53 @@ async def create_match(
     # Log event
     await dispatch_event(
         db,
-        event_type=SystemEventType.prediction_submitted,
+        event_type=SystemEventType.match_results_updated,
         user_id=current_user.id,
-        match_id=match_id,
-        message=f"{current_user.name} submitted prediction for {match.team1} vs {match.team2}"
+        match_id=new_match.id,
+        message=f"Admin {current_user.name} created match {new_match.team1} vs {new_match.team2}"
     )
+    await db.commit()
     await db.commit()
 
     return {"message": "Prediction saved successfully", "id": new_match.id}
+
+
+@router.put("/{match_id}")
+async def update_match(
+    match_id: str,
+    req: MatchUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    result = await db.execute(select(Match).where(Match.id == match_id))
+    match = result.scalars().first()
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    if req.team1 is not None:
+        match.team1 = req.team1
+    if req.team2 is not None:
+        match.team2 = req.team2
+    if req.venue is not None:
+        match.venue = req.venue
+    if req.start_time is not None:
+        match.start_time = req.start_time
+    if req.status is not None:
+        match.status = req.status
+
+    await db.commit()
+
+    # Log event
+    await dispatch_event(
+        db,
+        event_type=SystemEventType.admin_action,
+        user_id=current_user.id,
+        match_id=match.id,
+        message=f"Admin {current_user.name} updated match {match.team1} vs {match.team2}"
+    )
+    await db.commit()
+
+    return {"message": "Match updated successfully"}

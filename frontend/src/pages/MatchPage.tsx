@@ -137,7 +137,8 @@ export default function MatchPage() {
     if (q.key === 'use_powerup') return null;
 
     const options = q.options || [];
-    const isBinary = options.length === 2 && (q.answer_type === 'dropdown' || q.answer_type === 'multiple_choice' || (q.answer_type === 'text' && q.options));
+    const isChoice = ['toggle', 'multiple_choice', 'dropdown'].includes(q.answer_type) || (options.length > 0);
+    const isBinary = isChoice && options.length === 2;
 
     if (isBinary) {
       const isMatchWinner = q.key === winnerQId;
@@ -188,7 +189,7 @@ export default function MatchPage() {
       );
     }
 
-    const isFullWidth = q.answer_type === 'free_text' || q.answer_type === 'player_name' || q.answer_type === 'text' || q.answer_type === 'free_text';
+    const isFullWidth = ['free_text', 'player_name', 'text'].includes(q.answer_type);
 
     return (
       <div key={q.key} className={`space-y-2 ${isFullWidth ? 'col-span-full' : ''}`}>
@@ -209,7 +210,7 @@ export default function MatchPage() {
           )}
         </div>
 
-        {q.answer_type === 'dropdown' || (q.answer_type === 'text' && q.options) ? (
+        {q.answer_type === 'dropdown' || (options.length > 2) ? (
           <select
             {...register(registerName, { required: true })}
             disabled={isLocked}

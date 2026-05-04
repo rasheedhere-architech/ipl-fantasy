@@ -15,6 +15,7 @@ export interface ScoringRules {
 
 export interface CampaignQuestion {
   id: string;
+  key?: string;
   question_text: string;
   question_type: QuestionType;
   options: string[] | null;
@@ -53,6 +54,7 @@ export interface Campaign {
 
 export interface QuestionCreate {
   id?: string;
+  key?: string;
   question_text: string;
   question_type: QuestionType;
   options: string[] | null;

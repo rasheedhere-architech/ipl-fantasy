@@ -192,7 +192,7 @@ function MemberManagement({ league, onUpdate }: { league: any, onUpdate: () => v
 
 function CampaignGrading({ leagueId }: { leagueId: string }) {
   const { data: allCampaigns } = useAdminCampaigns();
-  const leagueCampaigns = allCampaigns?.filter(c => c.league_id === leagueId);
+  const leagueCampaigns = allCampaigns?.filter(c => c.league_id === leagueId && c.type === 'general');
   const { data: matches } = useMatches();
 
   const [selectedCampaign, setSelectedCampaign] = useState<string>('');

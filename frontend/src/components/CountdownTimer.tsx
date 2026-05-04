@@ -11,7 +11,18 @@ export default function CountdownTimer({ targetDate }: CountdownTimerProps) {
   const [urgent, setUrgent] = useState(false);
 
   useEffect(() => {
-    const lockTime = new Date(targetDate).getTime() - 30 * 60 * 1000;
+    if (!targetDate) {
+      setTimeLeft('TBD');
+      return;
+    }
+
+    const lockDate = new Date(targetDate);
+    if (isNaN(lockDate.getTime())) {
+      setTimeLeft('TBD');
+      return;
+    }
+
+    const lockTime = lockDate.getTime() - 30 * 60 * 1000;
 
     const interval = setInterval(() => {
       const now = new Date().getTime();

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, ShieldCheck, Mail, Trash2, Cpu, Plus, Trophy, RefreshCw, Calendar, MapPin, Sword } from 'lucide-react';
+import { Users, ShieldCheck, Mail, Trash2, Cpu, Plus, Trophy, RefreshCw, Calendar, MapPin, Sword, Star, Pencil, X } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { Navigate } from 'react-router-dom';
 import {
@@ -13,8 +13,15 @@ import {
   useAllLeagues,
   useCreateTournament,
   useCreateMatch,
+  useUpdateMatch,
   useAddLeagueMember,
-  useBulkImportMatches
+  useBulkImportMatches,
+  useTournamentQuestionBank,
+  useAddTournamentQuestion,
+  useUpdateTournamentQuestion,
+  useDeleteTournamentQuestion,
+  useTournamentMatchAnswers,
+  useUpdateTournamentMatchAnswers
 } from '../api/hooks/useAdmin';
 import { useMatches } from '../api/hooks/useMatches';
 import { useCreateLeague, useLeagueDetails, useToggleLeagueAdmin, useKickMember } from '../api/hooks/useLeagues';
@@ -625,7 +632,7 @@ function TournamentRegistry({ onManageMatches }: { onManageMatches: (id: string)
                       className="px-4 py-2 bg-white/5 border border-white/10 text-white hover:bg-white hover:text-ipl-navy transition-all font-display text-[10px] uppercase tracking-widest flex items-center gap-2 ml-auto"
                     >
                       <Sword className="w-3 h-3" />
-                      Manage Matches
+                      Manage
                     </button>
                   </td>
                 </tr>
@@ -641,35 +648,85 @@ function TournamentRegistry({ onManageMatches }: { onManageMatches: (id: string)
 function TournamentMatchManager({ tournamentId, onBack }: { tournamentId: string, onBack: () => void }) {
   const { data: matches, isLoading, refetch } = useMatches(tournamentId);
   const createMatch = useCreateMatch();
+  const updateMatch = useUpdateMatch();
   const bulkImport = useBulkImportMatches();
 
+  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'bank' | 'grading'>('schedule');
+  const [editingMatch, setEditingMatch] = useState<any | null>(null);
   const [matchId, setMatchId] = useState('');
   const [team1, setTeam1] = useState('');
   const [team2, setTeam2] = useState('');
   const [venue, setVenue] = useState('');
   const [startTime, setStartTime] = useState('');
+  const [gradingMatchId, setGradingMatchId] = useState<string | null>(null);
 
-  const handleCreateMatch = async (e: React.FormEvent) => {
+  const handleEditMatch = (m: any) => {
+    setEditingMatch(m);
+    setMatchId(m.id);
+    setTeam1(m.team1);
+    setTeam2(m.team2);
+    setVenue(m.venue);
+    // Convert to local datetime string for input
+    const date = new Date(m.start_time);
+    const localDateTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    setStartTime(localDateTime);
+    toast.info(`Editing match: ${m.team1} vs ${m.team2}`);
+  };
+
+  const resetMatchForm = () => {
+    setEditingMatch(null);
+    setMatchId('');
+    setTeam1('');
+    setTeam2('');
+    setVenue('');
+    setStartTime('');
+  };
+
+  const handleSubmitMatch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!matchId || !team1 || !team2 || !venue || !startTime) return;
-    try {
-      await createMatch.mutateAsync({
-        id: matchId,
-        team1,
-        team2,
-        venue,
-        start_time: startTime,
-        tournament_id: tournamentId
-      });
-      toast.success('Match scheduled successfully!');
-      setMatchId('');
-      setTeam1('');
-      setTeam2('');
-      setVenue('');
-      setStartTime('');
-      refetch();
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to schedule match');
+    if (!matchId || !team1 || !team2 || !venue || !startTime) {
+      toast.error('Please fill all fields');
+      return;
+    }
+
+    const payload = {
+      id: matchId,
+      team1,
+      team2,
+      venue,
+      start_time: new Date(startTime).toISOString(),
+      tournament_id: tournamentId,
+      status: editingMatch ? editingMatch.status : 'upcoming'
+    };
+
+    if (editingMatch) {
+      updateMatch.mutate(
+        { matchId: editingMatch.id, payload },
+        {
+          onSuccess: () => {
+            toast.success('Match updated successfully!');
+            refetch();
+            resetMatchForm();
+          },
+          onError: (err: any) => {
+            toast.error(err.response?.data?.detail || 'Update failed');
+          }
+        }
+      );
+    } else {
+      createMatch.mutate(
+        payload,
+        {
+          onSuccess: () => {
+            toast.success('Match scheduled successfully!');
+            refetch();
+            resetMatchForm();
+          },
+          onError: (err: any) => {
+            toast.error(err.response?.data?.detail || 'Creation failed');
+          }
+        }
+      );
     }
   };
 
@@ -688,189 +745,505 @@ function TournamentMatchManager({ tournamentId, onBack }: { tournamentId: string
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-8">
-        <div className="space-y-8 h-fit">
-          <section className="glass-panel p-6 border-t-2 border-ipl-gold/50">
-            <h3 className="text-lg font-display text-white italic uppercase mb-6 flex items-center gap-2">
-              <Plus className="w-4 h-4 text-ipl-gold" />
-              Schedule Match
-            </h3>
-            <form onSubmit={handleCreateMatch} className="space-y-5">
-              <div>
-                <label className="block text-[9px] font-display uppercase tracking-[0.2em] text-gray-500 mb-1.5">Match ID (Slug)</label>
-                <input
-                  type="text"
-                  value={matchId}
-                  onChange={(e) => setMatchId(e.target.value)}
-                  placeholder="e.g. m1-mi-csk"
-                  className="w-full bg-black/40 border border-white/10 p-3 text-white font-mono text-xs focus:border-ipl-gold focus:outline-none transition-all"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[9px] font-display uppercase tracking-[0.2em] text-gray-500 mb-1.5">Team 1</label>
-                  <select
-                    value={team1}
-                    onChange={(e) => setTeam1(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 p-3 text-white font-display text-xs focus:border-ipl-gold focus:outline-none transition-all"
-                  >
-                    <option value="">Select...</option>
-                    {Object.keys(teamColors).map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[9px] font-display uppercase tracking-[0.2em] text-gray-500 mb-1.5">Team 2</label>
-                  <select
-                    value={team2}
-                    onChange={(e) => setTeam2(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 p-3 text-white font-display text-xs focus:border-ipl-gold focus:outline-none transition-all"
-                  >
-                    <option value="">Select...</option>
-                    {Object.keys(teamColors).map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-[9px] font-display uppercase tracking-[0.2em] text-gray-500 mb-1.5">Venue</label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-600" />
-                  <input
-                    type="text"
-                    value={venue}
-                    onChange={(e) => setVenue(e.target.value)}
-                    placeholder="e.g. Wankhede Stadium"
-                    className="w-full bg-black/40 border border-white/10 p-3 pl-10 text-white font-display text-xs focus:border-ipl-gold focus:outline-none transition-all"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[9px] font-display uppercase tracking-[0.2em] text-gray-500 mb-1.5">Start Time (Local)</label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-600" />
-                  <input
-                    type="datetime-local"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 p-3 pl-10 text-white font-mono text-xs focus:border-ipl-gold focus:outline-none transition-all"
-                  />
-                </div>
-              </div>
-              <button
-                type="submit"
-                disabled={createMatch.isPending}
-                className="w-full py-4 bg-ipl-gold text-ipl-navy font-display text-[10px] uppercase tracking-[0.3em] font-bold hover:bg-white hover:scale-[1.02] transition-all disabled:opacity-30"
-              >
-                {createMatch.isPending ? 'CREATING...' : 'ADD MATCH'}
-              </button>
-            </form>
-          </section>
+      <nav className="flex gap-1 bg-white/5 p-1 rounded-xl border border-white/10 w-fit mb-8">
+        {[
+          { id: 'schedule', label: 'Match Schedule', icon: Calendar },
+          { id: 'bank', label: 'Question Bank', icon: ShieldCheck },
+          { id: 'grading', label: 'Grading', icon: Star },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveSubTab(tab.id as any)}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-display text-[10px] uppercase tracking-widest transition-all ${activeSubTab === tab.id
+              ? 'bg-ipl-gold text-ipl-navy shadow-neon shadow-ipl-gold/20'
+              : 'text-gray-500 hover:text-white hover:bg-white/5'
+              }`}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+          </button>
+        ))}
+      </nav>
 
-          <section className="glass-panel p-6 border-t-2 border-ipl-live/50">
-            <h3 className="text-lg font-display text-white italic uppercase mb-2 flex items-center gap-2">
-              <RefreshCw className="w-4 h-4 text-ipl-live" />
-              Bulk Import Matches
-            </h3>
-            <p className="text-[10px] text-gray-400 font-display mb-6">Upload a CSV file to create multiple matches at once.</p>
-
-            <div className="space-y-4">
-              <div className="bg-black/40 border border-white/10 p-3 rounded-lg flex items-center justify-between">
-                <span className="text-[10px] font-mono text-gray-300">sample_format.csv</span>
+      {activeSubTab === 'schedule' && (
+        <div className="grid lg:grid-cols-3 gap-8">
+          <div className="space-y-8 h-fit">
+            <section className="glass-panel p-6 border-t-2 border-ipl-gold/50">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-display text-white italic uppercase flex items-center gap-2">
+                    {editingMatch ? <Pencil className="w-4 h-4 text-ipl-gold" /> : <Plus className="w-4 h-4 text-ipl-gold" />}
+                    {editingMatch ? 'Edit Match' : 'Schedule Match'}
+                  </h3>
+                  {editingMatch && (
+                    <button onClick={resetMatchForm} className="text-[9px] font-display uppercase tracking-widest text-gray-500 hover:text-white flex items-center gap-1">
+                      <X className="w-3 h-3" /> Cancel
+                    </button>
+                  )}
+                </div>
+                <form onSubmit={handleSubmitMatch} className="space-y-5">
+                  <div>
+                    <label className="block text-[9px] font-display uppercase tracking-[0.2em] text-gray-500 mb-1.5">Match ID (Slug)</label>
+                    <input
+                      type="text"
+                      value={matchId}
+                      onChange={(e) => setMatchId(e.target.value)}
+                      placeholder="e.g. m1-mi-csk"
+                      disabled={!!editingMatch}
+                      className="w-full bg-black/40 border border-white/10 p-3 text-white font-mono text-xs focus:border-ipl-gold focus:outline-none transition-all disabled:opacity-50"
+                    />
+                  </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[9px] font-display uppercase tracking-[0.2em] text-gray-500 mb-1.5">Team 1</label>
+                    <select
+                      value={team1}
+                      onChange={(e) => setTeam1(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 p-3 text-white font-display text-xs focus:border-ipl-gold focus:outline-none transition-all"
+                    >
+                      <option value="">Select...</option>
+                      {Object.keys(teamColors).map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-display uppercase tracking-[0.2em] text-gray-500 mb-1.5">Team 2</label>
+                    <select
+                      value={team2}
+                      onChange={(e) => setTeam2(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 p-3 text-white font-display text-xs focus:border-ipl-gold focus:outline-none transition-all"
+                    >
+                      <option value="">Select...</option>
+                      {Object.keys(teamColors).map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-display uppercase tracking-[0.2em] text-gray-500 mb-1.5">Venue</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-600" />
+                    <input
+                      type="text"
+                      value={venue}
+                      onChange={(e) => setVenue(e.target.value)}
+                      placeholder="e.g. Wankhede Stadium"
+                      className="w-full bg-black/40 border border-white/10 p-3 pl-10 text-white font-display text-xs focus:border-ipl-gold focus:outline-none transition-all"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-display uppercase tracking-[0.2em] text-gray-500 mb-1.5">Start Time (Local)</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-600" />
+                    <input
+                      type="datetime-local"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 p-3 pl-10 text-white font-mono text-xs focus:border-ipl-gold focus:outline-none transition-all"
+                    />
+                  </div>
+                </div>
                 <button
-                  onClick={() => {
-                    const csvContent = "data:text/csv;charset=utf-8," + "id,team1,team2,venue,start_time\nipl-2026-01,CSK,RCB,Chennai,2026-03-22T19:30:00Z\nipl-2026-02,DC,PBKS,Mohali,2026-03-23T15:30:00Z";
-                    const encodedUri = encodeURI(csvContent);
-                    const link = document.createElement("a");
-                    link.setAttribute("href", encodedUri);
-                    link.setAttribute("download", "sample_matches.csv");
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                  }}
-                  className="text-[9px] font-display uppercase tracking-widest text-ipl-gold hover:text-white transition-all"
+                  type="submit"
+                  disabled={createMatch.isPending || updateMatch.isPending}
+                  className="w-full py-4 bg-ipl-gold text-ipl-navy font-display text-[10px] uppercase tracking-[0.3em] font-bold hover:bg-white hover:scale-[1.02] transition-all disabled:opacity-30"
                 >
-                  Download Sample
+                  {createMatch.isPending || updateMatch.isPending ? 'PROCESSING...' : editingMatch ? 'UPDATE MATCH' : 'ADD MATCH'}
                 </button>
-              </div>
+              </form>
+            </section>
 
-              <input
-                type="file"
-                accept=".csv"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  bulkImport.mutate(
-                    { tournamentId, file },
-                    {
-                      onSuccess: (data) => {
-                        toast.success(data.message || 'Matches imported successfully!');
-                        refetch();
-                        e.target.value = '';
-                      },
-                      onError: (err: any) => {
-                        toast.error(err.response?.data?.detail || 'Import failed');
+            <section className="glass-panel p-6 border-t-2 border-ipl-live/50">
+              <h3 className="text-lg font-display text-white italic uppercase mb-2 flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-ipl-live" />
+                Bulk Import Matches
+              </h3>
+              <p className="text-[10px] text-gray-400 font-display mb-6">Upload a CSV file to create multiple matches at once.</p>
+
+              <div className="space-y-4">
+                <div className="bg-black/40 border border-white/10 p-3 rounded-lg flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-gray-300">sample_format.csv</span>
+                  <button
+                    onClick={() => {
+                      const csvContent = "data:text/csv;charset=utf-8," + "id,team1,team2,venue,start_time\nipl-2026-01,CSK,RCB,Chennai,2026-03-22T19:30:00Z\nipl-2026-02,DC,PBKS,Mohali,2026-03-23T15:30:00Z";
+                      const encodedUri = encodeURI(csvContent);
+                      const link = document.createElement("a");
+                      link.setAttribute("href", encodedUri);
+                      link.setAttribute("download", "sample_matches.csv");
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }}
+                    className="text-[9px] font-display uppercase tracking-widest text-ipl-gold hover:text-white transition-all"
+                  >
+                    Download Sample
+                  </button>
+                </div>
+
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    bulkImport.mutate(
+                      { tournamentId, file },
+                      {
+                        onSuccess: (data) => {
+                          toast.success(data.message || 'Matches imported successfully!');
+                          refetch();
+                          e.target.value = '';
+                        },
+                        onError: (err: any) => {
+                          toast.error(err.response?.data?.detail || 'Import failed');
+                        }
                       }
-                    }
-                  );
-                }}
-                className="block w-full text-sm text-gray-500
+                    );
+                  }}
+                  className="block w-full text-sm text-gray-500
                   file:mr-4 file:py-2 file:px-4
                   file:border-0
                   file:text-[10px] file:font-display file:uppercase file:tracking-widest
                   file:bg-ipl-live/10 file:text-ipl-live
                   hover:file:bg-ipl-live/20 transition-all cursor-pointer"
-              />
+                />
+              </div>
+            </section>
+          </div>
+
+          <section className="lg:col-span-2 glass-panel p-6 border-t-2 border-white/10">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-lg font-display text-white italic uppercase flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-ipl-gold" />
+                Match Schedule
+              </h3>
+              <span className="text-[10px] text-gray-500 font-display uppercase tracking-widest">{matches?.length || 0} Matches Registered</span>
+            </div>
+
+            <div className="space-y-4">
+              {isLoading ? (
+                <div className="text-center py-20 text-[10px] uppercase tracking-widest text-gray-600 animate-pulse">Syncing Tournament Schedule...</div>
+              ) : matches?.length === 0 ? (
+                <div className="text-center py-20 bg-black/20 border border-dashed border-white/10 rounded-xl text-[10px] uppercase tracking-widest text-gray-600">No matches found for this tournament.</div>
+              ) : matches?.map((match, idx) => (
+                <React.Fragment key={match.id}>
+                  <div className="bg-white/5 border border-white/10 p-4 rounded-xl hover:bg-white/10 transition-all flex items-center justify-between group">
+                    <div className="flex items-center gap-6">
+                      <div className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 text-[10px] font-display text-gray-500 border border-white/10 group-hover:border-ipl-gold/30 group-hover:text-ipl-gold transition-all">
+                        {idx + 1}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl font-bold text-white group-hover:text-ipl-gold transition-colors">{match.team1}</span>
+                        <span className="text-[10px] text-gray-500 italic uppercase">VS</span>
+                        <span className="text-xl font-bold text-white group-hover:text-ipl-gold transition-colors">{match.team2}</span>
+                      </div>
+                      <div className="h-8 w-px bg-white/10" />
+                      <div>
+                        <div className="flex items-center gap-2 text-gray-400">
+                          <MapPin className="w-3 h-3" />
+                          <span className="text-[10px] font-display uppercase tracking-widest">{match.venue}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-500 mt-1">
+                          <Calendar className="w-3 h-3" />
+                          <span className="text-[9px] font-mono italic">{new Date(match.start_time).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1 rounded-full text-[8px] uppercase tracking-widest font-bold ${match.status === 'upcoming' ? 'bg-ipl-gold/10 text-ipl-gold border border-ipl-gold/20' :
+                        match.status === 'live' ? 'bg-ipl-live/10 text-ipl-live border border-ipl-live/20 animate-pulse' :
+                          'bg-white/5 text-gray-500 border border-white/10'
+                        }`}>
+                        {match.status}
+                      </span>
+                      <button
+                        onClick={() => handleEditMatch(match)}
+                        className="p-2 text-gray-500 hover:text-ipl-gold hover:bg-ipl-gold/10 rounded-lg transition-all"
+                        title="Edit Match"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </React.Fragment>
+              ))}
             </div>
           </section>
         </div>
+      )}
 
-        <section className="lg:col-span-2 glass-panel p-6 border-t-2 border-white/10">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="text-lg font-display text-white italic uppercase flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-ipl-gold" />
-              Match Schedule
-            </h3>
-            <span className="text-[10px] text-gray-500 font-display uppercase tracking-widest">{matches?.length || 0} Matches Registered</span>
-          </div>
+      {activeSubTab === 'bank' && (
+        <div className="max-w-2xl">
+          <TournamentQuestionBankManager tournamentId={tournamentId} />
+        </div>
+      )}
 
+      {activeSubTab === 'grading' && (
+        <div className="grid lg:grid-cols-3 gap-8">
           <div className="space-y-4">
+            <h3 className="text-lg font-display text-white italic uppercase mb-6 flex items-center gap-2">
+              <Star className="w-4 h-4 text-ipl-gold" />
+              Select Match to Grade
+            </h3>
             {isLoading ? (
-              <div className="text-center py-20 text-[10px] uppercase tracking-widest text-gray-600 animate-pulse">Syncing Tournament Schedule...</div>
+              <div className="text-center py-10 text-[10px] uppercase tracking-widest text-gray-600 animate-pulse">Syncing...</div>
             ) : matches?.length === 0 ? (
-              <div className="text-center py-20 bg-black/20 border border-dashed border-white/10 rounded-xl text-[10px] uppercase tracking-widest text-gray-600">No matches found for this tournament.</div>
+              <div className="text-center py-10 bg-black/20 border border-dashed border-white/10 rounded-xl text-[10px] uppercase tracking-widest text-gray-600">No matches found.</div>
             ) : matches?.map(match => (
-              <div key={match.id} className="bg-white/5 border border-white/10 p-4 rounded-xl hover:bg-white/10 transition-all flex items-center justify-between group">
-                <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl font-bold text-white group-hover:text-ipl-gold transition-colors">{match.team1}</span>
-                    <span className="text-[10px] text-gray-500 italic uppercase">VS</span>
-                    <span className="text-xl font-bold text-white group-hover:text-ipl-gold transition-colors">{match.team2}</span>
+              <button
+                key={match.id}
+                onClick={() => setGradingMatchId(match.id)}
+                className={`w-full text-left p-4 border rounded-xl transition-all flex items-center justify-between ${gradingMatchId === match.id
+                    ? 'bg-ipl-gold/10 border-ipl-gold shadow-[0_0_15px_rgba(244,196,48,0.2)]'
+                    : 'bg-white/5 border-white/10 hover:border-ipl-gold/50'
+                  }`}
+              >
+                <div>
+                  <div className="flex items-center gap-2 text-white font-bold font-display">
+                    <span>{match.team1}</span>
+                    <span className="text-[10px] text-gray-500 italic font-normal">VS</span>
+                    <span>{match.team2}</span>
                   </div>
-                  <div className="h-8 w-px bg-white/10" />
-                  <div>
-                    <div className="flex items-center gap-2 text-gray-400">
-                      <MapPin className="w-3 h-3" />
-                      <span className="text-[10px] font-display uppercase tracking-widest">{match.venue}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-500 mt-1">
-                      <Calendar className="w-3 h-3" />
-                      <span className="text-[9px] font-mono italic">{new Date(match.start_time).toLocaleString()}</span>
-                    </div>
-                  </div>
+                  <div className="text-[9px] font-mono text-gray-500 mt-1">{new Date(match.start_time).toLocaleDateString()}</div>
                 </div>
-                <div className="text-right">
-                  <span className={`px-3 py-1 rounded-full text-[8px] uppercase tracking-widest font-bold ${match.status === 'upcoming' ? 'bg-ipl-gold/10 text-ipl-gold border border-ipl-gold/20' :
-                    match.status === 'live' ? 'bg-ipl-live/10 text-ipl-live border border-ipl-live/20 animate-pulse' :
-                      'bg-white/5 text-gray-500 border border-white/10'
-                    }`}>
-                    {match.status}
-                  </span>
-                </div>
-              </div>
+                <span className={`px-2 py-0.5 rounded text-[8px] uppercase tracking-widest font-bold ${match.status === 'upcoming' ? 'bg-ipl-gold/10 text-ipl-gold' :
+                    match.status === 'live' ? 'bg-ipl-live/10 text-ipl-live animate-pulse' :
+                      'bg-white/5 text-gray-500'
+                  }`}>
+                  {match.status}
+                </span>
+              </button>
             ))}
           </div>
-        </section>
-      </div>
+
+          <div className="lg:col-span-2">
+            {gradingMatchId ? (
+              <div className="glass-panel p-6 border-t-2 border-ipl-gold/50">
+                <TournamentMatchGrading tournamentId={tournamentId} matchId={gradingMatchId} onClose={() => setGradingMatchId(null)} />
+              </div>
+            ) : (
+              <div className="glass-panel p-20 text-center border-dashed border-2 border-white/5 opacity-50 flex flex-col items-center gap-4 h-full justify-center">
+                <div className="p-4 bg-white/5 rounded-full">
+                  <Star className="w-8 h-8 text-gray-600" />
+                </div>
+                <p className="text-gray-500 font-display text-xs uppercase tracking-[0.2em]">Select a match from the list to begin grading</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function TournamentQuestionBankManager({ tournamentId }: { tournamentId: string }) {
+  const { data: bank, isLoading, refetch } = useTournamentQuestionBank(tournamentId);
+  const addQuestion = useAddTournamentQuestion();
+  const updateQuestion = useUpdateTournamentQuestion();
+  const deleteQuestion = useDeleteTournamentQuestion();
+
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [key, setKey] = useState('');
+  const [questionText, setQuestionText] = useState('');
+  const [questionType, setQuestionType] = useState<'toggle' | 'multiple_choice' | 'dropdown' | 'free_text' | 'free_number'>('toggle');
+  const [optionsStr, setOptionsStr] = useState('');
+
+  const handleEdit = (q: any) => {
+    setEditingQuestionId(q.id);
+    setKey(q.key);
+    setQuestionText(q.question_text);
+    setQuestionType(q.question_type);
+    setOptionsStr(q.options ? q.options.join(', ') : '');
+    // Scroll to form or just show it's editing
+    toast.info(`Editing question: ${q.key}`);
+  };
+
+  const resetForm = () => {
+    setEditingQuestionId(null);
+    setKey('');
+    setQuestionText('');
+    setQuestionType('toggle');
+    setOptionsStr('');
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!key || !questionText) return;
+
+    let options: string[] | null = null;
+    if (['toggle', 'multiple_choice', 'dropdown'].includes(questionType)) {
+      options = optionsStr.split(',').map(s => s.trim()).filter(Boolean);
+      if (options.length < 2) {
+        toast.error('Please provide at least 2 options');
+        return;
+      }
+    }
+
+    const payload = {
+      key,
+      question_text: questionText,
+      question_type: questionType,
+      options,
+      default_scoring_rules: {
+        exact_match_points: 10,
+        wrong_answer_points: 0,
+        within_range_points: 5
+      },
+      order_index: bank?.questions?.find((q: any) => q.id === editingQuestionId)?.order_index || bank?.questions?.length || 0,
+      allow_powerup: true
+    };
+
+    try {
+      if (editingQuestionId) {
+        await updateQuestion.mutateAsync({ tournamentId, questionId: editingQuestionId, payload });
+        toast.success('Question updated in bank');
+      } else {
+        await addQuestion.mutateAsync({ tournamentId, payload });
+        toast.success('Question added to bank');
+      }
+      resetForm();
+      refetch();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to save question');
+    }
+  };
+
+  return (
+    <section className="lg:col-span-3 glass-panel p-6 border-t-2 border-ipl-gold/50">
+      <div className="flex items-center justify-between mb-8">
+        <h3 className="text-lg font-display text-white italic uppercase flex items-center gap-2">
+          <ShieldCheck className="w-5 h-5 text-ipl-gold" />
+          Tournament Question Bank
+        </h3>
+        <span className="text-[10px] text-gray-500 font-display uppercase tracking-widest">{bank?.questions?.length || 0} Questions</span>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-8">
+        {/* Add Question Form */}
+        <div className="lg:col-span-1 space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-[9px] font-display uppercase tracking-[0.2em] text-gray-500 mb-1.5">Question Key (Unique Identifier)</label>
+              <input
+                type="text"
+                value={key}
+                onChange={(e) => setKey(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_'))}
+                placeholder="e.g. match_winner"
+                className="w-full bg-black/40 border border-white/10 p-3 text-white font-mono text-xs focus:border-ipl-gold focus:outline-none transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] font-display uppercase tracking-[0.2em] text-gray-500 mb-1.5">Question Text</label>
+              <input
+                type="text"
+                value={questionText}
+                onChange={(e) => setQuestionText(e.target.value)}
+                placeholder="e.g. Who will win the match?"
+                className="w-full bg-black/40 border border-white/10 p-3 text-white font-display text-xs focus:border-ipl-gold focus:outline-none transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-[9px] font-display uppercase tracking-[0.2em] text-gray-500 mb-1.5">Type</label>
+              <select
+                value={questionType}
+                onChange={(e) => setQuestionType(e.target.value as any)}
+                className="w-full bg-black/40 border border-white/10 p-3 text-white font-display text-xs focus:border-ipl-gold focus:outline-none transition-all"
+              >
+                <option value="toggle">Toggle (2 options)</option>
+                <option value="multiple_choice">Multiple Choice</option>
+                <option value="dropdown">Dropdown</option>
+                <option value="free_text">Free Text</option>
+                <option value="free_number">Free Number</option>
+              </select>
+            </div>
+            {['toggle', 'multiple_choice', 'dropdown'].includes(questionType) && (
+              <div>
+                <label className="block text-[9px] font-display uppercase tracking-[0.2em] text-gray-500 mb-1.5">Options (Comma separated)</label>
+                <input
+                  type="text"
+                  value={optionsStr}
+                  onChange={(e) => setOptionsStr(e.target.value)}
+                  placeholder="e.g. {{Team1}}, {{Team2}}"
+                  className="w-full bg-black/40 border border-white/10 p-3 text-white font-display text-xs focus:border-ipl-gold focus:outline-none transition-all"
+                />
+                <p className="text-[9px] text-gray-500 mt-1 uppercase tracking-widest">Use {'{{Team1}}'} and {'{{Team2}}'} for dynamic match teams</p>
+              </div>
+            )}
+            <div className="flex gap-2">
+              {editingQuestionId && (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="flex-1 py-3 bg-white/5 text-gray-400 border border-white/10 font-display text-[10px] uppercase tracking-[0.3em] font-bold hover:bg-white/10 hover:text-white transition-all"
+                >
+                  CANCEL
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={addQuestion.isPending || updateQuestion.isPending || !key || !questionText}
+                className={`flex-[2] py-3 font-display text-[10px] uppercase tracking-[0.3em] font-bold transition-all disabled:opacity-30 ${editingQuestionId
+                    ? 'bg-blue-500/10 text-blue-400 border border-blue-500/50 hover:bg-blue-500 hover:text-white'
+                    : 'bg-ipl-gold/10 text-ipl-gold border border-ipl-gold/50 hover:bg-ipl-gold hover:text-ipl-navy'
+                  }`}
+              >
+                {editingQuestionId ? (updateQuestion.isPending ? 'UPDATING...' : 'UPDATE QUESTION') : (addQuestion.isPending ? 'ADDING...' : 'ADD QUESTION TO BANK')}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Existing Questions */}
+        <div className="lg:col-span-2">
+          {isLoading ? (
+            <div className="text-center py-10 text-[10px] uppercase tracking-widest text-gray-600 animate-pulse">Loading Question Bank...</div>
+          ) : (
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+              {bank?.questions?.length === 0 ? (
+                <div className="text-center py-10 bg-black/20 border border-dashed border-white/10 rounded-xl text-[10px] uppercase tracking-widest text-gray-600">No questions in bank yet.</div>
+              ) : bank?.questions?.map((q: any) => (
+                <div key={q.id} className="bg-white/5 border border-white/10 p-4 rounded-xl flex items-start justify-between">
+                  <div>
+                    <span className="px-2 py-0.5 bg-white/10 text-[8px] font-mono uppercase tracking-widest text-gray-400 rounded mr-2">{q.key}</span>
+                    <span className="text-sm font-bold text-white block mt-1">{q.question_text}</span>
+                    <div className="flex gap-2 mt-2">
+                      <span className="text-[9px] text-gray-500 uppercase tracking-widest">Type: {q.question_type}</span>
+                      {q.options && q.options.length > 0 && (
+                        <span className="text-[9px] text-gray-500 uppercase tracking-widest">Options: {q.options.join(', ')}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleEdit(q)}
+                      className="p-2 text-gray-500 hover:text-blue-400 hover:bg-white/5 rounded-full transition-colors"
+                      title="Edit Question"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`Are you sure you want to delete question '${q.key}' from the bank?`)) {
+                          deleteQuestion.mutate({ tournamentId, questionId: q.id }, {
+                            onSuccess: () => toast.success(`Question '${q.key}' deleted`),
+                            onError: (err: any) => toast.error(err.response?.data?.detail || 'Failed to delete question')
+                          });
+                        }
+                      }}
+                      disabled={deleteQuestion.isPending}
+                      className="p-2 text-gray-500 hover:text-red-400 hover:bg-white/5 rounded-full transition-colors disabled:opacity-30"
+                      title="Delete Question"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1010,6 +1383,115 @@ function LeagueUserManager({ leagueId, onBack }: { leagueId: string, onBack: () 
             </table>
           </div>
         </section>
+      </div>
+    </div>
+  );
+}
+
+function TournamentMatchGrading({ tournamentId, matchId, onClose }: { tournamentId: string, matchId: string, onClose: () => void }) {
+  const { data: matches } = useMatches(tournamentId);
+  const currentMatch = matches?.find(m => m.id === matchId);
+
+  const { data: questionBank } = useTournamentQuestionBank(tournamentId);
+  const { data: answers, isLoading } = useTournamentMatchAnswers(tournamentId, matchId);
+  const { mutate: updateAnswers, isPending } = useUpdateTournamentMatchAnswers();
+  const [correctAnswers, setCorrectAnswers] = useState<Record<string, any>>({});
+
+  React.useEffect(() => {
+    if (answers?.correct_answers) {
+      setCorrectAnswers(answers.correct_answers);
+    } else {
+      setCorrectAnswers({});
+    }
+  }, [answers]);
+
+  const handleSave = () => {
+    updateAnswers({
+      tournamentId,
+      matchId,
+      correct_answers: correctAnswers
+    }, {
+      onSuccess: () => {
+        toast.success('Grading complete. Scores triggered globally and per league!');
+        onClose();
+      },
+      onError: () => toast.error('Failed to save results')
+    });
+  };
+
+  if (isLoading) return <div className="text-center py-10 animate-pulse font-display text-gray-600 text-xs">Loading keys...</div>;
+  if (!questionBank?.questions || questionBank.questions.length === 0) {
+    return <div className="text-center py-10 text-gray-500 font-display text-[10px] uppercase tracking-widest">No questions in the tournament bank.</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <h3 className="text-xl font-display text-white italic">Match Results</h3>
+          <p className="text-[10px] text-gray-400 uppercase font-display tracking-widest mt-1">Set correct answers for the entire tournament for this match</p>
+        </div>
+        <div className="flex gap-4">
+          <button
+            onClick={onClose}
+            className="px-6 py-3 border border-white/10 text-gray-400 hover:text-white font-display text-xs uppercase tracking-[0.2em] transition-all hover:bg-white/5"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isPending}
+            className="flex items-center gap-2 px-8 py-3 bg-ipl-gold text-black font-display text-xs uppercase tracking-[0.2em] hover:bg-white transition-all disabled:opacity-30 shadow-[0_0_20px_rgba(244,196,48,0.2)]"
+          >
+            {isPending ? 'Propagating...' : 'Release Scores'}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 mt-6">
+        {questionBank.questions.map((q: any) => {
+          const replacedText = q.question_text
+            .replace(/\{\{Team1\}\}/gi, currentMatch?.team1 || 'Team 1')
+            .replace(/\{\{Team2\}\}/gi, currentMatch?.team2 || 'Team 2');
+
+          const choiceTypes = ['toggle', 'multiple_choice', 'dropdown'];
+          const isChoice = choiceTypes.includes(q.question_type);
+
+          const replacedOptions = q.options?.map((opt: string) =>
+            opt.replace(/\{\{Team1\}\}/gi, currentMatch?.team1 || 'Team 1')
+              .replace(/\{\{Team2\}\}/gi, currentMatch?.team2 || 'Team 2')
+          );
+
+          return (
+            <div key={q.id} className="p-6 border-l-2 border-white/10 hover:border-ipl-gold transition-all bg-white/5 rounded-r-xl">
+              <h4 className="text-sm font-display text-white tracking-widest uppercase mb-4">{replacedText}</h4>
+              {isChoice && replacedOptions ? (
+                <div className="flex flex-wrap gap-3">
+                  {replacedOptions.map((opt: string) => (
+                    <button
+                      key={opt}
+                      onClick={() => setCorrectAnswers(prev => ({ ...prev, [q.key]: opt }))}
+                      className={`px-4 py-2 font-display text-xs uppercase tracking-widest transition-all ${correctAnswers[q.key] === opt
+                          ? 'bg-ipl-gold text-ipl-navy'
+                          : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                        }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <input
+                  type={q.question_type === 'free_number' ? 'number' : 'text'}
+                  value={correctAnswers[q.key] || ''}
+                  onChange={(e) => setCorrectAnswers(prev => ({ ...prev, [q.key]: e.target.value }))}
+                  className="w-full bg-black/40 border border-white/10 p-3 text-white font-display text-xs focus:border-ipl-gold focus:outline-none transition-all"
+                  placeholder={`Enter correct ${q.question_type.replace('free_', '')}...`}
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

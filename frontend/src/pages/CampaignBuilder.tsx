@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Plus, Trash2, ChevronDown, ChevronUp, Save,
@@ -14,7 +14,7 @@ import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/auth';
 import { useMyLeagues } from '../api/hooks/useLeagues';
 import { useMatches } from '../api/hooks/useMatches';
-import { useTournaments } from '../api/hooks/useAdmin';
+import { useTournaments, useTournamentQuestionBank } from '../api/hooks/useAdmin';
 import { Navigate } from 'react-router-dom';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -47,13 +47,14 @@ const QUESTION_TYPES: { value: CampaignQuestion['question_type']; label: string 
 // ── Question editor ───────────────────────────────────────────────────────────
 
 function QuestionEditor({
-  q, idx, total, onChange, onRemove, onMove, locked = false,
+  q, idx, total, onChange, onRemove, onMove, locked = false, isBanked = false,
   isExpanded = true, onToggleExpand
 }: {
   q: QuestionCreate; idx: number; total: number;
   onChange: (q: QuestionCreate) => void; onRemove: () => void;
   onMove: (dir: 'up' | 'down') => void;
   locked?: boolean;
+  isBanked?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
 }) {
@@ -130,10 +131,16 @@ function QuestionEditor({
               {q.question_text}
             </span>
           )}
-          {locked && (
+          {locked && !isBanked && (
             <span className="flex items-center gap-1 text-ipl-gold text-[10px] font-display uppercase tracking-widest border border-ipl-gold/40 px-1.5 py-0.5 ml-1">
               <Lock className="w-2.5 h-2.5" />
               Mandatory
+            </span>
+          )}
+          {isBanked && (
+            <span className="flex items-center gap-1 text-blue-400 text-[10px] font-display uppercase tracking-widest border border-blue-400/40 px-1.5 py-0.5 ml-1">
+              <Lock className="w-2.5 h-2.5" />
+              Banked
             </span>
           )}
         </div>
@@ -148,7 +155,7 @@ function QuestionEditor({
 
       {isExpanded && (
         <div className="p-5 space-y-4">
-          <fieldset disabled={locked} className="space-y-4 disabled:opacity-60">
+          <fieldset disabled={locked || isBanked} className="space-y-4 disabled:opacity-60">
             <input
               type="text"
               value={q.question_text}
@@ -249,7 +256,8 @@ function QuestionEditor({
           </fieldset>
 
           {/* Correct answer - Not locked so admin can update at any point */}
-          <div className={`space-y-1.5 pt-2 ${locked ? 'opacity-100' : ''}`}>
+          {!isBanked && (
+            <div className={`space-y-1.5 pt-2 ${locked ? 'opacity-100' : ''}`}>
             <p className="text-ipl-gold/80 text-[10px] font-display uppercase tracking-widest font-bold">Set Correct Answer</p>
             {(q.question_type === 'toggle' || q.question_type === 'dropdown') && (
               <div className="relative">
@@ -286,7 +294,8 @@ function QuestionEditor({
                 placeholder="Correct number…"
                 className="w-full bg-black/40 border-2 border-white/10 py-2.5 px-4 text-white font-display text-sm placeholder:text-gray-600 focus:outline-none focus:border-ipl-gold transition-all" />
             )}
-          </div>
+            </div>
+          )}
 
           <fieldset disabled={locked} className="space-y-4 disabled:opacity-60 pt-2">
             {/* Scoring */}
@@ -387,6 +396,15 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
   const { data: leagues } = useMyLeagues();
   const { data: matches } = useMatches();
   const { data: tournaments } = useTournaments();
+  const { data: questionBank } = useTournamentQuestionBank(tournamentId);
+  const { data: allCampaigns } = useAdminCampaigns();
+
+  const masterQuestionsKeys = useMemo(() => {
+    if (!tournamentId || !allCampaigns) return new Set<string>();
+    const masterCampaign = allCampaigns.find(c => c.tournament_id === tournamentId && c.is_master);
+    if (!masterCampaign || !masterCampaign.questions) return new Set<string>();
+    return new Set(masterCampaign.questions.map(q => q.key).filter(Boolean) as string[]);
+  }, [allCampaigns, tournamentId]);
 
   useEffect(() => {
     if (existing) {
@@ -402,6 +420,7 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
       setTournamentId(existing.tournament_id);
       setQuestions(existing.questions.map(q => ({
         id: q.id,
+        key: q.key,
         question_text: q.question_text,
         question_type: q.question_type,
         options: q.options,
@@ -503,7 +522,11 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
           <div className="grid grid-cols-2 gap-2">
             {(['match', 'general'] as CampaignType[]).map(t => (
               <button key={t} type="button"
-                onClick={() => { setType(t); if (t !== 'match') setIsMaster(false); }}
+                onClick={() => { 
+                  setType(t); 
+                  if (t !== 'match') setIsMaster(false); 
+                  else setQuestions(qs => qs.filter(q => !!q.key));
+                }}
                 className={`py-2.5 px-4 border-2 font-display text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${type === t ? 'border-ipl-gold text-ipl-gold bg-ipl-gold/10' : 'border-white/10 text-gray-500 hover:border-white/30'}`}>
                 {t === 'match' ? <Trophy className="w-3.5 h-3.5" /> : <Star className="w-3.5 h-3.5" />}
                 {t}
@@ -587,11 +610,56 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <p className="text-gray-400 font-display text-xs uppercase tracking-widest">Questions ({questions.length})</p>
-          <button type="button" onClick={addQuestion}
-            className="flex items-center gap-1.5 text-ipl-gold hover:text-ipl-gold/80 font-display text-xs uppercase tracking-widest transition-colors">
-            <Plus className="w-3.5 h-3.5" />
-            Add question
-          </button>
+          <div className="flex items-center gap-3">
+            {questionBank && questionBank.questions.length > 0 && (
+              <select 
+                className="bg-black/40 border-2 border-white/10 py-1.5 px-3 text-white font-display text-xs focus:outline-none focus:border-ipl-gold transition-all"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val) return;
+                  const q = questionBank.questions.find((x: any) => x.id === val);
+                  if (q && !questions.some(existing => existing.key === q.key)) {
+                    setQuestions(qs => [...qs, {
+                      key: q.key,
+                      question_text: q.question_text,
+                      question_type: q.question_type,
+                      options: q.options,
+                      correct_answer: null,
+                      scoring_rules: q.default_scoring_rules || {
+                        exact_match_points: 10,
+                        wrong_answer_points: 0,
+                        within_range_points: 5
+                      },
+                      order_index: qs.length,
+                      is_mandatory: false,
+                      allow_powerup: q.allow_powerup ?? true
+                    }]);
+                    setExpandedIndex(questions.length);
+                  }
+                  e.target.value = "";
+                }}
+              >
+                <option value="">+ From Bank</option>
+                {questionBank.questions.map((q: any) => {
+                  const alreadyAdded = questions.some(existing => existing.key === q.key);
+                  const isMasterLocal = !isMaster && masterQuestionsKeys.has(q.key);
+                  const isDisabled = alreadyAdded || isMasterLocal;
+                  return (
+                    <option key={q.id} value={q.id} disabled={isDisabled}>
+                      {q.key} {alreadyAdded ? '(Added)' : isMasterLocal ? '(In Master)' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            )}
+            {type !== 'match' && (
+              <button type="button" onClick={addQuestion}
+                className="flex items-center gap-1.5 text-ipl-gold hover:text-ipl-gold/80 font-display text-xs uppercase tracking-widest transition-colors">
+                <Plus className="w-3.5 h-3.5" />
+                Add Custom
+              </button>
+            )}
+          </div>
         </div>
         {questions.map((q, i) => (
           <QuestionEditor
@@ -603,6 +671,7 @@ export function CampaignForm({ campaignId }: { campaignId?: string }) {
             onRemove={() => removeQuestion(i)}
             onMove={dir => moveQuestion(i, dir)}
             locked={!!q.is_mandatory && !isMaster}
+            isBanked={!!q.key}
             isExpanded={expandedIndex === i}
             onToggleExpand={() => setExpandedIndex(expandedIndex === i ? null : i)}
           />

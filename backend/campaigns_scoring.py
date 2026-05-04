@@ -9,8 +9,9 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from backend.models import (
-    Campaign, CampaignQuestion, CampaignResponse,
-    QuestionType, User, CampaignMatchResult, LeagueUserMapping, LeaderboardEntry
+    Campaign, CampaignQuestion, CampaignResponse, CampaignType,
+    QuestionType, User, CampaignMatchResult, CampaignResult,
+    TournamentMatchAnswer, LeagueUserMapping, LeaderboardEntry
 )
 
 
@@ -82,13 +83,37 @@ async def calculate_campaign_scores(campaign_id: str, db: AsyncSession) -> None:
     if not campaign:
         return
 
-    # Load correct answer overrides from CampaignMatchResult
-    cmr_res = await db.execute(
-        select(CampaignMatchResult).where(CampaignMatchResult.campaign_id == campaign_id)
-    )
-    match_results = cmr_res.scalars().all()
-    overrides_by_match = {mr.match_id: (mr.correct_answers or {}) for mr in match_results}
-    general_overrides = overrides_by_match.get(None, {})
+    # Load correct answer overrides — source depends on campaign type and context
+    if campaign.type == CampaignType.general:
+        # General campaigns: one result row per campaign
+        cr_res = await db.execute(
+            select(CampaignResult).where(CampaignResult.campaign_id == campaign_id)
+        )
+        campaign_result_row = cr_res.scalars().first()
+        general_overrides = campaign_result_row.correct_answers if campaign_result_row else {}
+        overrides_by_match: dict = {}
+        use_key_lookup = False
+    elif campaign.tournament_id:
+        # Tournament match campaigns (master + league): answers come from TournamentMatchAnswer,
+        # looked up by question.key. One answer set per (tournament, match) set by admin.
+        tma_res = await db.execute(
+            select(TournamentMatchAnswer)
+            .where(TournamentMatchAnswer.tournament_id == campaign.tournament_id)
+        )
+        tma_rows = tma_res.scalars().all()
+        # Build: {match_id: {question_key: value}}
+        overrides_by_match = {row.match_id: (row.correct_answers or {}) for row in tma_rows}
+        general_overrides = {}
+        use_key_lookup = True  # score using question.key instead of question.id
+    else:
+        # Standalone match campaigns (no tournament): legacy CampaignMatchResult
+        cmr_res = await db.execute(
+            select(CampaignMatchResult).where(CampaignMatchResult.campaign_id == campaign_id)
+        )
+        match_results = cmr_res.scalars().all()
+        overrides_by_match = {mr.match_id: (mr.correct_answers or {}) for mr in match_results}
+        general_overrides = {}
+        use_key_lookup = False
 
     # Build question map for fast lookup
     question_map = {q.id: q for q in campaign.questions}
@@ -111,7 +136,11 @@ async def calculate_campaign_scores(campaign_id: str, db: AsyncSession) -> None:
 
         for q_id, q in question_map.items():
             answer_value = answers.get(q_id)
-            override = overrides.get(q_id)
+            # For tournament campaigns: look up by question.key; otherwise by question.id
+            if use_key_lookup:
+                override = overrides.get(q.key) if q.key else None
+            else:
+                override = overrides.get(q_id)
             if override is None:
                 continue  # No correct answer set yet for this question
 

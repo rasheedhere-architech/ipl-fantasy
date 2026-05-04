@@ -7,12 +7,12 @@ interface MatchCardProps {
   team1: string;
   team2: string;
   venue: string;
-  startTime: string;
+  tossTime: string;
   status: 'upcoming' | 'live' | 'completed';
   has_predicted?: boolean;
 }
 
-export default function MatchCard({ id, team1, team2, venue, startTime, status, has_predicted }: MatchCardProps) {
+export default function MatchCard({ id, team1, team2, venue, tossTime, status, has_predicted }: MatchCardProps) {
   const { user } = useAuthStore();
   const t1Color = '#ffffff';
   const t2Color = '#ffffff';
@@ -20,7 +20,7 @@ export default function MatchCard({ id, team1, team2, venue, startTime, status, 
   const matchNoMatch = id.match(/ipl-\d{4}-(\d+)/);
   const matchNumber = matchNoMatch ? matchNoMatch[1] : null;
 
-  const startDate = new Date(startTime);
+  const startDate = new Date(tossTime);
   const isLocked = new Date() > new Date(startDate.getTime() - 30 * 60000);
 
   return (
@@ -83,7 +83,7 @@ export default function MatchCard({ id, team1, team2, venue, startTime, status, 
             {venue}
           </p>
         </div>
-        {status !== 'completed' && <CountdownTimer targetDate={startTime} />}
+        {status !== 'completed' && <CountdownTimer targetDate={tossTime} />}
       </div>
 
       <Link

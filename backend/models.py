@@ -110,6 +110,26 @@ class QuestionType(str, enum.Enum):
     free_text = "free_text"
     free_number = "free_number"
 
+class TournamentQuestion(Base):
+    """
+    The master bank of questions available for a specific tournament.
+    Admins create these first (e.g. 10 questions). Then they select a subset
+    for the master match campaigns, and league admins can pick from the rest.
+    """
+    __tablename__ = "tournament_questions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    tournament_id: Mapped[str] = mapped_column(String, ForeignKey("tournaments.id"), index=True)
+    key: Mapped[str] = mapped_column(String)  # Stable key e.g. "match_winner"
+    question_text: Mapped[str] = mapped_column(String)
+    question_type: Mapped[QuestionType] = mapped_column(SAEnum(QuestionType))
+    options: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    default_scoring_rules: Mapped[dict] = mapped_column(JSON)
+    order_index: Mapped[int] = mapped_column(Integer, default=0)
+    allow_powerup: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true')
+
+    tournament: Mapped["Tournament"] = relationship("Tournament")
+
 class Campaign(Base):
     __tablename__ = "campaigns"
 
@@ -224,7 +244,7 @@ class League(Base):
 # ── Scoring & Leaderboard ────────────────────────────────────────────────────
 
 class CampaignMatchResult(Base):
-    """Ground truth for a campaign + match pair. Drives the scoring engine."""
+    """Ground truth for a match campaign + match pair. Drives the scoring engine."""
     __tablename__ = "campaign_match_results"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
@@ -236,6 +256,34 @@ class CampaignMatchResult(Base):
 
     match: Mapped["Match"] = relationship("Match", back_populates="results")
     campaign: Mapped["Campaign"] = relationship("Campaign")
+
+
+class CampaignResult(Base):
+    """Ground truth for a general campaign (tournament-wide or league-scoped, no match)."""
+    __tablename__ = "campaign_results"
+
+    campaign_id: Mapped[str] = mapped_column(String, ForeignKey("campaigns.id"), primary_key=True)
+    # {question_id: correct_answer_value}
+    correct_answers: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+
+    campaign: Mapped["Campaign"] = relationship("Campaign")
+
+
+class TournamentMatchAnswer(Base):
+    """
+    Admin-provided correct answers for a match, scoped to a tournament.
+    One row per (tournament, match). Keyed by question.key (e.g. 'match_winner', 'pp_team1').
+    This is the single source of truth for scoring ALL match campaigns in a tournament
+    (both master and league-specific).
+    """
+    __tablename__ = "tournament_match_answers"
+
+    tournament_id: Mapped[str] = mapped_column(String, ForeignKey("tournaments.id"), primary_key=True)
+    match_id: Mapped[str] = mapped_column(String, ForeignKey("matches.id"), primary_key=True)
+    # {question_key: correct_answer_value}  e.g. {"match_winner": "MI", "pp_team1": 47}
+    correct_answers: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
 class LeaderboardEntry(Base):
     """Per-(user, match, league) fact table for point history and progression charts."""

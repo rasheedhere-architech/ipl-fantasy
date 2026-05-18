@@ -33,7 +33,8 @@ export default function MatchPage() {
     team2_powerplay_score: 0,
     player_of_the_match: '',
     more_sixes_team: '',
-    more_fours_team: ''
+    more_fours_team: '',
+    more_dot_balls_team: ''
   });
 
   // Predictions are currently always open (toss-lock disabled)
@@ -58,7 +59,8 @@ export default function MatchPage() {
         team2_powerplay_score: data.match.team2_powerplay_score || 0,
         player_of_the_match: data.match.player_of_the_match || '',
         more_sixes_team: data.match.more_sixes_team || '',
-        more_fours_team: data.match.more_fours_team || ''
+        more_fours_team: data.match.more_fours_team || '',
+        more_dot_balls_team: data.match.more_dot_balls_team || ''
       });
     }
   }, [data]);
@@ -101,6 +103,7 @@ export default function MatchPage() {
   const hasPredicted = myPredictions && Object.keys(myPredictions).length > 0;
 
   const matchNumber = match.id.split('-').pop() || '0';
+  const isPlayoff = match.is_playoff || false;
 
   // Find specific labels from the questions array
   const team1PPLabel = questions.find((q: any) => q.key === 'team1_powerplay')?.question_text || `${match.team1} Power Play Score`;
@@ -150,6 +153,9 @@ export default function MatchPage() {
       setValue('player_of_the_match', predictedData.player_of_the_match, { shouldValidate: true, shouldDirty: true });
       setValue('more_sixes_team', predictedData.more_sixes_team, { shouldValidate: true, shouldDirty: true });
       setValue('more_fours_team', predictedData.more_fours_team, { shouldValidate: true, shouldDirty: true });
+      if (predictedData.more_dot_balls_team) {
+        setValue('more_dot_balls_team', predictedData.more_dot_balls_team, { shouldValidate: true, shouldDirty: true });
+      }
 
       // Invalidate so hasPredicted flips to true from server
       queryClient.invalidateQueries({ queryKey: ['predictions', 'mine', id || match.id] });
@@ -270,6 +276,13 @@ export default function MatchPage() {
               <div className="bg-white/5 p-6 border border-white/10 relative overflow-hidden group">
                 <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] mb-4">More Fours</label>
                 <div className="text-2xl font-display text-white tracking-wide uppercase" style={{ color: getTeamColor(match.more_fours_team) }}>{match.more_fours_team}</div>
+              </div>
+            )}
+            
+            {match.more_dot_balls_team && (
+              <div className="bg-white/5 p-6 border border-white/10 relative overflow-hidden group">
+                <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em] mb-4">More Dot Balls</label>
+                <div className="text-2xl font-display text-white tracking-wide uppercase" style={{ color: getTeamColor(match.more_dot_balls_team) }}>{match.more_dot_balls_team}</div>
               </div>
             )}
           </div>
@@ -453,15 +466,42 @@ export default function MatchPage() {
                 </div>
               )}
 
+              {isPlayoff && (
+                <div className="space-y-4 pt-4">
+                  <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Which team will bowl more dot balls?</label>
+                  <div className={`grid grid-cols-3 gap-3 ${isLocked ? 'pointer-events-none opacity-80' : ''}`}>
+                    <label className="cursor-pointer">
+                      <input type="radio" value={match.team1} {...register('more_dot_balls_team', { required: isPlayoff })} className="peer sr-only" disabled={isLocked} />
+                      <div className="p-3 border-2 text-center font-display text-xs transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold border-white/20 text-gray-400">
+                        {match.team1}
+                      </div>
+                    </label>
+                    <label className="cursor-pointer">
+                      <input type="radio" value={match.team2} {...register('more_dot_balls_team', { required: isPlayoff })} className="peer sr-only" disabled={isLocked} />
+                      <div className="p-3 border-2 text-center font-display text-xs transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold border-white/20 text-gray-400">
+                        {match.team2}
+                      </div>
+                    </label>
+                    <label className="cursor-pointer">
+                      <input type="radio" value="Tie" {...register('more_dot_balls_team', { required: isPlayoff })} className="peer sr-only" disabled={isLocked} />
+                      <div className="p-3 border-2 text-center font-display text-xs transition-all peer-checked:bg-ipl-gold peer-checked:text-black peer-checked:border-ipl-gold border-white/20 text-gray-400">
+                        TIE
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <label className="block text-gray-300 font-display tracking-wide uppercase text-sm">Player of the Match</label>
                 <input
                   {...register('player_of_the_match', { required: true })}
                   type="text"
-                  placeholder="Player Name"
+                  placeholder={isPlayoff ? "Player Names (e.g. Kohli, Maxwell)" : "Player Name"}
                   disabled={isLocked}
                   className={`w-full bg-ipl-navy border-2 p-4 text-white focus:outline-none focus:border-ipl-gold focus:shadow-[0_0_10px_rgba(244,196,48,0.2)] transition-all disabled:opacity-50 ${errors.player_of_the_match ? 'border-red-500/50' : 'border-white/20'}`}
                 />
+                {isPlayoff && <p className="text-[10px] text-gray-500 font-display uppercase mt-1">Playoff Rule: You can predict two players (comma-separated)</p>}
               </div>
 
               <div className="space-y-4 pt-4">
@@ -585,6 +625,14 @@ export default function MatchPage() {
                                       </div>
                                     ))}
 
+                                    {/* Playoff Multiplier indicator */}
+                                    {isPlayoff && (
+                                      <div className="py-1 my-1 border-y border-white/5 flex justify-between items-center text-[8px] uppercase tracking-widest font-bold text-ipl-gold">
+                                        <span className="flex items-center gap-1">🏆 PLAYOFF X2 APPLIED</span>
+                                        <span className="bg-ipl-gold text-black px-1 rounded-sm">x2</span>
+                                      </div>
+                                    )}
+
                                     {/* Multiplier Indicator */}
                                     {pred.points_breakdown.powerup?.used && (
                                       <div className="py-1 my-1 border-y border-white/5 flex justify-between items-center text-[8px] uppercase tracking-widest font-bold text-ipl-gold">
@@ -594,10 +642,12 @@ export default function MatchPage() {
                                     )}
 
                                     {/* Non-Boostable Bonuses */}
-                                    {pred.points_breakdown.rules.some((r: any) => ['More Sixes', 'More Fours'].includes(r.category)) && (
+                                    {pred.points_breakdown.rules.some((r: any) => ['More Sixes', 'More Fours', 'More Dot Balls'].includes(r.category)) && (
                                       <div className="pt-1.5 space-y-1.5">
-                                        <div className="text-[7px] text-gray-600 font-bold tracking-tighter uppercase mb-1">Match Bonuses (No 2x)</div>
-                                        {pred.points_breakdown.rules.filter((r: any) => ['More Sixes', 'More Fours'].includes(r.category)).map((rule: any, ri: number) => (
+                                        <div className="text-[7px] text-gray-600 font-bold tracking-tighter uppercase mb-1">
+                                          Match Bonuses {isPlayoff ? '(Included in Powerup)' : '(No Powerup)'}
+                                        </div>
+                                        {pred.points_breakdown.rules.filter((r: any) => ['More Sixes', 'More Fours', 'More Dot Balls'].includes(r.category)).map((rule: any, ri: number) => (
                                           <div key={ri} className="flex justify-between items-center text-[8px] uppercase tracking-wider">
                                             <span className="text-gray-500 truncate mr-2">{rule.category}</span>
                                             <span className={rule.points > 0 ? 'text-green-400' : 'text-gray-400'}>
@@ -641,6 +691,12 @@ export default function MatchPage() {
                                 <div className={`flex items-center bg-white/5 border border-white/10 rounded px-1.5 py-0.5 leading-none ${isDesktop ? 'md:bg-black/40' : ''}`}>
                                   <span className={`${isDesktop ? 'md:text-[8px]' : 'text-[7px]'} text-gray-400 mr-1`}>4s:</span>
                                   <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold`} style={{ color: getTeamColor(pred.answers.more_fours_team) }}>{getTeamShortName(pred.answers.more_fours_team)}</span>
+                                </div>
+                              )}
+                              {pred.answers.more_dot_balls_team && (
+                                <div className={`flex items-center bg-white/5 border border-white/10 rounded px-1.5 py-0.5 leading-none ${isDesktop ? 'md:bg-black/40' : ''}`}>
+                                  <span className={`${isDesktop ? 'md:text-[8px]' : 'text-[7px]'} text-gray-400 mr-1`}>Dots:</span>
+                                  <span className={`${isDesktop ? 'md:text-[9px]' : 'text-[8px]'} font-bold`} style={{ color: getTeamColor(pred.answers.more_dot_balls_team) }}>{getTeamShortName(pred.answers.more_dot_balls_team)}</span>
                                 </div>
                               )}
                             </>
@@ -853,6 +909,24 @@ export default function MatchPage() {
                   ))}
                 </div>
               </div>
+
+              {isPlayoff && (
+                <div className="space-y-4">
+                  <label className="block text-[10px] font-display text-ipl-gold uppercase tracking-[0.2em]">More Dot Balls</label>
+                  <div className="grid grid-cols-3 gap-4">
+                    {[match.team1, match.team2, 'Tie'].map(team => (
+                      <button
+                        key={team}
+                        type="button"
+                        onClick={() => setAdminResults({ ...adminResults, more_dot_balls_team: team })}
+                        className={`p-4 border-2 font-display text-[10px] tracking-widest transition-all ${adminResults.more_dot_balls_team === team ? 'border-ipl-gold bg-ipl-gold text-black' : 'border-white/10 text-gray-500 hover:border-white/20'}`}
+                      >
+                        {team.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="grid md:grid-cols-2 gap-6">
                 <div className="space-y-2">

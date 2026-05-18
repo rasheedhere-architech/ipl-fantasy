@@ -1,0 +1,44 @@
+{
+    "matches": [
+        {
+            "match_no": 71,
+            "match_name": "Qualifier 1",
+            "date": "26-MAY-26",
+            "day": "Tue",
+            "start": "7:30 PM",
+            "home": "TBD",
+            "away": "TBD",
+            "venue": "Dharmashala"
+        },
+        {
+            "match_no": 72,
+            "match_name": "Eliminator",
+            "date": "27-MAY-26",
+            "day": "Wed",
+            "start": "7:30 PM",
+            "home": "TBD",
+            "away": "TBD",
+            "venue": "New Chandigarh"
+        },
+        {
+            "match_no": 73,
+            "match_name": "Qualifier 2",
+            "date": "29-MAY-26",
+            "day": "Fri",
+            "start": "7:30 PM",
+            "home": "TBD",
+            "away": "TBD",
+            "venue": "New Chandigarh"
+        },
+        {
+            "match_no": 74,
+            "match_name": "Final",
+            "date": "31-MAY-26",
+            "day": "Sun",
+            "start": "7:30 PM",
+            "home": "TBD",
+            "away": "TBD",
+            "venue": "Ahmedabad"
+        }
+    ]
+}

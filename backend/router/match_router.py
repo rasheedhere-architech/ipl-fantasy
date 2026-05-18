@@ -23,6 +23,7 @@ class PredictionInput(BaseModel):
     player_of_the_match: Optional[str] = None
     more_sixes_team: Optional[str] = None
     more_fours_team: Optional[str] = None
+    more_dot_balls_team: Optional[str] = None
     use_powerup: Optional[str] = "No"
 
 @router.get("")
@@ -61,7 +62,9 @@ async def list_matches(db: AsyncSession = Depends(get_db)):
             "reported_by_email": m.reporter.email if m.reporter else None,
             "report_method": m.report_method,
             "more_sixes_team": m.more_sixes_team,
-            "more_fours_team": m.more_fours_team
+            "more_fours_team": m.more_fours_team,
+            "more_dot_balls_team": m.more_dot_balls_team,
+            "is_playoff": m.is_playoff
         })
     return matches
 
@@ -191,7 +194,9 @@ async def get_match(match_id: str, db: AsyncSession = Depends(get_db), current_u
         "reported_by_email": m.reporter.email if m.reporter else None,
         "report_method": m.report_method,
         "more_sixes_team": m.more_sixes_team,
-        "more_fours_team": m.more_fours_team
+        "more_fours_team": m.more_fours_team,
+        "more_dot_balls_team": m.more_dot_balls_team,
+        "is_playoff": m.is_playoff
     }
         
     # Hardcoded question metadata for frontend compatibility
@@ -216,15 +221,22 @@ async def get_match(match_id: str, db: AsyncSession = Depends(get_db), current_u
         questions.insert(-1, {"key": "more_sixes_team", "question_text": "Team to score more 6s", "answer_type": "text"})
         questions.insert(-1, {"key": "more_fours_team", "question_text": "Team to score more 4s", "answer_type": "text"})
     
-    # Calculate powerups used across all matches for this user
-    p_result = await db.execute(
-        select(Prediction)
-        .where(Prediction.user_id == current_user.id)
-        .where(Prediction.use_powerup == "Yes")
-    )
+    if m.is_playoff:
+        questions.insert(-1, {"key": "more_dot_balls_team", "question_text": "Team to bowl more dot balls", "answer_type": "text"})
+    
+    # Calculate powerups used for THIS pool (League or Playoff)
+    p_pool_stmt = select(Prediction).join(Match).where(Prediction.user_id == current_user.id).where(Prediction.use_powerup == "Yes")
+    if m.is_playoff:
+        p_pool_stmt = p_pool_stmt.where(Match.is_playoff == True)
+        total_allotted = current_user.playoff_powerups
+    else:
+        p_pool_stmt = p_pool_stmt.where(Match.is_playoff == False)
+        total_allotted = current_user.base_powerups
+
+    p_result = await db.execute(p_pool_stmt)
     powerups_used = len(p_result.scalars().all())
 
-    return {"match": match_dict, "questions": questions, "powerups_used": powerups_used, "total_powerups": current_user.base_powerups}
+    return {"match": match_dict, "questions": questions, "powerups_used": powerups_used, "total_powerups": total_allotted}
 
 @router.post("/{match_id}/predictions")
 async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -249,14 +261,19 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
         is_already_using = existing_pred and existing_pred.use_powerup == "Yes"
         
         if not is_already_using:
+            # Check Powerup Limit (League vs Playoff)
             total_up_result = await db.execute(
                 select(Prediction)
+                .join(Match)
                 .where(Prediction.user_id == current_user.id)
                 .where(Prediction.use_powerup == "Yes")
+                .where(Match.is_playoff == match.is_playoff)
             )
             total_used = len(total_up_result.scalars().all())
             
-            if total_used >= current_user.base_powerups:
+            limit = current_user.playoff_powerups if match.is_playoff else current_user.base_powerups
+            
+            if total_used >= limit:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST, 
                     detail="powerup_limit_reached"
@@ -269,6 +286,7 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
         existing_pred.player_of_the_match = payload.player_of_the_match
         existing_pred.more_sixes_team = payload.more_sixes_team
         existing_pred.more_fours_team = payload.more_fours_team
+        existing_pred.more_dot_balls_team = payload.more_dot_balls_team
         existing_pred.use_powerup = payload.use_powerup
         # Keep is_auto_predicted status if it was already True
         # existing_pred.is_auto_predicted = False (Removed)
@@ -283,6 +301,7 @@ async def submit_prediction(match_id: str, payload: PredictionInput, db: AsyncSe
             player_of_the_match=payload.player_of_the_match,
             more_sixes_team=payload.more_sixes_team,
             more_fours_team=payload.more_fours_team,
+            more_dot_balls_team=payload.more_dot_balls_team,
             use_powerup=payload.use_powerup,
             is_auto_predicted=False
         )
@@ -324,6 +343,7 @@ async def get_my_predictions(match_id: str, db: AsyncSession = Depends(get_db), 
         "player_of_the_match": pred.player_of_the_match or "",
         "more_sixes_team": pred.more_sixes_team or "",
         "more_fours_team": pred.more_fours_team or "",
+        "more_dot_balls_team": pred.more_dot_balls_team or "",
         "use_powerup": pred.use_powerup or "No",
         "is_auto_predicted": pred.is_auto_predicted
     }
@@ -359,6 +379,7 @@ async def get_all_community_predictions(match_id: str, db: AsyncSession = Depend
                 "player_of_the_match": pred.player_of_the_match,
                 "more_sixes_team": pred.more_sixes_team,
                 "more_fours_team": pred.more_fours_team,
+                "more_dot_balls_team": pred.more_dot_balls_team,
                 "use_powerup": pred.use_powerup
             }
         else:
@@ -370,6 +391,7 @@ async def get_all_community_predictions(match_id: str, db: AsyncSession = Depend
                 "player_of_the_match": "🔒",
                 "more_sixes_team": "🔒",
                 "more_fours_team": "🔒",
+                "more_dot_balls_team": "🔒",
                 "use_powerup": "🔒"
             }
             

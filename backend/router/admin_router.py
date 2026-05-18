@@ -99,6 +99,8 @@ async def trigger_match_scoring(match_id: str, payload: MatchResultUpdate, db: A
         match.more_sixes_team = str(answers["more_sixes_team"])
     if "more_fours_team" in answers:
         match.more_fours_team = str(answers["more_fours_team"])
+    if "more_dot_balls_team" in answers:
+        match.more_dot_balls_team = str(answers["more_dot_balls_team"])
     
     # Save the entire raw blob for audit/future use
     match.raw_result_json = answers

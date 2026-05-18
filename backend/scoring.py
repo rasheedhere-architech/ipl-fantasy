@@ -33,6 +33,10 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
             
     penalty_points = -5 if match_number >= 12 else 0
     
+    # Determine if it's a playoff match
+    is_playoff = getattr(match, 'is_playoff', False)
+    match_multiplier = 2 if is_playoff else 1
+    
     user_points = {}
     
     for user in all_users:
@@ -54,6 +58,9 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
         if match.winner and p.match_winner:
             is_correct = str(p.match_winner).strip().lower() == str(match.winner).strip().lower()
             rule_points = 10 if is_correct else -5
+            # Apply match multiplier (Playoff X2)
+            rule_points *= match_multiplier
+            
             points += rule_points
             breakdown_rules.append({
                 "category": "Match Winner",
@@ -64,14 +71,20 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
             })
         
         # RULE 2: Player of the Match (+25 Correct)
+        # Updated for Playoffs: Handle comma-separated names
         if match.player_of_the_match and p.player_of_the_match:
-            is_correct = str(p.player_of_the_match).strip().lower() == str(match.player_of_the_match).strip().lower()
+            actual_potm_list = [n.strip().lower() for n in str(match.player_of_the_match).split(",")]
+            predicted_potm_list = [n.strip().lower() for n in str(p.player_of_the_match).split(",")]
+            
+            is_correct = any(name in actual_potm_list for name in predicted_potm_list)
+            
             if is_correct:
-                points += 25
+                rule_points = 25 * match_multiplier
+                points += rule_points
                 breakdown_rules.append({
                     "category": "Player of the Match",
                     "status": "correct",
-                    "points": 25,
+                    "points": rule_points,
                     "predicted": p.player_of_the_match,
                     "actual": match.player_of_the_match
                 })
@@ -92,10 +105,14 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
                 status = "miss"
                 if diff == 0:
                     rule_points = 15
-                    status = "bingo"
                 elif diff <= 5:
                     rule_points = 5
-                    status = "range"
+                
+                if rule_points > 0:
+                    status = "bingo" if diff == 0 else "range"
+                
+                # Apply match multiplier (Playoff X2)
+                rule_points *= match_multiplier
                 
                 points += rule_points
                 breakdown_rules.append({
@@ -116,10 +133,14 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
                 status = "miss"
                 if diff == 0:
                     rule_points = 15
-                    status = "bingo"
                 elif diff <= 5:
                     rule_points = 5
-                    status = "range"
+                
+                if rule_points > 0:
+                    status = "bingo" if diff == 0 else "range"
+                
+                # Apply match multiplier (Playoff X2)
+                rule_points *= match_multiplier
                 
                 points += rule_points
                 breakdown_rules.append({
@@ -132,55 +153,111 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
             except (ValueError, TypeError):
                 pass
 
-        # RULE 5: Powerup Multiplier (2x)
-        points_before_powerup = points
-        if p.use_powerup == "Yes":
-            points = points * 2
+        # PRE-POWERUP CALCULATION (Winner, POTM, Powerplays)
+        # These are ALWAYS included in the powerup multiplier if used.
+        
+        # RULE 8: Apply Powerup (League Stage Logic)
+        # For league stage, Sixes and Fours are NOT included in the powerup.
+        if not is_playoff:
+            points_before_powerup = points
+            if p.use_powerup == "Yes":
+                points = points * 2
             
-        # RULE 6: More Sixes (+5 Correct) - NO POWERUP
-        if match.more_sixes_team and p.more_sixes_team:
-            actual_lower = str(match.more_sixes_team).strip().lower()
-            predicted_lower = str(p.more_sixes_team).strip().lower()
-            
-            # If actual is Tie, everyone (who picked team1 or team2) gets points
-            is_correct = (actual_lower == "tie") or (predicted_lower == actual_lower)
-            
-            rule_points = 5 if is_correct else 0
-            points += rule_points
-            breakdown_rules.append({
-                "category": "More Sixes",
-                "status": "correct" if is_correct else "incorrect",
-                "points": rule_points,
-                "predicted": p.more_sixes_team,
-                "actual": match.more_sixes_team
-            })
+            # RULE 5: More Sixes (+5 Correct) - LEAGUE
+            if match.more_sixes_team and p.more_sixes_team:
+                actual_lower = str(match.more_sixes_team).strip().lower()
+                predicted_lower = str(p.more_sixes_team).strip().lower()
+                is_correct = (actual_lower == "tie") or (predicted_lower == actual_lower)
+                rule_points = 5 if is_correct else 0
+                # Match multiplier is 1 for league
+                points += rule_points
+                breakdown_rules.append({
+                    "category": "More Sixes",
+                    "status": "correct" if is_correct else "incorrect",
+                    "points": rule_points,
+                    "predicted": p.more_sixes_team,
+                    "actual": match.more_sixes_team
+                })
 
-        # RULE 7: More Fours (+5 Correct) - NO POWERUP
-        if match.more_fours_team and p.more_fours_team:
-            actual_lower = str(match.more_fours_team).strip().lower()
-            predicted_lower = str(p.more_fours_team).strip().lower()
+            # RULE 6: More Fours (+5 Correct) - LEAGUE
+            if match.more_fours_team and p.more_fours_team:
+                actual_lower = str(match.more_fours_team).strip().lower()
+                predicted_lower = str(p.more_fours_team).strip().lower()
+                is_correct = (actual_lower == "tie") or (predicted_lower == actual_lower)
+                rule_points = 5 if is_correct else 0
+                # Match multiplier is 1 for league
+                points += rule_points
+                breakdown_rules.append({
+                    "category": "More Fours",
+                    "status": "correct" if is_correct else "incorrect",
+                    "points": rule_points,
+                    "predicted": p.more_fours_team,
+                    "actual": match.more_fours_team
+                })
+        
+        else:
+            # PLAYOFF STAGE LOGIC
+            # For playoffs, Sixes, Fours, and Dot Balls ARE included in the powerup.
             
-            # If actual is Tie, everyone gets points
-            is_correct = (actual_lower == "tie") or (predicted_lower == actual_lower)
-            
-            rule_points = 5 if is_correct else 0
-            points += rule_points
-            breakdown_rules.append({
-                "category": "More Fours",
-                "status": "correct" if is_correct else "incorrect",
-                "points": rule_points,
-                "predicted": p.more_fours_team,
-                "actual": match.more_fours_team
-            })
+            # RULE 5: More Sixes (+5 Correct) - PLAYOFF
+            if match.more_sixes_team and p.more_sixes_team:
+                actual_lower = str(match.more_sixes_team).strip().lower()
+                predicted_lower = str(p.more_sixes_team).strip().lower()
+                is_correct = (actual_lower == "tie") or (predicted_lower == actual_lower)
+                rule_points = (5 * match_multiplier) # 10
+                points += rule_points
+                breakdown_rules.append({
+                    "category": "More Sixes",
+                    "status": "correct" if is_correct else "incorrect",
+                    "points": rule_points,
+                    "predicted": p.more_sixes_team,
+                    "actual": match.more_sixes_team
+                })
 
+            # RULE 6: More Fours (+5 Correct) - PLAYOFF
+            if match.more_fours_team and p.more_fours_team:
+                actual_lower = str(match.more_fours_team).strip().lower()
+                predicted_lower = str(p.more_fours_team).strip().lower()
+                is_correct = (actual_lower == "tie") or (predicted_lower == actual_lower)
+                rule_points = (5 * match_multiplier) # 10
+                points += rule_points
+                breakdown_rules.append({
+                    "category": "More Fours",
+                    "status": "correct" if is_correct else "incorrect",
+                    "points": rule_points,
+                    "predicted": p.more_fours_team,
+                    "actual": match.more_fours_team
+                })
+
+            # RULE 7: More Dot Balls (+5 Correct) - PLAYOFF ONLY
+            if match.more_dot_balls_team and p.more_dot_balls_team:
+                actual_lower = str(match.more_dot_balls_team).strip().lower()
+                predicted_lower = str(p.more_dot_balls_team).strip().lower()
+                is_correct = (actual_lower == "tie") or (predicted_lower == actual_lower)
+                rule_points = (5 * match_multiplier) # 10
+                points += rule_points
+                breakdown_rules.append({
+                    "category": "More Dot Balls",
+                    "status": "correct" if is_correct else "incorrect",
+                    "points": rule_points,
+                    "predicted": p.more_dot_balls_team,
+                    "actual": match.more_dot_balls_team
+                })
+
+            # Now apply Powerup at the very end for playoffs
+            points_before_powerup = points
+            if p.use_powerup == "Yes":
+                points = points * 2
+            
         # Build final breakdown
         p.points_breakdown = {
             "rules": breakdown_rules,
+            "playoff_multiplier": match_multiplier,
             "powerup": {
                 "used": p.use_powerup == "Yes",
                 "multiplier": 2 if p.use_powerup == "Yes" else 1,
                 "points_before": points_before_powerup,
-                "points_after": points_before_powerup * (2 if p.use_powerup == "Yes" else 1)
+                "points_after": points
             },
             "total": points
         }
@@ -210,4 +287,4 @@ async def calculate_match_scores(match_id: str, db: AsyncSession):
             db.add(lb_entry)
             
     await db.commit()
-    print(f"Scoring complete for match {match_id}. User points updated with 2026 rules.")
+    print(f"Scoring complete for match {match_id}. Playoff rules applied: {is_playoff}")

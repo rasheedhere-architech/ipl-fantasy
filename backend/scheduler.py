@@ -45,7 +45,18 @@ async def generate_ai_prediction(db, match: Match, ai_user: User):
     is_heavy_favorite = abs(t1_strength - t2_strength) >= 3
     use_powerup = "No"
     
-    if is_heavy_favorite and ai_user.base_powerups > 0:
+    # Check Powerup Limit
+    total_up_result = await db.execute(
+        select(Prediction)
+        .join(Match, Prediction.match_id == Match.id)
+        .where(Prediction.user_id == ai_user.id)
+        .where(Prediction.use_powerup == "Yes")
+        .where(Match.is_playoff == match.is_playoff)
+    )
+    total_used = len(total_up_result.scalars().all())
+    limit = ai_user.playoff_powerups if match.is_playoff else ai_user.base_powerups
+    
+    if is_heavy_favorite and total_used < limit:
         # Use powerup if it's a heavy favorite (maybe 30% chance if available to not burn through them instantly)
         if random.random() < 0.3:
             use_powerup = "Yes"
@@ -125,11 +136,6 @@ async def generate_ai_prediction(db, match: Match, ai_user: User):
     )
     
     db.add(new_prediction)
-    
-    # Deduct powerup if used
-    if use_powerup == "Yes":
-        ai_user.base_powerups -= 1
-        db.add(ai_user)
 
 async def auto_predict_daily_job():
     """Daily cron job run at 12:00 AM UTC."""

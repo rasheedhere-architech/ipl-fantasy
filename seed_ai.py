@@ -42,13 +42,13 @@ async def seed_ai():
                 avatar_url="https://api.dicebear.com/7.x/bottts/svg?seed=ai_predictor",
                 is_ai=True,
                 base_points=avg_points,
-                base_powerups=8
+                base_powerups=5
             )
             db.add(ai_user)
         else:
             print("AI Assassin user already exists. Overwriting current base points to recalibrated average.")
             ai_user.base_points = avg_points
-            ai_user.base_powerups = 8
+            ai_user.base_powerups = 5
             
         await db.commit()
         print("AI seeding complete!")

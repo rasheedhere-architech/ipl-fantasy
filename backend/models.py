@@ -24,6 +24,7 @@ class User(Base):
     telegram_username: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=True)
     base_points: Mapped[int] = mapped_column(Integer, default=0)
     base_powerups: Mapped[int] = mapped_column(Integer, default=10)
+    playoff_powerups: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 class AllowlistedEmail(Base):
@@ -52,6 +53,8 @@ class Match(Base):
     player_of_the_match: Mapped[str] = mapped_column(String, nullable=True)
     more_sixes_team: Mapped[str] = mapped_column(String, nullable=True)
     more_fours_team: Mapped[str] = mapped_column(String, nullable=True)
+    more_dot_balls_team: Mapped[str] = mapped_column(String, nullable=True)
+    is_playoff: Mapped[bool] = mapped_column(Boolean, default=False)
     
     raw_result_json: Mapped[dict] = mapped_column(JSON, nullable=True)
     reported_by: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=True)
@@ -73,6 +76,7 @@ class Prediction(Base):
     player_of_the_match: Mapped[str] = mapped_column(String, nullable=True)
     more_sixes_team: Mapped[str] = mapped_column(String, nullable=True)
     more_fours_team: Mapped[str] = mapped_column(String, nullable=True)
+    more_dot_balls_team: Mapped[str] = mapped_column(String, nullable=True)
     use_powerup: Mapped[str] = mapped_column(String, default="No") # "Yes" or "No"
     is_auto_predicted: Mapped[bool] = mapped_column(Boolean, default=False)
     

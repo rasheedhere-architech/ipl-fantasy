@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle, Lock, Hash, Type, ToggleLeft, ChevronDown, ListChecks, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useCampaign, useSubmitCampaignResponse, type CampaignQuestion, type ScoringRules } from '../api/hooks/useCampaigns';
+import { useCampaign, useSubmitCampaignResponse, useCampaignResponses, type CampaignQuestion, type ScoringRules } from '../api/hooks/useCampaigns';
 import { useAuthStore } from '../store/auth';
 import { CampaignCountdown } from '../components/CampaignCountdown';
 
@@ -197,6 +197,12 @@ export default function CampaignPage() {
   const { mutate: submit, isPending: isSubmitting } = useSubmitCampaignResponse(id!);
 
   const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [activeTab, setActiveTab] = useState<'response' | 'predictions'>('response');
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'player' | 'question'>('player');
+
+  const isClosedCampaign = campaign?.status === 'closed' || (campaign?.ends_at ? new Date(campaign.ends_at) <= new Date() : false);
+  const { data: responses, isLoading: isLoadingResponses } = useCampaignResponses(id!, isClosedCampaign);
 
   useEffect(() => {
     if (campaign?.my_response) {
@@ -224,9 +230,9 @@ export default function CampaignPage() {
   }
 
   const isSubmitted = !!campaign.my_response;
-  const isClosed = campaign.status === 'closed';
-  const isActive = campaign.status === 'active';
-  const disabled = isClosed || !isActive || !!user?.is_guest;
+  const isClosed = campaign.status === 'closed' || (campaign.ends_at ? new Date(campaign.ends_at) <= new Date() : false);
+  const isActive = campaign.status === 'active' && !isClosed;
+  const disabled = isClosed || !!user?.is_guest;
 
   const getAnswer = (qId: string) => answers[qId];
 
@@ -334,74 +340,284 @@ export default function CampaignPage() {
             <p className="text-gray-400 font-display text-xs uppercase tracking-widest">Guests cannot submit responses</p>
           </div>
         )}
+
+        {isClosed && (
+          <div className="flex bg-white/5 p-1 rounded-lg border border-white/10 shrink-0 w-fit mt-6">
+            <button
+              type="button"
+              onClick={() => setActiveTab('response')}
+              className={`px-6 py-2 rounded-md text-[10px] font-bold uppercase transition-all duration-300 font-display tracking-widest ${
+                activeTab === 'response'
+                  ? 'bg-ipl-gold text-black shadow-lg scale-105'
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              Your Response
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('predictions')}
+              className={`px-6 py-2 rounded-md text-[10px] font-bold uppercase transition-all duration-300 font-display tracking-widest ${
+                activeTab === 'predictions'
+                  ? 'bg-ipl-gold text-black shadow-lg scale-105'
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              Reveal / Predictions ({responses?.length ?? 0})
+            </button>
+          </div>
+        )}
       </header>
 
-      {/* Questions */}
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {campaign.questions.map((q, idx) => {
-          const myAnswer = getAnswer(q.id);
-          const myPoints = isSubmitted && campaign.my_response
-            ? campaign.my_response.answers[q.id]?.points_awarded
-            : undefined;
+      {/* Content */}
+      {activeTab === 'predictions' ? (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between border-l-4 border-ipl-gold pl-4 py-1 gap-4 flex-wrap">
+            <h2 className="text-xl font-display text-white tracking-widest uppercase">Community Predictions</h2>
 
-          return (
-            <div key={q.id} className="glass-panel p-6 border-t-2 border-t-white/10">
-              <div className="flex items-center gap-2 text-gray-500 text-[10px] font-display uppercase tracking-widest mb-2">
-                {QUESTION_ICONS[q.question_type]}
-                <span>Question {idx + 1} · {q.question_type.replace('_', ' ')}</span>
-              </div>
-
-              <p className="text-white font-display text-base">{q.question_text}</p>
-              <ScoringHint rules={q.scoring_rules} type={q.question_type} />
-
-              {q.question_type === 'toggle' && (
-                <ToggleInput q={q} value={myAnswer} onChange={v => setAnswer(q.id, v)} disabled={disabled} />
-              )}
-              {q.question_type === 'multiple_choice' && (
-                <MultipleChoiceInput q={q} value={myAnswer} onChange={v => setAnswer(q.id, v)} disabled={disabled} />
-              )}
-              {q.question_type === 'dropdown' && (
-                <DropdownInput q={q} value={myAnswer} onChange={v => setAnswer(q.id, v)} disabled={disabled} />
-              )}
-              {q.question_type === 'free_text' && (
-                <FreeTextInput value={myAnswer} onChange={v => setAnswer(q.id, v)} disabled={disabled} />
-              )}
-              {q.question_type === 'free_number' && (
-                <FreeNumberInput value={myAnswer} onChange={v => setAnswer(q.id, v)} disabled={disabled} />
-              )}
-
-              {isClosed && isSubmitted && (
-                <div className="mt-3 pt-3 border-t border-white/5">
-                  <ResultBadge points={myPoints} correct={q.correct_answer} />
-                </div>
-              )}
+            <div className="flex bg-white/5 p-1 rounded border border-white/10 shrink-0 text-[10px] font-display uppercase tracking-wider">
+              <button
+                type="button"
+                onClick={() => setViewMode('player')}
+                className={`px-3 py-1.5 rounded transition-all ${
+                  viewMode === 'player' ? 'bg-white/10 text-white font-bold' : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                By Player
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('question')}
+                className={`px-3 py-1.5 rounded transition-all ${
+                  viewMode === 'question' ? 'bg-white/10 text-white font-bold' : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                By Question
+              </button>
             </div>
-          );
-        })}
+          </div>
 
-        {isActive && !isClosed && !user?.is_guest && (
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full py-4 bg-ipl-gold text-black font-display text-sm uppercase tracking-widest hover:bg-ipl-gold/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,215,0,0.2)] active:scale-[0.98]"
-          >
-            {isSubmitting ? (
-              <span className="flex items-center gap-2">
-                <svg className="animate-spin h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Submitting...
-              </span>
-            ) : (
-              <>
-                <CheckCircle className="w-4 h-4" />
-                {isSubmitted ? 'Update Response' : 'Submit Response'}
-              </>
-            )}
-          </button>
-        )}
-      </form>
+          {isLoadingResponses ? (
+            <div className="text-center py-12 text-gray-500 animate-pulse font-display text-sm tracking-widest uppercase">
+              Loading predictions...
+            </div>
+          ) : !responses || responses.length === 0 ? (
+            <div className="glass-panel p-8 text-center border-dashed border-2 border-white/5 opacity-50">
+              <p className="text-gray-500 font-display text-xs uppercase tracking-[0.2em]">
+                No predictions submitted yet
+              </p>
+            </div>
+          ) : viewMode === 'question' ? (
+            <div className="space-y-6">
+              {campaign.questions.map((q, qIdx) => {
+                return (
+                  <div key={q.id} className="glass-panel p-6 border-t-2 border-t-white/10 space-y-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-gray-500 text-[10px] font-display uppercase tracking-widest mb-1">
+                        {QUESTION_ICONS[q.question_type]}
+                        <span>Question {qIdx + 1} · {q.question_type.replace('_', ' ')}</span>
+                      </div>
+                      <p className="text-white font-display text-base">{q.question_text}</p>
+
+                      {q.correct_answer !== null && q.correct_answer !== undefined && (
+                        <div className="mt-2 inline-flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded text-xs text-green-400 font-display">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          <span>Correct Answer: <strong className="font-bold">{String(q.correct_answer)}</strong></span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-white/5 pt-4 space-y-2">
+                      <h4 className="text-[10px] text-gray-500 font-display uppercase tracking-wider mb-2">Player Predictions</h4>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {responses.map(resp => {
+                          const userAnsObj = resp.answers.find(a => a.question_id === q.id);
+                          const userAnsVal = userAnsObj?.answer_value;
+                          const ptsAwarded = userAnsObj?.points_awarded;
+
+                          return (
+                            <div key={resp.id} className="flex items-center justify-between p-3 rounded bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-6 h-6 rounded-full border border-white/10 overflow-hidden shrink-0">
+                                  <img
+                                    src={resp.user_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${resp.user_name}`}
+                                    alt=""
+                                  />
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-xs font-display text-gray-300 block truncate leading-tight">
+                                    {resp.user_name}
+                                  </span>
+                                  <span className="text-[11px] text-white font-display font-medium truncate block mt-0.5">
+                                    {userAnsVal != null
+                                      ? Array.isArray(userAnsVal)
+                                        ? userAnsVal.join(', ')
+                                        : String(userAnsVal)
+                                      : <span className="text-gray-500 italic">No prediction</span>}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="shrink-0 pl-2">
+                                <ResultBadge points={ptsAwarded} correct={q.correct_answer} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {responses.map((resp, idx) => {
+                const isExpanded = expandedUser === resp.user_id;
+                const userRank = idx + 1;
+                return (
+                  <div
+                    key={resp.id}
+                    className={`bg-white/5 border border-white/10 overflow-hidden transition-all duration-300 rounded ${
+                      isExpanded ? 'border-ipl-gold/50 bg-ipl-gold/5' : 'hover:border-white/20'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setExpandedUser(isExpanded ? null : resp.user_id)}
+                      className="w-full text-left p-4 flex items-center justify-between group/row"
+                    >
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs font-mono text-gray-500 w-6 text-center">#{userRank}</span>
+                        <div className="w-8 h-8 rounded-full border border-white/10 overflow-hidden">
+                          <img
+                            src={resp.user_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${resp.user_name}`}
+                            alt=""
+                          />
+                        </div>
+                        <span className="text-sm font-display text-gray-300 group-hover/row:text-white transition-colors">
+                          {resp.user_name}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span className="text-base font-display text-ipl-gold">
+                          {resp.total_points != null ? `${resp.total_points} pts` : '--'}
+                        </span>
+                        {isExpanded ? (
+                          <ChevronDown className="w-4 h-4 text-gray-400 rotate-180 transition-transform" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-gray-500 opacity-60 transition-transform" />
+                        )}
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="px-4 pb-4 pt-1 border-t border-white/5 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div className="space-y-3 mt-3">
+                          {campaign.questions.map((q, qIdx) => {
+                            const userAnsObj = resp.answers.find(a => a.question_id === q.id);
+                            const userAnsVal = userAnsObj?.answer_value;
+                            const ptsAwarded = userAnsObj?.points_awarded;
+
+                            return (
+                              <div key={q.id} className="bg-white/5 p-3 rounded border border-white/5 space-y-1">
+                                <div className="flex items-center justify-between text-[10px] text-gray-500 font-display uppercase tracking-widest">
+                                  <span>Question {qIdx + 1}</span>
+                                  <ResultBadge points={ptsAwarded} correct={q.correct_answer} />
+                                </div>
+                                <p className="text-xs text-gray-300 font-display font-medium">
+                                  {q.question_text}
+                                </p>
+                                <div className="text-xs text-white mt-1">
+                                  <span className="text-gray-500 font-mono text-[10px] uppercase mr-1">Predicted:</span>
+                                  <span className="font-display">
+                                    {userAnsVal != null
+                                      ? Array.isArray(userAnsVal)
+                                        ? userAnsVal.join(', ')
+                                        : String(userAnsVal)
+                                      : 'No prediction'}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {campaign.questions.map((q, idx) => {
+            const myAnswer = getAnswer(q.id);
+            const myPoints = isSubmitted && campaign.my_response
+              ? campaign.my_response.answers[q.id]?.points_awarded
+              : undefined;
+
+            return (
+              <div key={q.id} className="glass-panel p-6 border-t-2 border-t-white/10">
+                <div className="flex items-center gap-2 text-gray-500 text-[10px] font-display uppercase tracking-widest mb-2">
+                  {QUESTION_ICONS[q.question_type]}
+                  <span>Question {idx + 1} · {q.question_type.replace('_', ' ')}</span>
+                </div>
+
+                <p className="text-white font-display text-base">{q.question_text}</p>
+                <ScoringHint rules={q.scoring_rules} type={q.question_type} />
+
+                {q.question_type === 'toggle' && (
+                  <ToggleInput q={q} value={myAnswer} onChange={v => setAnswer(q.id, v)} disabled={disabled} />
+                )}
+                {q.question_type === 'multiple_choice' && (
+                  <MultipleChoiceInput q={q} value={myAnswer} onChange={v => setAnswer(q.id, v)} disabled={disabled} />
+                )}
+                {q.question_type === 'dropdown' && (
+                  <DropdownInput q={q} value={myAnswer} onChange={v => setAnswer(q.id, v)} disabled={disabled} />
+                )}
+                {q.question_type === 'free_text' && (
+                  <FreeTextInput value={myAnswer} onChange={v => setAnswer(q.id, v)} disabled={disabled} />
+                )}
+                {q.question_type === 'free_number' && (
+                  <FreeNumberInput value={myAnswer} onChange={v => setAnswer(q.id, v)} disabled={disabled} />
+                )}
+
+                {isClosed && isSubmitted && (
+                  <div className="mt-3 pt-3 border-t border-white/5">
+                    <ResultBadge points={myPoints} correct={q.correct_answer} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {isActive && !isClosed && !user?.is_guest && (
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-4 bg-ipl-gold text-black font-display text-sm uppercase tracking-widest hover:bg-ipl-gold/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,215,0,0.2)] active:scale-[0.98]"
+            >
+              {isSubmitting ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Submitting...
+                </span>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  {isSubmitted ? 'Update Response' : 'Submit Response'}
+                </>
+              )}
+            </button>
+          )}
+        </form>
+      )}
     </div>
   );
 }

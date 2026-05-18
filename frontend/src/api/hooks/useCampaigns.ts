@@ -106,6 +106,31 @@ export function useSubmitCampaignResponse(campaignId: string) {
   });
 }
 
+export interface CampaignUserResponse {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_avatar?: string | null;
+  total_points: number | null;
+  submitted_at: string;
+  answers: {
+    question_id: string;
+    answer_value: any;
+    points_awarded: number | null;
+  }[];
+}
+
+export function useCampaignResponses(campaignId: string, isClosed: boolean) {
+  return useQuery({
+    queryKey: ['campaigns', campaignId, 'responses'],
+    queryFn: async () => {
+      const response = await apiClient.get<CampaignUserResponse[]>(`/campaigns/${campaignId}/responses`);
+      return response.data;
+    },
+    enabled: !!campaignId && isClosed,
+  });
+}
+
 // ── Admin hooks ──────────────────────────────────────────────────────────────
 
 export function useAdminCampaigns() {

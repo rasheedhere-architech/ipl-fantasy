@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Megaphone, CheckCircle, Lock, Trophy, Star, Hash } from 'lucide-react';
 import { useCampaigns, type Campaign } from '../api/hooks/useCampaigns';
@@ -26,7 +27,7 @@ function StatusBadge({ status }: { status: Campaign['status'] }) {
 function CampaignCard({ campaign }: { campaign: Campaign }) {
   const navigate = useNavigate();
   const hasResponded = !!campaign.my_response;
-  const isClosed = campaign.status === 'closed';
+  const isClosed = campaign.status === 'closed' || (campaign.ends_at ? new Date(campaign.ends_at) <= new Date() : false);
 
   return (
     <button
@@ -96,6 +97,7 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
 
 export default function Campaigns() {
   const { data: campaigns, isLoading, error } = useCampaigns();
+  const [activeTab, setActiveTab] = useState<'active' | 'past'>('active');
 
   if (isLoading) {
     return (
@@ -113,41 +115,84 @@ export default function Campaigns() {
   }
 
   const now = new Date().getTime();
+
   const active = campaigns?.filter(c => {
     if (c.status !== 'active') return false;
     if (c.ends_at && new Date(c.ends_at).getTime() < now) return false;
     return true;
   }) ?? [];
 
+  const past = campaigns?.filter(c => {
+    if (c.status === 'closed') return true;
+    if (c.ends_at && new Date(c.ends_at).getTime() < now) return true;
+    return false;
+  }) ?? [];
+
   return (
     <div className="space-y-12 max-w-5xl mx-auto pb-20">
-      <header>
-        <h1 className="text-3xl font-display text-white border-b-2 border-white/10 pb-4 flex items-center gap-3">
-          <Megaphone className="w-7 h-7 text-ipl-gold" />
-          CAMPAIGNS
-        </h1>
-        <p className="text-gray-500 text-xs font-display uppercase tracking-[0.2em] mt-2">
-          Predict, answer, earn points
-        </p>
+      <header className="flex flex-col md:flex-row md:items-end justify-between border-b-2 border-white/10 pb-4 gap-4">
+        <div>
+          <h1 className="text-3xl font-display text-white flex items-center gap-3">
+            <Megaphone className="w-7 h-7 text-ipl-gold" />
+            CAMPAIGNS
+          </h1>
+          <p className="text-gray-500 text-xs font-display uppercase tracking-[0.2em] mt-2">
+            Predict, answer, earn points
+          </p>
+        </div>
+
+        {/* Beautiful tabs switcher */}
+        <div className="flex bg-white/5 p-1 rounded-lg border border-white/10 shrink-0 self-start md:self-end">
+          <button
+            onClick={() => setActiveTab('active')}
+            className={`px-6 py-2 rounded-md text-[10px] font-bold uppercase transition-all duration-300 font-display tracking-widest ${
+              activeTab === 'active'
+                ? 'bg-ipl-gold text-black shadow-lg scale-105'
+                : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            Active ({active.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('past')}
+            className={`px-6 py-2 rounded-md text-[10px] font-bold uppercase transition-all duration-300 font-display tracking-widest ${
+              activeTab === 'past'
+                ? 'bg-ipl-gold text-black shadow-lg scale-105'
+                : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            History ({past.length})
+          </button>
+        </div>
       </header>
 
-      {/* Active */}
+      {/* Content */}
       <section className="space-y-6">
-        <div className="flex items-center gap-3 border-l-4 border-ipl-live pl-4">
-          <div className="w-2 h-2 rounded-full bg-ipl-live animate-pulse" />
-          <h2 className="text-xl font-display text-white tracking-widest uppercase">Active</h2>
-        </div>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {active.length === 0 ? (
-            <div className="glass-panel p-8 text-center border-dashed border-2 border-white/5 opacity-50 col-span-full">
-              <p className="text-gray-500 font-display text-xs uppercase tracking-[0.2em]">
-                No active campaigns right now
-              </p>
-            </div>
-          ) : (
-            active.map(c => <CampaignCard key={c.id} campaign={c} />)
-          )}
-        </div>
+        {activeTab === 'active' ? (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {active.length === 0 ? (
+              <div className="glass-panel p-8 text-center border-dashed border-2 border-white/5 opacity-50 col-span-full">
+                <p className="text-gray-500 font-display text-xs uppercase tracking-[0.2em]">
+                  No active campaigns right now
+                </p>
+              </div>
+            ) : (
+              active.map(c => <CampaignCard key={c.id} campaign={c} />)
+            )}
+          </div>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {past.length === 0 ? (
+              <div className="glass-panel p-8 text-center border-dashed border-2 border-white/5 opacity-50 col-span-full">
+                <p className="text-gray-500 font-display text-xs uppercase tracking-[0.2em]">
+                  No past campaigns found
+                </p>
+              </div>
+            ) : (
+              past.map(c => <CampaignCard key={c.id} campaign={c} />)
+            )}
+          </div>
+        )}
       </section>
     </div>
   );

@@ -1,6 +1,6 @@
 import uuid
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import Any, Optional
@@ -94,8 +94,8 @@ def _serialize_campaign(campaign: Campaign, my_response: CampaignResponse | None
             "scoring_rules": q.scoring_rules,
             "order_index": q.order_index,
             "is_mandatory": q.is_mandatory,
-            # Only expose correct_answer if campaign is closed
-            "correct_answer": q.correct_answer if campaign.status == CampaignStatus.closed else None,
+            # Only expose correct_answer if campaign is closed or has ended
+            "correct_answer": q.correct_answer if (campaign.status == CampaignStatus.closed or datetime.now(timezone.utc) >= campaign.ends_at) else None,
         }
         for q in campaign.questions
     ]
@@ -518,6 +518,44 @@ async def get_campaign(
     )
     my_response = resp_result.scalars().first()
     return _serialize_campaign(campaign, my_response)
+
+
+@router.get("/{campaign_id}/responses")
+async def get_campaign_responses(
+    campaign_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+    campaign = result.scalars().first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if campaign.status != CampaignStatus.closed and datetime.now(timezone.utc) < campaign.ends_at:
+        raise HTTPException(status_code=403, detail="Predictions can only be viewed after the campaign is closed or has ended")
+
+    result = await db.execute(
+        select(CampaignResponse, User.name, User.avatar_url)
+        .join(User, CampaignResponse.user_id == User.id)
+        .where(CampaignResponse.campaign_id == campaign_id)
+        .options(selectinload(CampaignResponse.answers))
+        .order_by(CampaignResponse.total_points.desc().nullslast(), CampaignResponse.submitted_at)
+    )
+    rows = result.all()
+    return [
+        {
+            "id": r.id,
+            "user_id": r.user_id,
+            "user_name": u_name,
+            "user_avatar": u_avatar,
+            "total_points": r.total_points,
+            "submitted_at": r.submitted_at,
+            "answers": [
+                {"question_id": a.question_id, "answer_value": a.answer_value, "points_awarded": a.points_awarded}
+                for a in r.answers
+            ],
+        }
+        for (r, u_name, u_avatar) in rows
+    ]
 
 
 @router.post("/{campaign_id}/respond", status_code=status.HTTP_201_CREATED)

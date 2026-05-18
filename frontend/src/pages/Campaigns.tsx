@@ -129,7 +129,7 @@ export default function Campaigns() {
   }) ?? [];
 
   return (
-    <div className="space-y-12 max-w-5xl mx-auto pb-20">
+    <div className="space-y-12 pb-20">
       <header className="flex flex-col md:flex-row md:items-end justify-between border-b-2 border-white/10 pb-4 gap-4">
         <div>
           <h1 className="text-3xl font-display text-white flex items-center gap-3">

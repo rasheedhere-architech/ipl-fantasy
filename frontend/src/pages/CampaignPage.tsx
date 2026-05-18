@@ -273,7 +273,7 @@ export default function CampaignPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto pb-20 space-y-8">
+    <div className="pb-20 space-y-8">
       {/* Header */}
       <header>
         <button
